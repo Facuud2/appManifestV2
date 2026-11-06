@@ -1,0 +1,8 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/ai/voice-synthesize/route": "/api/ai/voice-synthesize",
+  "/api/ai/rampage/route": "/api/ai/rampage",
+  "/api/ai/transcribe/route": "/api/ai/transcribe",
+  "/api/sync/route": "/api/sync",
+  "/page": "/"
+}

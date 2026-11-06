@@ -1,0 +1,102 @@
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  darkMode: 'class',
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
+  content: [
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/features/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    extend: {
+      minHeight: {
+        screen: '100dvh',
+      },
+      height: {
+        screen: '100dvh',
+      },
+      colors: {
+        swiss: {
+          base: "var(--color-base)",
+          surface: "var(--color-surface)",
+          card: "var(--color-surface-card)",
+          elevated: "var(--color-surface-elevated)",
+          nav: "var(--color-surface-nav)",
+          border: "var(--border-subtle)",
+          borderStrong: "var(--border-strong)",
+          control: "var(--control-bg)",
+          controlHover: "var(--control-hover)",
+          ink: "var(--color-ink)",
+          inkMuted: "var(--color-ink-muted)",
+          inkLight: "var(--color-ink-light)",
+          accent: "var(--color-accent)",
+          accentFg: "var(--color-accent-fg)",
+          red: "var(--color-swiss-red)",
+          success: "var(--color-success)",
+          warning: "var(--color-warning)",
+          focus: "var(--focus-ring)",
+          glass: "var(--color-surface-card)",
+          glassElevated: "var(--color-surface-elevated)",
+          actionLavender: "var(--color-action-lavender)",
+          actionBlue: "var(--color-action-blue)",
+          actionPeach: "var(--color-action-peach)",
+        },
+        // Semantic aliases ensuring backward compatibility
+        manifest: {
+          base: "var(--color-base)",
+          surface: "var(--color-surface)",
+          cardBg: "var(--color-surface-card)",
+          surfaceElevated: "var(--color-surface-elevated)",
+          surfaceNav: "var(--color-surface-nav)",
+          glassBorder: "var(--border-subtle)",
+          glassBorderHover: "var(--border-strong)",
+          ink: "var(--color-ink)",
+          inkMuted: "var(--color-ink-muted)",
+          inkLight: "var(--color-ink-light)",
+        },
+      },
+      fontFamily: {
+        sans: ["var(--font-body)"],
+        display: ["var(--font-display)"],
+        mono: ["var(--font-mono)"],
+      },
+      borderRadius: {
+        none: '0px',
+        xs: '3px',
+        sm: 'var(--radius-control)',
+        DEFAULT: 'var(--radius-control)',
+        md: 'var(--radius-control)',
+        lg: 'var(--radius-card)',
+        xl: 'var(--radius-card)',
+        '2xl': 'var(--radius-modal)',
+        full: '9999px',
+      },
+      spacing: {
+        page: "var(--space-page)",
+        card: "var(--space-card)",
+        section: "var(--space-section)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        dropdown: "var(--shadow-dropdown)",
+        modal: "var(--shadow-modal)",
+        none: "none",
+      },
+      letterSpacing: {
+        tighter: '-0.04em',
+        tight: '-0.02em',
+        normal: '0em',
+        wide: '0.04em',
+        wider: '0.08em',
+        widest: '0.12em',
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
