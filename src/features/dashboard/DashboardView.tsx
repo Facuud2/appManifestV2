@@ -127,7 +127,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="relative z-10 max-w-xl lg:pr-8">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-swiss-border bg-swiss-control px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-swiss-accent">
             <Sparkles aria-hidden="true" size={13} />
-            <span>Un espacio para vos</span>
           </div>
           <h1
             id="dashboard-title"

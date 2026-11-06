@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeSpeechWithGemini38FlashTTS } from '@/lib/gemini';
+import { turso } from '@/lib/turso';
+import { VoiceProfileMeta } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { text, matchedVoice, detectedTone, userScope } = body;
+    const { text, profileId } = body;
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -14,12 +16,30 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (profileId !== 'facu' && profileId !== 'maia') {
+      return NextResponse.json({ success: false, error: 'Perfil de voz inválido' }, { status: 400 });
+    }
+
+    const profile = await turso.execute({
+      sql: 'SELECT voice_tone_profile FROM profiles WHERE id = ?;',
+      args: [profileId],
+    });
+    let voiceProfile: VoiceProfileMeta | null = null;
+    const storedProfile = profile.rows[0]?.voice_tone_profile;
+    if (typeof storedProfile === 'string') {
+      try {
+        voiceProfile = JSON.parse(storedProfile) as VoiceProfileMeta;
+      } catch {
+        throw new Error(`El perfil de voz de ${profileId} tiene datos inválidos`);
+      }
+    }
 
     const { wavBuffer, voiceUsed, source } = await synthesizeSpeechWithGemini38FlashTTS({
       text,
-      matchedVoice,
-      detectedTone,
-      userScope,
+      geminiVoiceId: voiceProfile?.geminiVoiceId,
+      matchedVoice: voiceProfile?.matchedVoice,
+      detectedTone: voiceProfile?.detectedTone,
+      userScope: profileId,
     });
 
     return new Response(new Uint8Array(wavBuffer), {
@@ -29,13 +49,13 @@ export async function POST(req: NextRequest) {
         'Content-Length': wavBuffer.length.toString(),
         'X-Voice-Used': voiceUsed,
         'X-AI-Source': source,
-        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+        'Cache-Control': 'no-store',
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API /api/ai/voice-synthesize] Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Error en síntesis vocal' },
+      { success: false, error: error instanceof Error ? error.message : 'Error en síntesis vocal' },
       { status: 500 }
     );
   }

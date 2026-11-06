@@ -12,9 +12,13 @@ export async function GET(req: NextRequest) {
     let whereClause = '';
     const args: string[] = [];
 
+    if (scope && !['facu', 'maia', 'shared'].includes(scope)) {
+      return NextResponse.json({ success: false, error: 'Invalid profile scope' }, { status: 400 });
+    }
+
     if (scope && scope !== 'shared') {
-      whereClause = 'WHERE user_id = ? OR user_id = "shared"';
-      args.push(scope);
+      whereClause = 'WHERE user_id = ? OR user_id = ?';
+      args.push(scope, 'shared');
     }
 
     const [

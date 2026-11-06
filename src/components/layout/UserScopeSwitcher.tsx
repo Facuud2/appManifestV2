@@ -8,7 +8,13 @@ import { Check, ChevronDown, Users } from 'lucide-react';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
 
 export const UserScopeSwitcher: React.FC = () => {
-  const { activeScope, setActiveScope, isFacuCalibrated, isMaiaCalibrated } = useAppStore();
+  const {
+    activeScope,
+    setActiveScope,
+    isFacuCalibrated,
+    isMaiaCalibrated,
+    isVoiceCaptureLocked,
+  } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -22,6 +28,10 @@ export const UserScopeSwitcher: React.FC = () => {
   const activeLabel = scopes.find((scope) => scope.id === activeScope)?.label ?? 'Perfil';
 
   useEffect(() => {
+    if (isVoiceCaptureLocked) {
+      setIsOpen(false);
+      return;
+    }
     if (!isOpen) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -32,7 +42,7 @@ export const UserScopeSwitcher: React.FC = () => {
 
     document.addEventListener('pointerdown', closeOnOutsideClick);
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
-  }, [isOpen]);
+  }, [isOpen, isVoiceCaptureLocked]);
 
   return (
     <div
@@ -48,11 +58,12 @@ export const UserScopeSwitcher: React.FC = () => {
       <button
         ref={triggerRef}
         type="button"
+        disabled={isVoiceCaptureLocked}
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
         aria-haspopup="true"
         aria-label={`Perfil actual: ${activeLabel}. Cambiar perfil`}
-        className="swiss-pill inline-flex min-h-11 items-center gap-2 px-2.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-swiss-focus"
+        className="swiss-pill inline-flex min-h-11 items-center gap-2 px-2.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-swiss-focus disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-swiss-actionLavender text-xs font-semibold text-swiss-accent">
           {activeScope === 'shared' ? <Users aria-hidden="true" size={15} /> : activeLabel[0]}
@@ -80,6 +91,7 @@ export const UserScopeSwitcher: React.FC = () => {
               <button
                 key={scope.id}
                 type="button"
+                disabled={isVoiceCaptureLocked}
                 aria-pressed={activeScope === scope.id}
                 onClick={() => {
                   setActiveScope(scope.id);

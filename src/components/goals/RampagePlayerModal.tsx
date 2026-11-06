@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { audioEngine, AmbienceType } from '@/lib/audioEngine';
-import { getVoiceProfileMeta } from '@/lib/voiceStorage';
 import { EMIL_EASE_OUT, IOS_TAP_SPRING } from '@/lib/iosSprings';
 
 interface RampagePlayerModalProps {
@@ -55,6 +54,12 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const [currentAffirmationIndex, setCurrentAffirmationIndex] = useState(0);
   const [currentVoiceSpeaker, setCurrentVoiceSpeaker] = useState<'maia' | 'facu'>('facu');
   const [isLoadingNextBatch, setIsLoadingNextBatch] = useState(false);
+  const [generationSource, setGenerationSource] = useState<'GEMINI_LIVE' | 'LOCAL_FALLBACK' | null>(
+    null
+  );
+  const [generationError, setGenerationError] = useState('');
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [playbackError, setPlaybackError] = useState('');
   const [loopCount, setLoopCount] = useState(0);
   const prefersReducedMotion = useReducedMotion();
   const reactiveHaloEnergy = useMotionValue(0);
@@ -75,9 +80,75 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     damping: 25,
   });
   const dialogRef = useRef<HTMLDivElement>(null);
+  const affirmationQueueRef = useRef<string[]>([]);
+  const batchLoadingRef = useRef(false);
+  const generationFailedRef = useRef(false);
+  const batchAbortRef = useRef<AbortController | null>(null);
+  const playbackRequestRef = useRef(0);
+  const ttsAbortRef = useRef<AbortController | null>(null);
+  const generatedAudioCacheRef = useRef(new Map<string, AudioBuffer>());
+  const nextAffirmationTimerRef = useRef<number | null>(null);
 
   const isPlayingRef = useRef(false);
   isPlayingRef.current = isPlaying;
+
+  const fetchMoreAffirmations = useCallback(
+    async (replaceQueue = false, retry = false) => {
+      if (batchLoadingRef.current || (generationFailedRef.current && !retry)) return;
+      batchLoadingRef.current = true;
+      setIsLoadingNextBatch(true);
+      setGenerationError('');
+      const controller = new AbortController();
+      batchAbortRef.current = controller;
+
+      try {
+        const response = await fetch('/api/ai/rampage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            centralTheme,
+            userScope: activeScope,
+            userAffirmations: userSavedAffirmations.slice(0, 5).map((affirmation) => affirmation.text),
+            batchSize: 4,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !Array.isArray(result.data?.affirmations)) {
+          throw new Error(result.error || 'No se pudieron generar afirmaciones para Rampage.');
+        }
+
+        const generated = result.data.affirmations
+          .filter((affirmation: unknown): affirmation is string => typeof affirmation === 'string')
+          .map((affirmation: string) => affirmation.trim())
+          .filter(Boolean);
+        if (generated.length === 0) {
+          throw new Error('Gemini no devolvió afirmaciones válidas.');
+        }
+
+        const nextQueue = replaceQueue ? generated : [...affirmationQueueRef.current, ...generated];
+        affirmationQueueRef.current = nextQueue;
+        setAffirmationQueue(nextQueue);
+        setGenerationSource(
+          result.data.source === 'LOCAL_FALLBACK' ? 'LOCAL_FALLBACK' : 'GEMINI_LIVE'
+        );
+        generationFailedRef.current = false;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        generationFailedRef.current = true;
+        setGenerationError(
+          error instanceof Error ? error.message : 'Error al generar afirmaciones.'
+        );
+      } finally {
+        if (batchAbortRef.current === controller) {
+          batchAbortRef.current = null;
+          batchLoadingRef.current = false;
+          setIsLoadingNextBatch(false);
+        }
+      }
+    },
+    [activeScope, centralTheme, userSavedAffirmations]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -123,28 +194,36 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
+      playbackRequestRef.current += 1;
+      ttsAbortRef.current?.abort();
+      batchAbortRef.current?.abort();
+      batchAbortRef.current = null;
+      batchLoadingRef.current = false;
+      if (nextAffirmationTimerRef.current !== null) {
+        window.clearTimeout(nextAffirmationTimerRef.current);
+        nextAffirmationTimerRef.current = null;
+      }
+      isPlayingRef.current = false;
+      generatedAudioCacheRef.current.clear();
       if (audioEngine) {
         audioEngine.stopVoice();
         audioEngine.stopAmbience();
       }
       setIsPlaying(false);
+      setIsLoadingNextBatch(false);
+      setIsSynthesizing(false);
       return;
     }
 
-    const initialPool =
-      userSavedAffirmations.length > 0
-        ? userSavedAffirmations.map((affirmation) => affirmation.text)
-        : [
-            'Soy abundancia viva.',
-            'Todo se alinea perfecto.',
-            'Merezco todo lo bueno.',
-            'Mi mente está en paz.',
-            'Siempre elijo mi poder.',
-            'Soy deseado y amado.',
-          ];
-
-    setAffirmationQueue(initialPool);
+    affirmationQueueRef.current = [];
+    generatedAudioCacheRef.current.clear();
+    setAffirmationQueue([]);
     setCurrentAffirmationIndex(0);
+    setLoopCount(0);
+    setPlaybackError('');
+    setGenerationError('');
+    setGenerationSource(null);
+    generationFailedRef.current = false;
 
     if (activeScope === 'maia') {
       setCurrentVoiceSpeaker('maia');
@@ -155,7 +234,14 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     } else {
       setCurrentVoiceSpeaker('facu');
     }
-  }, [isOpen, activeScope, isFacuCalibrated, isMaiaCalibrated, userSavedAffirmations]);
+    void fetchMoreAffirmations(true);
+  }, [
+    activeScope,
+    fetchMoreAffirmations,
+    isFacuCalibrated,
+    isMaiaCalibrated,
+    isOpen,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -180,35 +266,11 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
   }, [isOpen, isPlaying, ambientSound]);
 
-  const fetchMoreAffirmations = async () => {
-    if (isLoadingNextBatch) return;
-    setIsLoadingNextBatch(true);
-    try {
-      const response = await fetch('/api/ai/rampage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          centralTheme,
-          userScope: activeScope,
-          userAffirmations: userSavedAffirmations.slice(0, 5).map((affirmation) => affirmation.text),
-          batchSize: 4,
-        }),
-      });
-      const json = await response.json();
-      if (json.success && Array.isArray(json.data?.affirmations)) {
-        setAffirmationQueue((previous) => [...previous, ...json.data.affirmations]);
-      }
-    } catch (error) {
-      console.warn('[Rampage] Error fetching next batch:', error);
-    } finally {
-      setIsLoadingNextBatch(false);
-    }
-  };
+  const playCurrentItem = async (index: number) => {
+    const queue = affirmationQueueRef.current;
+    if (!audioEngine || index >= queue.length) return;
 
-  const playCurrentItem = (index: number) => {
-    if (!audioEngine || index >= affirmationQueue.length) return;
-
-    const text = affirmationQueue[index];
+    const text = queue[index];
     if (!text) return;
 
     let speaker: 'maia' | 'facu' = 'facu';
@@ -220,79 +282,174 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       speaker = 'maia';
     } else if (!isMaiaCalibrated && isFacuCalibrated) {
       speaker = 'facu';
+    } else if (!isMaiaCalibrated && !isFacuCalibrated) {
+      speaker = 'facu';
     } else {
       speaker = index % 2 === 0 ? 'facu' : 'maia';
     }
 
     setCurrentVoiceSpeaker(speaker);
+    const cacheKey = `${speaker}:${text}`;
+    const requestId = ++playbackRequestRef.current;
+    ttsAbortRef.current?.abort();
+    const controller = new AbortController();
+    ttsAbortRef.current = controller;
+    setIsSynthesizing(true);
+    setPlaybackError('');
 
-    const voiceMeta = getVoiceProfileMeta(speaker);
-    const pitch = voiceMeta?.detectedPitch ?? (speaker === 'maia' ? 1.08 : 0.95);
-    const gender = speaker === 'maia' ? ('female' as const) : ('male' as const);
-
-    audioEngine.speakVoice(
-      text,
-      { pitch, rate: 0.88, gender },
-      () => {
-        if (!isPlayingRef.current) return;
-        setTimeout(() => {
-          if (!isPlayingRef.current) return;
-          const nextIndex = (index + 1) % Math.max(1, affirmationQueue.length);
-          setCurrentAffirmationIndex(nextIndex);
-          setLoopCount((count) => count + 1);
-
-          if (nextIndex >= affirmationQueue.length - 2) {
-            fetchMoreAffirmations();
-          }
-
-          playCurrentItem(nextIndex);
-        }, 1200);
+    try {
+      let audio = generatedAudioCacheRef.current.get(cacheKey);
+      if (!audio) {
+        const response = await fetch('/api/ai/voice-synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ profileId: speaker, text }),
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => null);
+          throw new Error(result?.error || 'No se pudo generar la voz de esta afirmación.');
+        }
+        const decodedAudio = await audioEngine.decodeAudio(await response.arrayBuffer());
+        audio = decodedAudio;
+        if (generatedAudioCacheRef.current.size >= 64) {
+          const oldestKey = generatedAudioCacheRef.current.keys().next().value;
+          if (oldestKey) generatedAudioCacheRef.current.delete(oldestKey);
+        }
+        generatedAudioCacheRef.current.set(cacheKey, decodedAudio);
       }
-    );
+
+      if (!audio) throw new Error('No se pudo preparar el audio.');
+      if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
+      setIsSynthesizing(false);
+      void audioEngine.playVoice(
+        audio,
+        () => {
+          if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
+          nextAffirmationTimerRef.current = window.setTimeout(() => {
+            if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
+            const latestQueue = affirmationQueueRef.current;
+            if (latestQueue.length === 0) return;
+            const nextIndex = (index + 1) % latestQueue.length;
+            setCurrentAffirmationIndex(nextIndex);
+            setLoopCount((count) => count + 1);
+
+            if (nextIndex >= latestQueue.length - 2) {
+              void fetchMoreAffirmations();
+            }
+
+            void playCurrentItem(nextIndex);
+          }, 1200);
+        },
+        (error: Error) => {
+          if (requestId !== playbackRequestRef.current) return;
+          isPlayingRef.current = false;
+          setIsPlaying(false);
+          setIsSynthesizing(false);
+          setPlaybackError(error.message);
+        }
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (requestId !== playbackRequestRef.current) return;
+      setIsSynthesizing(false);
+      setPlaybackError(error instanceof Error ? error.message : 'Error al generar audio.');
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      audioEngine.stopVoice();
+    }
   };
 
   const togglePlayback = async () => {
-    if (!audioEngine || affirmationQueue.length === 0) return;
+    const queue = affirmationQueueRef.current;
+    if (!audioEngine || queue.length === 0) return;
     await audioEngine.unlock(); // taste-skill-ignore: Resume the audio context from the user's playback gesture.
 
     if (isPlaying) {
+      isPlayingRef.current = false;
+      playbackRequestRef.current += 1;
+      ttsAbortRef.current?.abort();
+      if (nextAffirmationTimerRef.current !== null) {
+        window.clearTimeout(nextAffirmationTimerRef.current);
+        nextAffirmationTimerRef.current = null;
+      }
       audioEngine.stopVoice();
       audioEngine.stopAmbience();
       setIsPlaying(false);
+      setIsSynthesizing(false);
     } else {
+      setPlaybackError('');
       setIsPlaying(true);
       isPlayingRef.current = true;
-      playCurrentItem(currentAffirmationIndex);
+      void playCurrentItem(currentAffirmationIndex);
     }
   };
 
   const handleSkipForward = () => {
-    if (!audioEngine || affirmationQueue.length === 0) return;
+    const queue = affirmationQueueRef.current;
+    if (!audioEngine || queue.length === 0) return;
+    playbackRequestRef.current += 1;
+    ttsAbortRef.current?.abort();
+    if (nextAffirmationTimerRef.current !== null) {
+      window.clearTimeout(nextAffirmationTimerRef.current);
+      nextAffirmationTimerRef.current = null;
+    }
     audioEngine.stopVoice();
-    const nextIndex = (currentAffirmationIndex + 1) % affirmationQueue.length;
+    const nextIndex = (currentAffirmationIndex + 1) % queue.length;
     setCurrentAffirmationIndex(nextIndex);
-    if (isPlaying) {
-      playCurrentItem(nextIndex);
+    if (isPlayingRef.current) {
+      void playCurrentItem(nextIndex);
+    } else {
+      const speaker =
+        activeScope === 'maia'
+          ? 'maia'
+          : activeScope === 'facu'
+            ? 'facu'
+            : isMaiaCalibrated && !isFacuCalibrated
+              ? 'maia'
+              : 'facu';
+      setCurrentVoiceSpeaker(speaker);
     }
   };
 
   function handleClose() {
+    playbackRequestRef.current += 1;
+    ttsAbortRef.current?.abort();
+    batchAbortRef.current?.abort();
+    batchAbortRef.current = null;
+    batchLoadingRef.current = false;
+    if (nextAffirmationTimerRef.current !== null) {
+      window.clearTimeout(nextAffirmationTimerRef.current);
+      nextAffirmationTimerRef.current = null;
+    }
     if (audioEngine) {
       audioEngine.stopVoice();
       audioEngine.stopAmbience();
     }
     isPlayingRef.current = false;
     setIsPlaying(false);
+    setIsLoadingNextBatch(false);
+    setIsSynthesizing(false);
     onClose();
   }
 
   const currentAffirmation =
     affirmationQueue[currentAffirmationIndex] || 'Alineando frecuencias...';
-  const statusLabel = isLoadingNextBatch
-    ? 'Preparando nuevas frases'
-    : isPlaying
-      ? 'Sonando ahora'
-      : 'Listo para empezar';
+  const statusLabel = playbackError
+    ? 'No se pudo reproducir el audio'
+    : isSynthesizing
+      ? 'Preparando la voz de este perfil…'
+      : isPlaying
+        ? 'Sonando ahora'
+        : isLoadingNextBatch
+          ? affirmationQueue.length === 0
+            ? 'Creando afirmaciones con Gemini 3.5…'
+            : 'Preparando nuevas frases'
+          : generationError && affirmationQueue.length === 0
+            ? 'No se pudieron preparar las frases'
+            : generationSource === 'LOCAL_FALLBACK'
+              ? 'Frases de muestra · Gemini no disponible'
+              : 'Listo para empezar';
   const waveBars = Array.from({ length: 19 }, (_, index) => index);
 
   return (
@@ -398,6 +555,26 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
               >
                 {statusLabel}
               </p>
+              {playbackError ? (
+                <p role="alert" className="mb-3 max-w-xl text-sm text-[var(--color-danger)]">
+                  {playbackError}
+                </p>
+              ) : null}
+              {generationError ? (
+                <div className="mb-3 flex max-w-xl flex-wrap items-center justify-center gap-3 text-sm text-[var(--color-danger)]">
+                  <p role="alert">{generationError}</p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void fetchMoreAffirmations(affirmationQueue.length === 0, true)
+                    }
+                    disabled={isLoadingNextBatch}
+                    className="rounded-full border border-current px-4 py-2 font-medium transition-opacity hover:opacity-75 disabled:opacity-50"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : null}
               <div className="flex min-h-[6.5rem] max-w-2xl items-center justify-center">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.h1

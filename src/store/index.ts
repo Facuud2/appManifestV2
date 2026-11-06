@@ -10,7 +10,11 @@ import {
   AmbientSoundType,
   VoiceProfileMeta,
 } from '@/types';
-import { isProfileCalibrated, getVoiceProfileMeta } from '@/lib/voiceStorage';
+import {
+  getVoiceProfileMeta,
+  isProfileCalibrated,
+  saveVoiceProfileMeta,
+} from '@/lib/voiceStorage';
 
 export interface ProgressLog {
   id: string;
@@ -39,6 +43,8 @@ export interface ManifestationItem {
 interface AppState {
   activeScope: UserScope;
   setActiveScope: (scope: UserScope) => void;
+  isVoiceCaptureLocked: boolean;
+  setVoiceCaptureLocked: (locked: boolean) => void;
 
   // Theme mode (Liquid Glass light / dark / system)
   themeMode: 'system' | 'light' | 'dark';
@@ -87,9 +93,12 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   activeScope: 'facu',
   setActiveScope: (scope) => {
+    if (get().isVoiceCaptureLocked) return;
     set({ activeScope: scope });
     get().fetchRemoteData();
   },
+  isVoiceCaptureLocked: false,
+  setVoiceCaptureLocked: (isVoiceCaptureLocked) => set({ isVoiceCaptureLocked }),
 
   themeMode: 'system',
   setThemeMode: (mode) => {
@@ -136,16 +145,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isLoading: true });
       const scope = get().activeScope;
       const res = await fetch(`/api/sync?scope=${scope}&t=${Date.now()}`);
-      if (!res.ok) return;
       const json = await res.json();
-      if (json.success && json.data) {
-        set({
-          manifestations: json.data.manifestations || [],
-          progressLogs: json.data.progressLogs || [],
-          successStories: json.data.successStories || [],
-          affirmations: json.data.affirmations || [],
-          rampageSets: json.data.rampageSets || [],
-        });
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.error || `Sync failed with status ${res.status}`);
+      }
+
+      set({
+        manifestations: json.data.manifestations || [],
+        progressLogs: json.data.progressLogs || [],
+        successStories: json.data.successStories || [],
+        affirmations: json.data.affirmations || [],
+        rampageSets: json.data.rampageSets || [],
+      });
+      for (const profile of json.data.profiles || []) {
+        if (
+          (profile.id === 'facu' || profile.id === 'maia') &&
+          profile.voiceToneProfile?.isCalibrated
+        ) {
+          saveVoiceProfileMeta(profile.id, profile.voiceToneProfile);
+        }
       }
     } catch (e) {
       console.warn('[Store] Sync error:', e);

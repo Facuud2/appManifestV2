@@ -16,6 +16,7 @@ export interface VoiceProfileMeta {
   detectedPitch?: number; // 0.75 - 1.25 for SpeechSynthesisUtterance.pitch
   fundamentalFrequency?: number; // e.g. 150 Hz
   matchedVoice?: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Aoede' | string;
+  geminiVoiceId?: string;
   isCalibrated: boolean;
 }
 

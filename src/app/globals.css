@@ -33,6 +33,7 @@
   --color-swiss-red: #a51f47;
   --color-success: #176746;
   --color-warning: #795000;
+  --color-danger: #a51f47;
   --focus-ring: #65439c;
   --focus-ring-offset: #fbf8fe;
   --color-action-lavender: #f0e8fc;
@@ -125,6 +126,7 @@
   --color-swiss-red: #ff91a9;
   --color-success: #74d8aa;
   --color-warning: #f2c56b;
+  --color-danger: #ff91a9;
   --focus-ring: #d4bdf8;
   --focus-ring-offset: #201b28;
   --color-action-lavender: #42334e;
@@ -370,6 +372,75 @@ h1, h2, h3, h4, .font-display {
   max-height: min(90dvh, 52rem);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.voice-calibration-modal {
+  gap: var(--space-card);
+  max-height: min(94dvh, 58rem);
+}
+
+.voice-calibration-orb {
+  background: radial-gradient(
+    ellipse at 35% 28%,
+    color-mix(in srgb, var(--color-accent) 46%, white),
+    var(--color-accent) 58%,
+    color-mix(in srgb, var(--color-accent) 60%, var(--color-ink)) 100%
+  );
+  box-shadow:
+    0 0 34px color-mix(in srgb, var(--color-accent) 32%, transparent),
+    inset 0 1px 2px rgba(255, 255, 255, 0.48);
+}
+
+.voice-calibration-orb[data-recording="true"] {
+  animation: voice-orb-breathe 1.6s ease-in-out infinite;
+}
+
+.voice-calibration-orb-ring {
+  border: 1px solid color-mix(in srgb, var(--color-accent) 38%, transparent);
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.voice-calibration-orb[data-recording="true"] .voice-calibration-orb-ring {
+  animation: voice-orb-ring 1.8s var(--ease-out) infinite;
+}
+
+.voice-calibration-orb[data-recording="true"] .voice-calibration-orb-ring-delayed {
+  animation-delay: 900ms;
+}
+
+.voice-calibration-visualizer {
+  contain: layout paint;
+}
+
+.voice-calibration-meter-bar {
+  width: 2px;
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(to top, var(--color-accent), color-mix(in srgb, var(--color-accent) 48%, white));
+  transform: scaleY(0.18);
+  transform-origin: center;
+  transition: transform 70ms linear;
+}
+
+@keyframes voice-orb-breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes voice-orb-ring {
+  0% {
+    opacity: 0.46;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.13);
+  }
 }
 
 .swiss-composer-scrim {
@@ -713,7 +784,9 @@ button:disabled {
   .animate-pulse,
   .animate-spin,
   .rampage-wave-bar,
-  .dashboard-orb-breathe {
+  .dashboard-orb-breathe,
+  .voice-calibration-orb,
+  .voice-calibration-orb-ring {
     animation: none !important;
   }
 

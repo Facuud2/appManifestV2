@@ -272,7 +272,8 @@ class ManifestAudioEngine {
 
   public async playVoice(
     audioSource: AudioBuffer | string,
-    onEnded?: () => void
+    onEnded?: () => void,
+    onError?: (error: Error) => void
   ): Promise<void> {
     this.stopVoice();
 
@@ -312,6 +313,7 @@ class ManifestAudioEngine {
     } catch (e) {
       console.warn('[AudioEngine] Error playing voice:', e);
       this.isVoicePlaying = false;
+      onError?.(e instanceof Error ? e : new Error('No se pudo reproducir el audio.'));
       if (onEnded) onEnded();
     }
   }

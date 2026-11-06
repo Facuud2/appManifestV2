@@ -50,6 +50,16 @@ async function run() {
     );
   `);
 
+  const ensureColumn = async (table, column, definition) => {
+    const tableInfo = await client.execute(`PRAGMA table_info(${table});`);
+    if (!tableInfo.rows.some((row) => row.name === column)) {
+      await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+      console.log(`✓ Added ${table}.${column}`);
+    }
+  };
+
+  await ensureColumn('manifestation_progress', 'voice_transcript', 'TEXT');
+
   const progressTableInfo = await client.execute('PRAGMA table_info(manifestation_progress);');
   const manifestationIdColumn = progressTableInfo.rows.find(
     (column) => column.name === 'manifestation_id'
@@ -118,6 +128,22 @@ async function run() {
       created_at TEXT NOT NULL
     );
   `);
+
+  await ensureColumn('profiles', 'avatar', 'TEXT');
+  await ensureColumn('profiles', 'voice_sample_phrases', 'TEXT');
+  await ensureColumn('profiles', 'voice_tone_profile', 'TEXT');
+  await ensureColumn('profiles', 'has_calibrated_voice', 'INTEGER DEFAULT 0');
+  await ensureColumn('manifestations', 'sensory_anchor', 'TEXT');
+  await ensureColumn('manifestations', 'target_date', 'TEXT');
+  await ensureColumn('success_stories', 'author', "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn('success_stories', 'gratitude_note', 'TEXT');
+  await ensureColumn('rampage_sets', 'theme', "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn('rampage_sets', 'affirmations_json', "TEXT NOT NULL DEFAULT '[]'");
+  await ensureColumn('rampage_sets', 'ambient_sound', "TEXT DEFAULT 'astral_rain'");
+  await ensureColumn('rampage_sets', 'is_favorite', 'INTEGER DEFAULT 0');
+  await ensureColumn('affirmations', 'category', 'TEXT');
+  await ensureColumn('affirmations', 'repeat_count', 'INTEGER DEFAULT 0');
+  await ensureColumn('affirmations', 'pinned', 'INTEGER DEFAULT 0');
 
   // Insert default profiles if they don't exist
   const now = new Date().toISOString();

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 export interface AiTelemetryResponse {
-  source: 'SANDBOX_MOCK' | 'GEMINI_LIVE';
+  source: 'SANDBOX_MOCK' | 'GEMINI_LIVE' | 'LOCAL_FALLBACK';
   totalTokens: number;
 }
 
@@ -69,76 +69,31 @@ export async function transcribeAudioWithGemini(
     throw new Error('GEMINI_API_KEY no configurada');
   }
 
+  if (!audioBuffer || audioBuffer.length < 200) {
+    throw new Error('No se recibió una grabación de audio válida');
+  }
+
   const ai = new GoogleGenAI({ apiKey });
-  const modelsToTry = [
-    'gemini-2.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.8-flash',
-  ];
+  const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
+  const response = await ai.interactions.create({
+    model: 'gemini-3.5-transcribe',
+    input: [
+      {
+        type: 'audio',
+        data: audioBuffer.toString('base64'),
+        mime_type: cleanMime,
+      },
+    ],
+  });
+  const transcription = response.output_text?.trim();
+  if (!transcription) throw new Error('Gemini no reconoció voz en la grabación');
 
-  const hasAudio = audioBuffer && audioBuffer.length > 200;
-  const base64Data = hasAudio ? audioBuffer.toString('base64') : '';
-
-  const prompt = `Actúa como un transcriptor neuro-acústico en español. Escucha el audio del usuario y devuelve un JSON con { "text": string, "detectedTone": string }.
-1. En "text": Transcribe exactamente el mensaje eliminando por completo muletillas ('eh', 'este', 'mmm', 'o sea', 'y bueno'), falsos comienzos y repeticiones involuntarias. Aplica puntuación impecable (comas, puntos, punto y coma, signos de exclamación/interrogación: ¿?, ¡!) que refleje las pausas naturales del hablante.
-2. En "detectedTone": Describe en 3 palabras la cadencia emocional de la voz (ej. 'calma, firme, íntima') para mantener esa misma energía en las afirmaciones.
-${previousTextTail ? `Contexto previo: "${previousTextTail.slice(-60)}"` : ''}
-${spokenText ? `Borrador fonético de referencia: "${spokenText}"` : ''}
-Responde ÚNICAMENTE con el objeto JSON válido: { "text": "...", "detectedTone": "..." }`;
-
-  let lastError: any = null;
-
-  for (const model of modelsToTry) {
-    try {
-      const parts: any[] = [];
-      if (hasAudio) {
-        const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
-        parts.push({
-          inlineData: {
-            mimeType: cleanMime,
-            data: base64Data,
-          },
-        });
-      }
-      parts.push({ text: prompt });
-
-      const response = await ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts }],
-        config: { responseMimeType: 'application/json' },
-      });
-
-      const raw = (response.text || '').trim();
-      const cleaned = raw.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
-      const text = String(parsed.text || '').trim();
-      const detectedTone = String(parsed.detectedTone || 'calma, firme, íntima').trim();
-
-      if (text) {
-        return {
-          text,
-          detectedTone,
-          source: 'GEMINI_LIVE',
-          totalTokens: response.usageMetadata?.totalTokenCount || 0,
-        };
-      }
-    } catch (err: any) {
-      lastError = err;
-      console.warn(`[Gemini Transcribe] Model ${model} failed:`, err?.message || err);
-    }
-  }
-
-  if (spokenText) {
-    return {
-      text: cleanSpokenText(spokenText, previousTextTail),
-      detectedTone: 'calma, firme, íntima',
-      source: 'GEMINI_LIVE',
-      totalTokens: 0,
-    };
-  }
-
-  throw lastError || new Error('No se pudo transcribir con Gemini');
+  return {
+    text: cleanSpokenText(transcription, previousTextTail),
+    detectedTone: 'calma, íntima y luminosa',
+    source: 'GEMINI_LIVE',
+    totalTokens: 0,
+  };
 }
 
 /**
@@ -149,9 +104,13 @@ export async function generateRampageWithGemini(
   userScope: string = 'shared',
   userAffirmations: string[] = [],
   batchSize: number = 3
-): Promise<{ affirmations: string[]; source: 'GEMINI_LIVE'; totalTokens: number }> {
+): Promise<{
+  affirmations: string[];
+  source: 'GEMINI_LIVE' | 'LOCAL_FALLBACK';
+  totalTokens: number;
+}> {
   const apiKey = getGeminiApiKey();
-  const count = batchSize || 3;
+  const count = Math.max(1, Math.min(10, Math.floor(Number.isFinite(batchSize) ? batchSize : 3)));
 
   if (!apiKey) {
     // Elegant fallback pool
@@ -166,16 +125,14 @@ export async function generateRampageWithGemini(
     ];
     return {
       affirmations: pool.sort(() => 0.5 - Math.random()).slice(0, count),
-      source: 'GEMINI_LIVE',
+      source: 'LOCAL_FALLBACK',
       totalTokens: 0,
     };
   }
 
   const ai = new GoogleGenAI({ apiKey });
   const modelsToTry = [
-    'gemini-2.5-flash',
     'gemini-3.5-flash-lite',
-    'gemini-3.5-flash',
     'gemini-3.8-flash',
   ];
 
@@ -203,10 +160,13 @@ REGLAS ESTRICTAS DE ESTILO SUBLIMINAL (CERO TEXTOS POÉTICOS LARGOS):
       const cleaned = raw.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
       const parsed = JSON.parse(cleaned);
 
-      const items: string[] = Array.isArray(parsed) ? parsed : parsed.affirmations || [];
-      if (items.length > 0) {
+      const items: unknown = Array.isArray(parsed) ? parsed : parsed.affirmations;
+      if (Array.isArray(items) && items.length > 0) {
         return {
-          affirmations: items.slice(0, count).map((s) => String(s).trim()),
+          affirmations: items
+            .slice(0, count)
+            .map((item) => String(item).trim())
+            .filter(Boolean),
           source: 'GEMINI_LIVE',
           totalTokens: response.usageMetadata?.totalTokenCount || 0,
         };
@@ -218,16 +178,58 @@ REGLAS ESTRICTAS DE ESTILO SUBLIMINAL (CERO TEXTOS POÉTICOS LARGOS):
 
   return {
     affirmations: ['Soy paz infinita.', 'Todo se alinea perfecto.', 'Merezco todo lo bueno.'].slice(0, count),
-    source: 'GEMINI_LIVE',
+    source: 'LOCAL_FALLBACK',
     totalTokens: 0,
   };
 }
 
 /**
- * Synthesizes speech using Gemini 3.8 Flash TTS
+ * Creates a stateful, consent-verified voice replica for one profile.
+ */
+export async function createReplicatedVoiceWithGemini(options: {
+  profileId: 'facu' | 'maia';
+  sourceAudio: Buffer;
+  consentAudio: Buffer;
+}): Promise<string> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
+
+  const ai = new GoogleGenAI({ apiKey });
+  const result = await ai.voices.create({
+    store: true,
+    voice: {
+      model: 'gemini-3.8-flash-tts',
+      type: 'replicated',
+      display_name: `Manifest Sanctuary · ${options.profileId}`,
+      replicated: {
+        source_audio: {
+          mime_type: 'audio/wav',
+          data: options.sourceAudio.toString('base64'),
+        },
+        consent_audio: {
+          mime_type: 'audio/wav',
+          data: options.consentAudio.toString('base64'),
+        },
+      },
+    },
+  });
+  if (!result.id) throw new Error('Gemini no devolvió un identificador de voz');
+  return result.id;
+}
+
+export async function deleteReplicatedVoiceWithGemini(voiceId: string): Promise<void> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
+  const ai = new GoogleGenAI({ apiKey });
+  await ai.voices.delete(voiceId);
+}
+
+/**
+ * Synthesizes speech using a replicated profile voice or a matching prebuilt voice.
  */
 export async function synthesizeSpeechWithGemini38FlashTTS(options: {
   text: string;
+  geminiVoiceId?: string;
   matchedVoice?: string;
   detectedTone?: string;
   userScope?: 'maia' | 'facu' | 'shared';
@@ -239,45 +241,38 @@ export async function synthesizeSpeechWithGemini38FlashTTS(options: {
 
   const ai = new GoogleGenAI({ apiKey });
 
-  // Intelligent voice matching according to user profile
-  let voiceName = options.matchedVoice;
-  if (!voiceName) {
-    if (options.userScope === 'maia') {
-      voiceName = 'Kore'; // Melodic gentle feminine
-    } else if (options.userScope === 'facu') {
-      voiceName = 'Charon'; // Warm calm masculine
-    } else {
-      voiceName = 'Aoede'; // Harmonious neutral
-    }
-  }
-
+  const voiceName =
+    options.geminiVoiceId ||
+    options.matchedVoice ||
+    (options.userScope === 'maia' ? 'Kore' : options.userScope === 'facu' ? 'Charon' : 'Aoede');
   const tone = options.detectedTone || 'calma profunda, hipnótica y serena';
-  const prompt = `Actúa como la voz interior de afirmaciones subconscientes y reprogramación mental profunda.
-Pronuncia la siguiente afirmación en español con una cadencia pausada, hipnótica, cálida e íntima, con tono de ${tone}.
-
-Afirmación a pronunciar:
-"${options.text.trim()}"`;
-
-  const res = await ai.models.generateContent({
+  const interaction = await ai.interactions.create({
     model: 'gemini-3.8-flash-tts',
-    contents: prompt,
-    config: {
-      responseModalities: ['AUDIO'],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName,
+    input: [
+      {
+        type: 'user_input',
+        content: [
+          {
+            type: 'text',
+            text: options.text.trim(),
+            annotations: [
+              {
+                type: 'speech_metadata',
+                style: `Pronuncia en español con una cadencia pausada, cálida e íntima, de tono ${tone}.`,
+              },
+            ],
           },
-        },
+        ],
       },
-    },
+    ],
+    response_format: { type: 'audio' },
+    generation_config: { speech_config: [{ voice: voiceName }] },
   });
 
-  const part = res.candidates?.[0]?.content?.parts?.[0];
-  const b64Data = part?.inlineData?.data;
+  const b64Data = interaction.output_audio?.data;
 
   if (!b64Data) {
-    throw new Error('No se recibió audio desde gemini-3.8-flash-tts');
+    throw new Error('No se recibió audio desde Gemini 3.8 Flash TTS');
   }
 
   const wavBuffer = Buffer.from(b64Data, 'base64');
