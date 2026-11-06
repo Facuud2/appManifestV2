@@ -17,6 +17,50 @@ export async function POST(req: NextRequest) {
           .filter(Boolean)
           .slice(0, 20)
       : [];
+    const rawManifestations: unknown[] = Array.isArray(body.userManifestations)
+      ? body.userManifestations
+      : [];
+    const userManifestations = rawManifestations
+      .filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === 'object' && item !== null
+      )
+      .map((item) => ({
+        title: typeof item.title === 'string' ? item.title.trim().slice(0, 160) : '',
+        description:
+          typeof item.description === 'string'
+            ? item.description.trim().slice(0, 500)
+            : '',
+        status: typeof item.status === 'string' ? item.status.trim().slice(0, 40) : '',
+        category:
+          typeof item.category === 'string' ? item.category.trim().slice(0, 60) : '',
+      }))
+      .filter((item) => item.title)
+      .slice(0, 15);
+
+    const rawRampages: unknown[] = Array.isArray(body.userRampages)
+      ? body.userRampages
+      : [];
+    const userRampages = rawRampages
+      .filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === 'object' && item !== null
+      )
+      .map((item) => ({
+        title: typeof item.title === 'string' ? item.title.trim().slice(0, 120) : '',
+        affirmations: Array.isArray(item.affirmations)
+          ? item.affirmations
+              .filter(
+                (affirmation: unknown): affirmation is string =>
+                  typeof affirmation === 'string'
+              )
+              .map((affirmation) => affirmation.trim().slice(0, 300))
+              .filter(Boolean)
+              .slice(0, 12)
+          : [],
+      }))
+      .filter((item) => item.title && item.affirmations.length > 0)
+      .slice(0, 5);
     const batchSize = Number(body.batchSize);
 
     if (!centralTheme) {
@@ -28,11 +72,13 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await generateRampageWithGemini(
-      centralTheme || 'Abundancia y Certeza',
+      centralTheme || 'Mi identidad',
       userScope,
       userAffirmations,
       Number.isFinite(batchSize) ? batchSize : 3,
-      additionalDetails
+      additionalDetails,
+      userManifestations,
+      userRampages
     );
 
     return NextResponse.json({

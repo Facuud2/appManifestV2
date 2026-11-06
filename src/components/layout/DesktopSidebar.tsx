@@ -46,78 +46,148 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   ];
 
   return (
-    <aside className="swiss-sidebar sticky top-0 hidden h-dvh w-16 shrink-0 flex-col items-center px-2 py-4 lg:flex">
-      <div
-        aria-label="Manifest Sanctuary"
-        className="flex h-9 w-9 items-center justify-center rounded-xl bg-swiss-accent text-swiss-accentFg shadow-card"
-      >
-        <Sparkles aria-hidden="true" size={17} />
-      </div>
+    <aside
+      aria-label="Navegación lateral"
+      className="sticky top-0 z-40 hidden h-dvh w-[5.5rem] shrink-0 lg:block"
+    >
+      <div className="swiss-sidebar swiss-sidebar-rail absolute inset-y-2 left-2 z-40 flex flex-col overflow-x-hidden overflow-y-auto rounded-[20px] border border-[color:var(--glass-border)] px-3 pb-4 pt-5">
+        <div className="swiss-sidebar-row flex min-h-9 items-center px-2">
+          <div
+            aria-hidden="true"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[color:var(--glass-border)] bg-[color:var(--pastel-sage)] text-[color:var(--pastel-sage-ink)]"
+          >
+            <Sparkles size={17} />
+          </div>
+          <div className="swiss-sidebar-reveal min-w-0">
+            <p className="truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-swiss-ink">
+              Manifest
+            </p>
+            <p className="truncate text-xs text-swiss-ink-light">Santuario de voz</p>
+          </div>
+        </div>
 
-      <nav aria-label="Navegación principal" className="mt-7 flex flex-col items-center gap-1">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onChangeTab(item.id)}
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
-              title={item.label}
-              className={`relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
-                isActive
-                  ? 'bg-swiss-accent text-swiss-accentFg shadow-card'
-                  : 'text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink'
-              }`}
-            >
-              <Icon aria-hidden="true" size={20} strokeWidth={isActive ? 2.2 : 1.8} />
-              {item.badge !== undefined && item.badge > 0 && (
-                <span
-                  aria-label={`${item.badge} elementos`}
-                  className={`absolute right-0 top-0 flex h-4 min-w-4 -translate-y-1/4 translate-x-1/4 items-center justify-center rounded-full px-1 text-[9px] font-semibold ${
-                    isActive
-                      ? 'bg-swiss-surface text-swiss-accent'
-                      : 'bg-swiss-actionLavender text-swiss-accent'
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="mt-auto flex flex-col items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpenRampage}
-          aria-label="Abrir Rampage"
-          title="Rampage"
-          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl bg-swiss-actionLavender text-swiss-accent transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
-        >
-          <Sparkles aria-hidden="true" size={20} />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenCalibration}
-          aria-label={isCurrentCalibrated ? 'Voz calibrada. Abrir ajustes' : 'Calibrar voz'}
-          title={isCurrentCalibrated ? 'Voz calibrada' : 'Calibrar voz'}
-          className={`relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus ${
-            isCurrentCalibrated ? 'text-swiss-ink-muted' : 'text-swiss-accent'
-          }`}
-        >
-          <Mic aria-hidden="true" size={19} />
+        <div className="relative mt-7 flex h-5 items-center px-2">
           <span
             aria-hidden="true"
-            className={`absolute right-2 top-2 h-2 w-2 rounded-full ${
-              isCurrentCalibrated ? 'bg-swiss-success' : 'bg-swiss-accent'
-            }`}
+            className="swiss-sidebar-divider absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-[color:var(--border-subtle)]"
           />
-        </button>
+          <p className="section-label swiss-sidebar-reveal">Tu espacio</p>
+        </div>
+        <nav aria-label="Navegación principal" className="mt-2 flex flex-col gap-0.5">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            const hasBadge = item.badge !== undefined && item.badge > 0;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onChangeTab(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={hasBadge ? `${item.label}, ${item.badge} elementos` : item.label}
+                title={item.label}
+                className={`swiss-sidebar-row flex min-h-11 items-center rounded-[10px] px-2.5 text-left text-[0.9375rem] transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+                  isActive
+                    ? 'bg-swiss-control font-medium text-swiss-ink'
+                    : 'text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink'
+                }`}
+              >
+                <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                  <Icon aria-hidden="true" size={19} strokeWidth={isActive ? 2.1 : 1.8} />
+                  {hasBadge && (
+                    <span
+                      aria-hidden="true"
+                      className="swiss-sidebar-badge-dot absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-swiss-accent"
+                    />
+                  )}
+                </span>
+                <span className="swiss-sidebar-reveal min-w-0 flex-1 truncate">{item.label}</span>
+                {hasBadge && (
+                  <span className="swiss-sidebar-badge-count flex shrink-0 items-center">
+                    <span
+                      aria-label={`${item.badge} elementos`}
+                      className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums ${
+                        isActive
+                          ? 'bg-swiss-accent text-swiss-accentFg'
+                          : 'bg-swiss-control text-swiss-ink-light'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="relative mt-6 flex h-5 items-center px-2">
+          <span
+            aria-hidden="true"
+            className="swiss-sidebar-divider absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-[color:var(--border-subtle)]"
+          />
+          <p className="section-label swiss-sidebar-reveal">Acciones</p>
+        </div>
+        <div className="mt-2 flex flex-col gap-0.5">
+          <button
+            type="button"
+            onClick={onOpenRampage}
+            aria-label="Abrir Rampage"
+            title="Rampage"
+            className="swiss-sidebar-row flex min-h-11 items-center rounded-[10px] px-2.5 text-left text-[0.9375rem] text-swiss-ink-muted transition-colors hover:bg-swiss-control hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-swiss-accent">
+              <Sparkles aria-hidden="true" size={18} />
+            </span>
+            <span className="swiss-sidebar-reveal min-w-0 flex-1 truncate">Rampage</span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenCalibration}
+            aria-label={isCurrentCalibrated ? 'Voz calibrada. Abrir ajustes de voz' : 'Calibrar voz'}
+            title={isCurrentCalibrated ? 'Voz calibrada' : 'Calibrar voz'}
+            className="swiss-sidebar-row flex min-h-11 items-center rounded-[10px] px-2.5 text-left text-[0.9375rem] text-swiss-ink-muted transition-colors hover:bg-swiss-control hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
+          >
+            <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+              <Mic aria-hidden="true" size={18} />
+              <span
+                aria-hidden="true"
+                className={`swiss-sidebar-badge-dot absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full ${
+                  isCurrentCalibrated ? 'bg-swiss-success' : 'bg-swiss-accent'
+                }`}
+              />
+            </span>
+            <span className="swiss-sidebar-reveal min-w-0 flex-1 truncate">Voz</span>
+            <span className="swiss-sidebar-badge-count flex shrink-0 items-center">
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isCurrentCalibrated ? 'bg-swiss-success' : 'bg-swiss-accent'
+                }`}
+              />
+            </span>
+          </button>
+        </div>
+
+        <div className="surface-butter swiss-sidebar-row mt-auto flex items-center gap-2.5 rounded-[16px] border px-3 py-3">
+          <span
+            aria-hidden="true"
+            className="shrink-0 text-[color:var(--pastel-butter-ink)]"
+          >
+            <Sparkles size={17} strokeWidth={1.7} />
+          </span>
+          <div className="swiss-sidebar-reveal-block min-w-0">
+            <p className="text-xs font-semibold text-swiss-ink">
+              {isCurrentCalibrated ? 'Voz lista' : 'Tu voz te espera'}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-swiss-ink-muted">
+              {isCurrentCalibrated
+                ? 'Tus afirmaciones suenan con tu tono.'
+                : 'Calibra tu voz para que las afirmaciones suenen como vos.'}
+            </p>
+          </div>
+        </div>
       </div>
     </aside>
   );

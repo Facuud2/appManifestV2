@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, ChevronRight, Mic, Sparkles, X } from 'lucide-react';
 import {
   BACKDROP_TRANSITION,
-  EMIL_CARD_TAP,
   EMIL_EASE_OUT,
   EMIL_SHEET_SPRING,
   STAGGER_CONTAINER,
@@ -27,21 +26,21 @@ const actions = [
     title: 'Manifestación',
     description: 'Escribí o contá un deseo',
     icon: BookOpen,
-    color: 'bg-swiss-actionBlue text-swiss-accent',
+    color: 'bg-[color:var(--pastel-sky)] text-[color:var(--pastel-sky-ink)]',
   },
   {
     id: 'affirmation' as const,
     title: 'Afirmación',
     description: 'Creá una frase con tu voz',
     icon: Mic,
-    color: 'bg-swiss-actionPeach text-swiss-accent',
+    color: 'bg-[color:var(--pastel-peach)] text-[color:var(--pastel-peach-ink)]',
   },
   {
     id: 'rampage' as const,
     title: 'Rampage',
     description: 'Empezá a escuchar ahora',
     icon: Sparkles,
-    color: 'bg-swiss-actionLavender text-swiss-accent',
+    color: 'bg-[color:var(--pastel-peri)] text-[color:var(--pastel-peri-ink)]',
   },
 ];
 
@@ -67,11 +66,10 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const frame = window.requestAnimationFrame(() => {
-      const buttons = [
-        ...Array.from(mobileMenuRef.current?.querySelectorAll('button') ?? []),
-        ...Array.from(desktopMenuRef.current?.querySelectorAll('button') ?? []),
-      ];
-      buttons.find((button) => button.getClientRects().length > 0)?.focus();
+      const visibleMenu = [mobileMenuRef.current, desktopMenuRef.current].find(
+        (menu) => menu && menu.getClientRects().length > 0,
+      );
+      visibleMenu?.focus();
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -100,19 +98,32 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
       }
     };
 
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (mobileMenuRef.current?.contains(target) || desktopMenuRef.current?.contains(target)) {
+        return;
+      }
+      // The trigger toggles the menu itself; let its click decide.
+      if (target instanceof Element && target.closest('[aria-expanded="true"]')) return;
+      closeAndRestoreFocus();
+    };
+
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('pointerdown', handlePointerDown);
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
     };
   }, [closeAndRestoreFocus, isOpen]);
 
   const desktopPosition = anchor && typeof window !== 'undefined'
     ? {
-        left: Math.max(16, Math.min(anchor.left - 214, window.innerWidth - 270)),
+        left: Math.max(16, Math.min(anchor.left - 214, window.innerWidth - 286)),
         top: Math.max(
           16,
-          Math.min(anchor.top + anchor.height / 2 - 78, window.innerHeight - 230),
+          Math.min(anchor.top + anchor.height / 2 - 96, window.innerHeight - 264),
         ),
       }
     : { left: '50%', top: '30%' };
@@ -127,31 +138,29 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           type="button"
           onClick={() => onSelect(action.id)}
           variants={STAGGER_ITEM}
-          whileTap={EMIL_CARD_TAP}
-          className={
+          whileTap={{ scale: 0.98 }}
+          className={`create-action group relative flex w-full items-center gap-3.5 text-left transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus ${action.color} ${
             mobile
-              ? 'flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-2xl border border-swiss-border bg-swiss-surface/70 px-2 text-center transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus'
-              : 'flex min-h-[58px] w-full items-center gap-3 rounded-xl px-2 text-left transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus'
-          }
+              ? 'mx-2 mb-1.5 min-h-[4.25rem] w-[calc(100%-1rem)] rounded-[16px] px-3.5'
+              : 'min-h-[3.5rem] rounded-[12px] px-2.5'
+          }`}
         >
-          <span
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${action.color}`}
-          >
-            <Icon aria-hidden="true" size={17} />
+          <span className="create-action-icon flex h-9 w-9 shrink-0 items-center justify-center">
+            <Icon aria-hidden="true" size={19} strokeWidth={1.8} />
           </span>
-          {mobile ? (
-            <span className="text-xs font-medium leading-tight text-swiss-ink">{action.title}</span>
-          ) : (
-            <>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-swiss-ink">{action.title}</span>
-                <span className="mt-0.5 block text-xs text-swiss-ink-muted">
-                  {action.description}
-                </span>
-              </span>
-              <ChevronRight aria-hidden="true" size={15} className="text-swiss-ink-light" />
-            </>
-          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.9375rem] font-semibold">
+              {action.title}
+            </span>
+            <span className="mt-0.5 block truncate text-xs opacity-80">
+              {action.description}
+            </span>
+          </span>
+          <ChevronRight
+            aria-hidden="true"
+            size={16}
+            className="shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5"
+          />
         </motion.button>
       );
     });
@@ -167,13 +176,14 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           exit="exit"
           aria-hidden="true"
           onMouseDown={closeAndRestoreFocus}
-          className="fixed inset-0 z-[60] bg-swiss-ink/25 backdrop-blur-md lg:hidden"
+          className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-[10px] lg:hidden"
         />
       )}
       {isOpen && (
         <motion.div
           key="mobile-sheet"
           ref={mobileMenuRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-action-title-mobile"
@@ -182,36 +192,51 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           exit={{
             opacity: 0,
             y: '100%',
-            transition: { duration: 0.2, ease: EMIL_EASE_OUT },
+            transition: { duration: 0.22, ease: EMIL_EASE_OUT },
           }}
           transition={EMIL_SHEET_SPRING}
           onMouseDown={(event) => event.stopPropagation()}
-          className="swiss-modal fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-4 right-4 z-[61] mx-auto w-auto max-w-lg rounded-[var(--radius-modal)] p-4 shadow-modal sm:p-5 lg:hidden"
+          className="swiss-modal fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-3 right-3 z-[61] mx-auto w-auto max-w-lg overflow-hidden rounded-[28px] p-0 shadow-modal focus:outline-none lg:hidden"
         >
-          <div className="mb-3 flex items-center justify-between px-1">
-            <h2
-              id="create-action-title-mobile"
-              className="text-base font-semibold text-swiss-ink"
-            >
-              ¿Qué querés crear?
-            </h2>
+          <div aria-hidden="true" className="flex justify-center pb-1 pt-2.5">
+            <span className="h-1 w-9 rounded-full bg-swiss-ink-light/40" />
+          </div>
+          <div className="flex items-start justify-between gap-4 px-4 pb-2 pt-1">
+            <div>
+              <h2
+                id="create-action-title-mobile"
+                className="text-[1.0625rem] font-semibold tracking-[-0.02em] text-swiss-ink"
+              >
+                Crear
+              </h2>
+              <p className="mt-0.5 text-xs text-swiss-ink-light">¿Qué querés sumar hoy?</p>
+            </div>
             <button
               type="button"
               onClick={closeAndRestoreFocus}
               aria-label="Cerrar opciones de creación"
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-swiss-ink-muted transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-9 min-w-9 items-center justify-center text-swiss-ink-muted transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
-              <X aria-hidden="true" size={17} />
+              <X aria-hidden="true" size={16} />
             </button>
           </div>
           <motion.div
             variants={STAGGER_CONTAINER}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-3 gap-2"
+            className="pb-2"
           >
             {renderActions(true)}
           </motion.div>
+          <div className="border-t border-swiss-border p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <button
+              type="button"
+              onClick={closeAndRestoreFocus}
+              className="min-h-11 w-full rounded-[14px] text-[0.9375rem] font-medium text-swiss-ink transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+            >
+              Cancelar
+            </button>
+          </div>
         </motion.div>
       )}
       {isOpen && (
@@ -227,14 +252,16 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
         <motion.div
           key="desktop-popover"
           ref={desktopMenuRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-action-title-desktop"
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, scale: 0.96, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{
             opacity: 0,
-            scale: 0.99,
+            scale: 0.98,
+            y: -2,
             transition: { duration: 0.15, ease: EMIL_EASE_OUT },
           }}
           transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
@@ -244,13 +271,13 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
             top: desktopPosition.top,
             transformOrigin: '100% 50%',
           }}
-          className="swiss-card absolute z-[61] hidden w-60 p-2.5 shadow-dropdown lg:block"
+          className="swiss-modal absolute z-[61] hidden w-[17.5rem] overflow-hidden rounded-[18px] p-1.5 shadow-dropdown focus:outline-none lg:block"
         >
           <h2
             id="create-action-title-desktop"
-            className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-swiss-ink-light"
+            className="px-2.5 pb-1 pt-2 text-xs font-medium text-swiss-ink-light"
           >
-            ¿Qué querés crear?
+            Crear
           </h2>
           <motion.div variants={STAGGER_CONTAINER} initial="hidden" animate="show">
             {renderActions(false)}

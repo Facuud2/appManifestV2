@@ -40,6 +40,19 @@ export const EMIL_CARD_TAP: TargetAndTransition = {
   },
 };
 
+export const VIEW_TRANSITION: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.24, ease: EMIL_EASE_OUT },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.12, ease: EMIL_EASE_OUT },
+  },
+};
+
 export const STAGGER_CONTAINER: Variants = {
   hidden: { opacity: 0 },
   show: {

@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Feather, Plus, Trophy, Footprints, Trash2, Calendar, CheckCircle2 } from 'lucide-react';
+import React from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Feather, Plus, Trophy, Footprints, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { STAGGER_CONTAINER, STAGGER_ITEM, EMIL_CARD_TAP } from '@/lib/iosSprings';
+import {
+  EMIL_CARD_TAP,
+  EMIL_EASE_OUT,
+  STAGGER_CONTAINER,
+  STAGGER_ITEM,
+} from '@/lib/iosSprings';
 
 interface ManifestationsViewProps {
   onOpenNewManifestation: () => void;
@@ -12,85 +17,66 @@ interface ManifestationsViewProps {
   onOpenCrownSuccess: (title: string, manifId?: string) => void;
 }
 
+const statusTone: Record<string, string> = {
+  semilla: 'bg-[color:var(--pastel-butter)] text-[color:var(--pastel-butter-ink)]',
+  alineacion: 'bg-[color:var(--pastel-sky)] text-[color:var(--pastel-sky-ink)]',
+  evidencia: 'bg-[color:var(--pastel-sage)] text-[color:var(--pastel-sage-ink)]',
+  materializado: 'bg-[color:var(--pastel-rose)] text-[color:var(--pastel-rose-ink)]',
+};
+
+const statusLabel: Record<string, string> = {
+  semilla: 'Semilla',
+  alineacion: 'Alineación',
+  evidencia: 'Evidencia',
+  materializado: 'Materializado',
+};
+
 export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   onOpenNewManifestation,
   onOpenNewProgress,
   onOpenCrownSuccess,
 }) => {
-  const { manifestations, deleteManifestation, activeScope } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const { manifestations, deleteManifestation } = useAppStore();
 
-  const filtered = manifestations.filter(
-    (m) => selectedCategory === 'all' || m.category === selectedCategory
-  );
-  const shouldStaggerCards = filtered.length <= 6;
-
-  const categories = [
-    { id: 'all', label: 'Todas' },
-    { id: 'abundancia', label: 'Abundancia 🪙' },
-    { id: 'relaciones', label: 'Amor 🌸' },
-    { id: 'bienestar', label: 'Salud 🕊️' },
-    { id: 'carrera', label: 'Éxito ⚡' },
-    { id: 'creatividad', label: 'Creatividad ✨' },
-  ];
+  const shouldStaggerCards = manifestations.length <= 6;
 
   return (
-    <div className="space-y-6 pb-24 sm:pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-7 pb-32 sm:pb-12">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight">
-            Escritos de Manifestación
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Detalles sensoriales, situaciones específicas y registro continuo
+          <p className="section-label">Tu jardín de intenciones</p>
+          <h1 className="display-title mt-1.5 text-swiss-ink">Escritos</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-swiss-ink-muted">
+            Detalles sensoriales, situaciones específicas y registro continuo.
           </p>
         </div>
 
         <button
           type="button"
           onClick={onOpenNewManifestation}
-          className="swiss-btn-primary px-3.5 py-2 rounded-md text-xs font-medium flex items-center gap-2 self-start sm:self-auto"
+          className="swiss-btn-primary inline-flex min-h-10 items-center gap-2 self-start px-4 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus sm:self-auto"
         >
-          <Plus size={15} />
-          Nuevo Escrito
+          <Plus size={16} />
+          Nuevo escrito
         </button>
-      </div>
+      </header>
 
-      {/* Categories Filter */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => setSelectedCategory(cat.id)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-              selectedCategory === cat.id
-                ? 'bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950'
-                : 'bg-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Manifestation Cards */}
-      {filtered.length === 0 ? (
-        <div className="swiss-empty p-12 text-center rounded-lg border border-dashed">
-          <Feather size={32} className="mx-auto text-zinc-400 dark:text-zinc-500 mb-2" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            No hay manifestaciones en esta categoría
-          </h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-4">
-            Comienza escribiendo o dictando tus deseos sensorialmente en presente.
+      {manifestations.length === 0 ? (
+        <div className="swiss-card flex flex-col items-center px-6 py-14 text-center">
+          <span className="flex h-12 w-12 items-center justify-center text-swiss-accent">
+            <Feather size={24} strokeWidth={1.6} />
+          </span>
+          <h2 className="section-heading mt-4">Todavía no hay escritos</h2>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-swiss-ink-muted">
+            Empezá escribiendo o dictando tus deseos sensorialmente, en presente.
           </p>
           <button
             type="button"
             onClick={onOpenNewManifestation}
-            className="swiss-btn-primary px-3.5 py-2 rounded-md text-xs font-medium"
+            className="swiss-btn-primary mt-5 inline-flex min-h-10 items-center gap-2 px-4 text-[0.8125rem]"
           >
-            Crear Escrito
+            <Plus size={16} />
+            Crear escrito
           </button>
         </div>
       ) : (
@@ -98,22 +84,26 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
           variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
           initial={shouldStaggerCards ? 'hidden' : false}
           animate={shouldStaggerCards ? 'show' : undefined}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          className="grid grid-cols-1 gap-3.5 md:grid-cols-2"
         >
-          {filtered.map((item) => (
-            <motion.div
-              key={item.id}
-              variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
-              whileTap={EMIL_CARD_TAP}
-              className="swiss-card p-6 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-widest border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/60">
-                    {item.category}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
+          <AnimatePresence initial={false}>
+            {manifestations.map((item) => (
+              <motion.article
+                key={item.id}
+                layout
+                variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
+                whileTap={EMIL_CARD_TAP}
+                exit={{
+                  opacity: 0,
+                  y: 4,
+                  scale: 0.97,
+                  transition: { duration: 0.18, ease: EMIL_EASE_OUT },
+                }}
+                className="swiss-card swiss-card-hover flex flex-col justify-between p-5"
+              >
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-xs tabular-nums text-swiss-ink-light">
                       {new Date(item.createdAt).toLocaleDateString('es-ES', {
                         day: 'numeric',
                         month: 'short',
@@ -123,60 +113,60 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => deleteManifestation(item.id)}
-                      className="text-zinc-400 hover:text-swiss-red dark:text-zinc-500 dark:hover:text-swiss-red p-1 transition-colors"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-swiss-ink-light transition-colors hover:bg-swiss-control hover:text-swiss-red"
                       title="Eliminar"
+                      aria-label={`Eliminar ${item.title}`}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+
+                  <h2 className="text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
+                    {item.title}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-swiss-ink-muted whitespace-pre-line">
+                    {item.description}
+                  </p>
+
+                  {item.sensoryAnchor && (
+                    <div className="mt-3.5 rounded-[12px] bg-swiss-control px-3.5 py-3 text-[0.8125rem] leading-5 text-swiss-ink-muted">
+                      <span className="mb-1 block text-xs font-semibold text-swiss-ink-light">
+                        Anclaje sensorial
+                      </span>
+                      “{item.sensoryAnchor}”
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-swiss-border pt-3.5">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${statusTone[item.status] ?? 'bg-swiss-control text-swiss-ink-muted'}`}>
+                    <span className="pastel-dot" aria-hidden="true" />
+                    {statusLabel[item.status] ?? item.status}
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenNewProgress(item.id)}
+                      className="swiss-btn-secondary inline-flex min-h-9 items-center gap-1.5 px-3 text-xs font-medium"
+                    >
+                      <Footprints size={13} />
+                      Avance
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onOpenCrownSuccess(item.title, item.id)}
+                      className="swiss-btn-primary inline-flex min-h-9 items-center gap-1.5 px-3 text-xs font-medium"
+                    >
+                      <Trophy size={13} />
+                      ¡Se cumplió!
                     </button>
                   </div>
                 </div>
-
-                <h2 className="text-base sm:text-lg font-bold text-zinc-950 dark:text-zinc-50 tracking-tight leading-snug">
-                  {item.title}
-                </h2>
-                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-300 mt-2 leading-relaxed whitespace-pre-line">
-                  {item.description}
-                </p>
-
-                {item.sensoryAnchor && (
-                  <div className="mt-3.5 p-3 rounded-md bg-zinc-50 dark:bg-zinc-800/40 border-l-2 border-swiss-accent text-xs text-zinc-700 dark:text-zinc-300">
-                    <span className="font-mono block text-[10px] uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1">
-                      Anclaje Sensorial
-                    </span>
-                    "{item.sensoryAnchor}"
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between pt-4 mt-5 border-t border-zinc-100 dark:border-zinc-800/80 gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
-                  <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-500" />
-                  {item.status}
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onOpenNewProgress(item.id)}
-                    className="px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-medium flex items-center gap-1.5 transition-colors"
-                  >
-                    <Footprints size={13} />
-                    Avance
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onOpenCrownSuccess(item.title, item.id)}
-                    className="px-2.5 py-1.5 rounded-md bg-swiss-accent text-swiss-accentFg hover:opacity-90 text-xs font-medium flex items-center gap-1.5 transition-colors"
-                  >
-                    <Trophy size={13} />
-                    ¡Se cumplió!
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.article>
+            ))}
+          </AnimatePresence>
         </motion.div>
       )}
     </div>

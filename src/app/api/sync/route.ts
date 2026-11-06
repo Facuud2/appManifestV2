@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { turso } from '@/lib/turso';
+import { ensureDefaultAffirmations } from '@/lib/affirmationSeed';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
+    try {
+      await ensureDefaultAffirmations();
+    } catch (seedError) {
+      console.error('[API /api/sync GET] No se pudieron precargar las afirmaciones:', seedError);
+    }
+
     const { searchParams } = new URL(req.url);
     const scope = searchParams.get('scope');
 
@@ -76,6 +83,7 @@ export async function GET(req: NextRequest) {
     const affirmations = affirmationsRes.rows.map((r) => ({
       id: r.id as string,
       userId: r.user_id as string,
+      author: r.user_id === 'maia' ? 'Maia' : r.user_id === 'facu' ? 'Facu' : 'Ambos',
       text: r.text as string,
       category: (r.category as string) || undefined,
       repeatCount: Number(r.repeat_count || 0),
@@ -86,6 +94,7 @@ export async function GET(req: NextRequest) {
     const rampageSets = rampageSetsRes.rows.map((r) => ({
       id: r.id as string,
       userId: r.user_id as string,
+      author: r.user_id === 'maia' ? 'Maia' : r.user_id === 'facu' ? 'Facu' : 'Ambos',
       title: r.title as string,
       theme: r.theme as string,
       affirmations: r.affirmations_json ? JSON.parse(r.affirmations_json as string) : [],

@@ -84,23 +84,23 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
   };
 
   return (
-    <header className="relative z-30 w-full px-page pt-page">
-      <div className="mx-auto flex max-w-[1160px] items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold leading-tight tracking-tight text-swiss-ink sm:text-lg">
+    <header className="swiss-toolbar sticky top-0 z-30 w-full px-page">
+      <div className="mx-auto flex h-[3.75rem] max-w-[1160px] items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <p className="truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-swiss-ink">
             {greeting}
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <UserScopeSwitcher />
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden items-center gap-1.5 lg:flex">
             <button
               type="button"
               onClick={toggleTheme}
               aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
               title="Cambiar tema"
-              className="swiss-pill inline-flex min-h-11 min-w-11 items-center justify-center text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-10 min-w-10 items-center justify-center text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
               <Sun aria-hidden="true" size={17} className="hidden dark:block" />
               <Moon aria-hidden="true" size={17} className="block dark:hidden" />
@@ -110,13 +110,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
               onClick={onOpenCalibration}
               aria-label={isCurrentCalibrated ? 'Voz calibrada. Abrir ajustes de voz' : 'Calibrar voz'}
               title={isCurrentCalibrated ? 'Voz calibrada' : 'Calibrar tu voz'}
-              className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
-                isCurrentCalibrated
-                  ? 'border-swiss-border bg-swiss-control text-swiss-ink-muted hover:text-swiss-ink'
-                  : 'border-swiss-accent bg-swiss-accent text-swiss-accentFg'
-              }`}
+              className="swiss-pill inline-flex min-h-10 items-center gap-2 px-3 text-[0.8125rem] font-medium text-swiss-ink transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
-              <Mic aria-hidden="true" size={17} />
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isCurrentCalibrated ? 'bg-swiss-success' : 'bg-swiss-accent'
+                }`}
+              />
+              <Mic aria-hidden="true" size={15} />
+              {isCurrentCalibrated ? 'Voz lista' : 'Calibrar voz'}
             </button>
           </div>
           <div ref={preferencesRef} className="relative lg:hidden">
@@ -129,7 +132,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
               aria-controls="mobile-preferences-menu"
               title="Preferencias y voz"
               onClick={() => setIsPreferencesOpen((open) => !open)}
-              className="swiss-pill inline-flex min-h-11 min-w-11 items-center justify-center text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-10 min-w-10 items-center justify-center text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
               <Ellipsis aria-hidden="true" size={19} />
             </button>
@@ -137,17 +140,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
               {isPreferencesOpen && (
                 <motion.div
                   id="mobile-preferences-menu"
-                  initial={{ opacity: 0, scale: 0.97 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
-                  transition={{ duration: 0.16, ease: EMIL_EASE_OUT }}
+                  initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: -2 }}
+                  transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
                   style={{ transformOrigin: '100% 0%' }}
-                  className="swiss-card absolute right-0 top-full z-50 mt-2 w-52 p-2 shadow-dropdown"
+                  className="swiss-group absolute right-0 top-full z-50 mt-2 w-56 p-1 shadow-dropdown"
                 >
                   <button
                     type="button"
                     onClick={toggleTheme}
-                    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-swiss-ink transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                    className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem]"
                   >
                     {isDark ? (
                       <Sun aria-hidden="true" size={17} />
@@ -159,7 +162,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
                   <button
                     type="button"
                     onClick={onOpenCalibration}
-                    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-swiss-ink transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                    className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem]"
                   >
                     <Mic aria-hidden="true" size={17} />
                     {isCurrentCalibrated ? 'Ajustes de voz' : 'Calibrar voz'}

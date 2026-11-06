@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createClient } from '@libsql/client';
 
 const client = createClient({
@@ -155,6 +156,51 @@ async function run() {
     `,
     args: [now, now, now, now, now, now]
   });
+
+  // Pre-carga los sets iniciales de Autoconcepto, SP y Maia (idempotente).
+  const { groups: defaultGroups } = JSON.parse(
+    readFileSync(new URL('../src/lib/affirmationDefaults.json', import.meta.url), 'utf8')
+  );
+  const baseTimestamp = Date.parse('2026-01-01T00:00:00.000Z');
+  const seedStatements = [];
+
+  defaultGroups.forEach((group, groupIndex) => {
+    const createdAt = new Date(
+      baseTimestamp + (defaultGroups.length - groupIndex) * 60_000
+    ).toISOString();
+
+    const setAffirmations = group.affirmations.map((text, index) => ({
+      id: `default_${group.id}_${String(index + 1).padStart(2, '0')}`,
+      text,
+      repeatCount: 0,
+    }));
+
+    for (const affirmation of setAffirmations) {
+      seedStatements.push({
+        sql: `INSERT OR IGNORE INTO affirmations (id, user_id, text, category, repeat_count, pinned, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?);`,
+        args: [affirmation.id, group.userId, affirmation.text, group.category, 0, 0, createdAt],
+      });
+    }
+
+    seedStatements.push({
+      sql: `INSERT OR IGNORE INTO rampage_sets (id, user_id, title, theme, affirmations_json, ambient_sound, is_favorite, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      args: [
+        `default_set_${group.id}`,
+        group.userId,
+        group.title,
+        group.category,
+        JSON.stringify(setAffirmations),
+        'astral_rain',
+        0,
+        createdAt,
+      ],
+    });
+  });
+
+  await client.batch(seedStatements, 'write');
+  console.log(`✓ Default affirmation sets seeded (${seedStatements.length} rows)`);
 
   const res = await client.execute("SELECT name FROM sqlite_master WHERE type='table';");
   console.log('✅ Tables created successfully:', res.rows.map(r => r.name));

@@ -37,19 +37,6 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
     const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
     setSaveError(false);
 
-    try {
-      confetti({
-        particleCount: 45,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ['--color-accent', '--color-success', '--color-swiss-red', '--color-warning'].map(
-          (token) => getComputedStyle(document.documentElement).getPropertyValue(token).trim()
-        ),
-      });
-    } catch (error) {
-      console.warn('[SuccessStory] Confetti could not be displayed:', error);
-    }
-
     if (manifestationTitle) setTitle(manifestationTitle);
 
     return () => {
@@ -107,6 +94,21 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
       setTitle('');
       setStory('');
       setGratitudeNote('');
+
+      try {
+        confetti({
+          particleCount: 110,
+          spread: 72,
+          startVelocity: 34,
+          origin: { y: 0.72 },
+          colors: ['--color-accent', '--color-success', '--color-warning'].map((token) =>
+            getComputedStyle(document.documentElement).getPropertyValue(token).trim(),
+          ),
+        });
+      } catch (error) {
+        console.warn('[SuccessStory] Confetti could not be displayed:', error);
+      }
+
       onClose();
     } catch (err) {
       setSaveError(true);

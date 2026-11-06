@@ -20,6 +20,7 @@ import {
   Repeat,
   SkipForward,
   Sparkles,
+  Square,
   Sun,
   VolumeX,
   X,
@@ -27,10 +28,19 @@ import {
 import { useAppStore } from '@/store';
 import { audioEngine, AmbienceType } from '@/lib/audioEngine';
 import { EMIL_EASE_OUT, IOS_TAP_SPRING } from '@/lib/iosSprings';
+import type {
+  RampageHistoryContext,
+  RampageManifestationContext,
+} from '@/lib/affirmationEngine';
+import { RampageSet, UserScope } from '@/types';
 
 interface RampagePlayerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onRestore: () => void;
+  openMode: 'new' | 'restore';
+  resumeRampage: RampageSet | null;
+  resumeRequestId: number;
   centralTheme?: string;
 }
 
@@ -39,15 +49,22 @@ const RAMPAGE_BATCH_SIZE = 3;
 export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   isOpen,
   onClose,
-  centralTheme = 'Abundancia, Certeza y Paz',
+  onRestore,
+  openMode,
+  resumeRampage,
+  resumeRequestId,
+  centralTheme = '',
 }) => {
   const {
     activeScope,
     ambientSound,
     setAmbientSound,
     affirmations: userSavedAffirmations,
+    manifestations: userManifestations,
+    rampageSets: userRampageSets,
     isFacuCalibrated,
     isMaiaCalibrated,
+    saveRampageSet,
   } = useAppStore();
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -61,6 +78,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const [playbackError, setPlaybackError] = useState('');
   const [loopCount, setLoopCount] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [draftTitle, setDraftTitle] = useState(centralTheme);
   const [draftDetails, setDraftDetails] = useState('');
   const [setupError, setSetupError] = useState('');
@@ -98,6 +116,12 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const generatedAudioPromisesRef = useRef(new Map<string, Promise<AudioBuffer>>());
   const audioPreparationControllersRef = useRef(new Set<AbortController>());
   const activeRampageRef = useRef({ title: '', details: '' });
+  const activeRampageSetRef = useRef<RampageSet | null>(null);
+  const activeRampageScopeRef = useRef<UserScope>(activeScope);
+  const activeProfileAffirmationsRef = useRef<string[]>([]);
+  const activeProfileManifestationsRef = useRef<RampageManifestationContext[]>([]);
+  const activeProfileRampagesRef = useRef<RampageHistoryContext[]>([]);
+  const resumeAutoPlayRef = useRef(false);
   const nextAffirmationTimerRef = useRef<number | null>(null);
 
   const isPlayingRef = useRef(false);
@@ -149,19 +173,54 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
   const getSpeakerForIndex = useCallback(
     (index: number): 'maia' | 'facu' => {
-      if (activeScope === 'maia') return 'maia';
-      if (activeScope === 'facu') return 'facu';
+      if (activeRampageScopeRef.current === 'maia') return 'maia';
+      if (activeRampageScopeRef.current === 'facu') return 'facu';
       if (isMaiaCalibrated && !isFacuCalibrated) return 'maia';
       if (!isMaiaCalibrated) return 'facu';
       return index % 2 === 0 ? 'facu' : 'maia';
     },
-    [activeScope, isFacuCalibrated, isMaiaCalibrated]
+    [isFacuCalibrated, isMaiaCalibrated]
   );
 
   const profileAffirmations = userSavedAffirmations
     .filter((affirmation) => activeScope === 'shared' || affirmation.userId === activeScope)
     .slice(0, 20)
     .map((affirmation) => affirmation.text);
+  const profileManifestations: RampageManifestationContext[] = userManifestations
+    .filter(
+      (manifestation) => activeScope === 'shared' || manifestation.userId === activeScope
+    )
+    .slice(0, 15)
+    .map((manifestation) => ({
+      title: manifestation.title,
+      description: manifestation.description,
+      status: manifestation.status,
+      category: manifestation.category,
+    }));
+  const profileRampages: RampageHistoryContext[] = userRampageSets
+    .filter((rampage) => activeScope === 'shared' || rampage.userId === activeScope)
+    .slice(0, 5)
+    .map((rampage) => ({
+      title: rampage.title,
+      affirmations: rampage.affirmations
+        .slice(0, 12)
+        .map((affirmation) => affirmation.text),
+    }))
+    .filter((rampage) => rampage.affirmations.length > 0);
+  const activeScopeRef = useRef(activeScope);
+  activeScopeRef.current = activeScope;
+  const userSavedAffirmationsRef = useRef(userSavedAffirmations);
+  userSavedAffirmationsRef.current = userSavedAffirmations;
+  const userManifestationsRef = useRef(userManifestations);
+  userManifestationsRef.current = userManifestations;
+  const userRampageSetsRef = useRef(userRampageSets);
+  userRampageSetsRef.current = userRampageSets;
+  const profileAffirmationsRef = useRef(profileAffirmations);
+  profileAffirmationsRef.current = profileAffirmations;
+  const profileManifestationsRef = useRef(profileManifestations);
+  profileManifestationsRef.current = profileManifestations;
+  const profileRampagesRef = useRef(profileRampages);
+  profileRampagesRef.current = profileRampages;
 
   const fetchMoreAffirmations = useCallback(
     async (replaceQueue = false, retry = false) => {
@@ -187,8 +246,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             body: JSON.stringify({
               centralTheme: activeRampageRef.current.title,
               additionalDetails: activeRampageRef.current.details,
-              userScope: activeScope,
-              userAffirmations: profileAffirmations,
+              userScope: activeRampageScopeRef.current,
+              userAffirmations: activeProfileAffirmationsRef.current,
+              userManifestations: activeProfileManifestationsRef.current,
+              userRampages: activeProfileRampagesRef.current,
               batchSize: RAMPAGE_BATCH_SIZE,
             }),
           });
@@ -208,6 +269,31 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
           const existingQueue = replaceQueue ? [] : affirmationQueueRef.current;
           const batchStartIndex = existingQueue.length;
           const nextQueue = [...existingQueue, ...generated];
+          const previousSet = replaceQueue ? null : activeRampageSetRef.current;
+          const rampageSet = await saveRampageSet({
+            ...(previousSet
+              ? { id: previousSet.id, createdAt: previousSet.createdAt }
+              : {}),
+            userId: activeRampageScopeRef.current,
+            author:
+              activeRampageScopeRef.current === 'maia'
+                ? 'Maia'
+                : activeRampageScopeRef.current === 'facu'
+                  ? 'Facu'
+                  : 'Ambos',
+            title: activeRampageRef.current.title,
+            affirmations: [
+              ...(previousSet?.affirmations || []),
+              ...generated.map((text, index) => ({
+                id: `${Date.now()}_${batchStartIndex + index}`,
+                text,
+                repeatCount: 0,
+              })),
+            ],
+            ambientSound,
+            isFavorite: previousSet?.isFavorite || false,
+          });
+          activeRampageSetRef.current = rampageSet;
           affirmationQueueRef.current = nextQueue;
           setAffirmationQueue(nextQueue);
           generationFailedRef.current = false;
@@ -244,7 +330,6 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
           setIsLoadingNextBatch(false);
           if (
             shouldLoadPendingBatch &&
-            isOpen &&
             activeRampageRef.current.title &&
             !generationFailedRef.current
           ) {
@@ -253,7 +338,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         }
       }
     },
-    [activeScope, getSpeakerForIndex, isOpen, prepareAudio, profileAffirmations]
+    [ambientSound, getSpeakerForIndex, isOpen, prepareAudio, saveRampageSet]
   );
   fetchMoreAffirmationsRef.current = fetchMoreAffirmations;
 
@@ -301,6 +386,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
+      if (isMinimized) return;
       playbackRequestRef.current += 1;
       batchAbortRef.current?.abort();
       batchAbortRef.current = null;
@@ -326,9 +412,31 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       setIsSynthesizing(false);
       setHasStarted(false);
       activeRampageRef.current = { title: '', details: '' };
+      activeRampageSetRef.current = null;
       return;
     }
 
+    if (openMode === 'restore') {
+      setIsMinimized(false);
+      return;
+    }
+
+    if (isMinimized) {
+      playbackRequestRef.current += 1;
+      batchAbortRef.current?.abort();
+      audioPreparationControllersRef.current.forEach((controller) => controller.abort());
+      audioPreparationControllersRef.current.clear();
+      generatedAudioPromisesRef.current.clear();
+      if (audioEngine) {
+        audioEngine.stopVoice();
+        audioEngine.stopAmbience();
+      }
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+      setIsMinimized(false);
+    }
+
+    setIsMinimized(false);
     affirmationQueueRef.current = [];
     generatedAudioCacheRef.current.clear();
     generatedAudioPromisesRef.current.clear();
@@ -343,10 +451,96 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setDraftTitle(centralTheme);
     setDraftDetails('');
     activeRampageRef.current = { title: '', details: '' };
+    activeRampageScopeRef.current = activeScopeRef.current;
+    activeProfileAffirmationsRef.current = profileAffirmationsRef.current;
+    activeProfileManifestationsRef.current = profileManifestationsRef.current;
+    activeProfileRampagesRef.current = profileRampagesRef.current;
+    activeRampageSetRef.current = null;
     setHasStarted(false);
+    setIsPlaying(false);
+    isPlayingRef.current = false;
     generationFailedRef.current = false;
     setCurrentVoiceSpeaker(getSpeakerForIndex(0));
-  }, [centralTheme, getSpeakerForIndex, isOpen]);
+  }, [centralTheme, getSpeakerForIndex, isMinimized, isOpen, openMode]);
+
+  useEffect(() => {
+    if (!resumeRampage || resumeRequestId === 0) return;
+    const affirmations = resumeRampage.affirmations
+      .map((affirmation) => affirmation.text.trim())
+      .filter(Boolean);
+    if (affirmations.length === 0) return;
+
+    playbackRequestRef.current += 1;
+    batchAbortRef.current?.abort();
+    batchAbortRef.current = null;
+    batchLoadPromiseRef.current = null;
+    batchLoadingRef.current = false;
+    pendingBatchRequestRef.current = false;
+    audioPreparationControllersRef.current.forEach((controller) => controller.abort());
+    audioPreparationControllersRef.current.clear();
+    generatedAudioPromisesRef.current.clear();
+    if (nextAffirmationTimerRef.current !== null) {
+      window.clearTimeout(nextAffirmationTimerRef.current);
+      nextAffirmationTimerRef.current = null;
+    }
+    audioEngine?.stopVoice();
+    audioEngine?.stopAmbience();
+    activeRampageRef.current = { title: resumeRampage.title, details: '' };
+    activeRampageScopeRef.current = resumeRampage.userId;
+    activeProfileAffirmationsRef.current = userSavedAffirmationsRef.current
+      .filter(
+        (affirmation) =>
+          resumeRampage.userId === 'shared' ||
+          affirmation.userId === resumeRampage.userId
+      )
+      .slice(0, 20)
+      .map((affirmation) => affirmation.text);
+    activeProfileManifestationsRef.current = userManifestationsRef.current
+      .filter(
+        (manifestation) =>
+          resumeRampage.userId === 'shared' ||
+          manifestation.userId === resumeRampage.userId
+      )
+      .slice(0, 15)
+      .map((manifestation) => ({
+        title: manifestation.title,
+        description: manifestation.description,
+        status: manifestation.status,
+        category: manifestation.category,
+      }));
+    activeProfileRampagesRef.current = userRampageSetsRef.current
+      .filter(
+        (rampage) =>
+          resumeRampage.userId === 'shared' ||
+          rampage.userId === resumeRampage.userId
+      )
+      .slice(0, 5)
+      .map((rampage) => ({
+        title: rampage.title,
+        affirmations: rampage.affirmations
+          .slice(0, 12)
+          .map((affirmation) => affirmation.text),
+      }))
+      .filter((rampage) => rampage.affirmations.length > 0);
+    activeRampageSetRef.current = resumeRampage;
+    affirmationQueueRef.current = affirmations;
+    generatedAudioCacheRef.current.clear();
+    setAffirmationQueue(affirmations);
+    setCurrentAffirmationIndex(0);
+    setLoopCount(0);
+    setPlaybackError('');
+    setGenerationError('');
+    setIsLoadingNextBatch(false);
+    setIsSynthesizing(false);
+    setAudioPreparationWarning('');
+    setHasStarted(true);
+    setIsMinimized(true);
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    resumeAutoPlayRef.current = true;
+    generationFailedRef.current = false;
+    setCurrentVoiceSpeaker(getSpeakerForIndex(0));
+  }, [getSpeakerForIndex, resumeRampage, resumeRequestId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -362,14 +556,14 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   }, [isOpen, reactiveHaloEnergy]);
 
   useEffect(() => {
-    if (!isOpen || !isPlaying) {
+    if ((!isOpen && !isMinimized) || !isPlaying) {
       if (audioEngine) audioEngine.stopAmbience();
       return;
     }
     if (audioEngine) {
       audioEngine.setAmbience(ambientSound as AmbienceType);
     }
-  }, [isOpen, isPlaying, ambientSound]);
+  }, [isOpen, isMinimized, isPlaying, ambientSound]);
 
   const playCurrentItem = async (index: number) => {
     const queue = affirmationQueueRef.current;
@@ -438,6 +632,12 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!resumeAutoPlayRef.current || affirmationQueue.length === 0 || !hasStarted) return;
+    resumeAutoPlayRef.current = false;
+    void playCurrentItem(0);
+  }, [affirmationQueue, hasStarted, resumeRequestId]);
+
   const togglePlayback = async () => {
     const queue = affirmationQueueRef.current;
     if (!audioEngine || queue.length === 0) return;
@@ -504,6 +704,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
 
     activeRampageRef.current = { title: title.slice(0, 120), details: draftDetails.trim().slice(0, 1000) };
+    activeRampageScopeRef.current = activeScopeRef.current;
+    activeProfileAffirmationsRef.current = profileAffirmationsRef.current;
+    activeRampageSetRef.current = null;
     setSetupError('');
     setHasStarted(true);
     setCurrentAffirmationIndex(0);
@@ -514,6 +717,16 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   };
 
   function handleClose() {
+    if (hasStarted) {
+      setIsMinimized(true);
+      onClose();
+      return;
+    }
+
+    handleStopBackgroundPlayback();
+  }
+
+  function handleStopBackgroundPlayback() {
     playbackRequestRef.current += 1;
     batchAbortRef.current?.abort();
     batchAbortRef.current = null;
@@ -521,6 +734,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     batchLoadPromiseRef.current = null;
     pendingBatchRequestRef.current = false;
     activeRampageRef.current = { title: '', details: '' };
+    activeRampageSetRef.current = null;
     audioPreparationControllersRef.current.forEach((controller) => controller.abort());
     audioPreparationControllersRef.current.clear();
     generatedAudioPromisesRef.current.clear();
@@ -537,11 +751,14 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setIsLoadingNextBatch(false);
     setIsSynthesizing(false);
     setHasStarted(false);
+    setIsMinimized(false);
+    setAffirmationQueue([]);
+    affirmationQueueRef.current = [];
     onClose();
   }
 
   const currentAffirmation =
-    affirmationQueue[currentAffirmationIndex] || 'Alineando frecuencias...';
+    affirmationQueue[currentAffirmationIndex] || 'Preparando tu próxima afirmación...';
   const statusLabel = playbackError
     ? 'No se pudo reproducir el audio'
     : isSynthesizing
@@ -550,7 +767,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         ? 'Sonando ahora'
         : isLoadingNextBatch
           ? affirmationQueue.length === 0
-            ? 'Creando afirmaciones con Gemini 3.5 Flash Lite…'
+            ? 'Creando afirmaciones naturales…'
             : 'Preparando el siguiente lote de voces…'
           : generationError && affirmationQueue.length === 0
             ? 'No se pudieron preparar las frases'
@@ -558,6 +775,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const waveBars = Array.from({ length: 19 }, (_, index) => index);
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -588,9 +806,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             tabIndex={-1}
             data-ui="true"
             data-day-mode={!isNightMode}
-            className="rampage-player flex min-h-dvh w-full flex-col overflow-y-auto sm:h-[min(94dvh,860px)] sm:min-h-0 sm:max-w-5xl sm:rounded-[var(--radius-modal)] sm:border sm:border-[var(--color-rampage-line)] sm:shadow-[var(--shadow-rampage-panel)]"
+            className="rampage-player flex h-dvh max-h-dvh w-full flex-col overflow-hidden sm:h-[min(94dvh,860px)] sm:max-h-[min(94dvh,860px)] sm:max-w-5xl sm:rounded-[var(--radius-modal)] sm:border sm:border-[var(--color-rampage-line)] sm:shadow-[var(--shadow-rampage-panel)]"
           >
-            <header className="safe-area-top flex items-center justify-between gap-4 px-5 pb-4 sm:px-8 sm:pt-3">
+            <header className="safe-area-top flex shrink-0 items-center justify-between gap-4 px-5 pb-4 sm:px-8 sm:pt-3">
               <div className="flex min-w-0 items-center gap-3">
                 <Sparkles size={20} className="shrink-0 text-[var(--color-rampage-accent)]" aria-hidden="true" />
                 <div className="min-w-0">
@@ -622,7 +840,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleClose}
-                  aria-label="Cerrar Rampage"
+                  aria-label={hasStarted ? 'Minimizar y continuar escuchando' : 'Cerrar Rampage'}
                   className="rampage-control flex h-11 w-11 items-center justify-center"
                 >
                   <X size={18} aria-hidden="true" />
@@ -632,8 +850,14 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
             {hasStarted ? (
               <>
-            <main className="flex flex-1 flex-col items-center justify-center px-5 py-5 text-center sm:px-12">
-              <div className="relative mb-5 flex h-64 w-64 items-center justify-center sm:mb-7 sm:h-72 sm:w-72">
+            <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4 sm:px-12 sm:py-5">
+              <div className="m-auto flex w-full flex-col items-center text-center">
+              <div className="relative mb-4 flex h-52 w-52 items-center justify-center sm:mb-7 sm:h-72 sm:w-72">
+                <div aria-hidden="true" className="rampage-orb-bloom">
+                  <span className="rampage-orb-bloom-a" />
+                  <span className="rampage-orb-bloom-b" />
+                  <span className="rampage-orb-bloom-c" />
+                </div>
                 <motion.div
                   style={{
                     transform:
@@ -656,7 +880,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                     duration: 3,
                     ease: 'easeInOut',
                   }}
-                  className="rampage-orb-core relative flex h-32 w-32 items-center justify-center rounded-full sm:h-36 sm:w-36"
+                  className="rampage-orb-core relative flex h-28 w-28 items-center justify-center rounded-full sm:h-36 sm:w-36"
                 >
                   <Sparkles size={34} strokeWidth={1.4} className="text-[var(--color-rampage-orb-highlight)]" aria-hidden="true" />
                 </motion.div>
@@ -693,7 +917,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                   </button>
                 </div>
               ) : null}
-              <div className="flex min-h-[6.5rem] max-w-2xl items-center justify-center">
+              <div className="flex min-h-[5rem] max-w-2xl items-center justify-center sm:min-h-[6.5rem]">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.h1
                     key={currentAffirmation}
@@ -732,9 +956,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                   {loopCount} frases escuchadas
                 </span>
               </div>
+              </div>
             </main>
 
-            <footer className="safe-area-bottom flex flex-col items-center gap-5 px-5 pt-4 sm:px-8">
+            <footer className="safe-area-bottom flex shrink-0 flex-col items-center gap-4 px-5 pt-3 sm:gap-5 sm:px-8 sm:pt-4">
               <div role="group" aria-label="Sonido ambiental" className="flex flex-wrap justify-center gap-2">
                 <button
                   type="button"
@@ -771,10 +996,31 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                   whileTap={IOS_TAP_SPRING}
                   onClick={togglePlayback}
                   disabled={affirmationQueue.length === 0}
+                  data-playing={isPlaying}
                   aria-label={isPlaying ? 'Pausar Rampage' : 'Reproducir Rampage'}
-                  className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-[var(--color-rampage-accent)] text-[var(--color-rampage-accent-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="rampage-play flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-[var(--color-rampage-accent)] text-[var(--color-rampage-accent-fg)] hover:opacity-90 disabled:opacity-50"
                 >
-                  {isPlaying ? <Pause size={25} fill="currentColor" aria-hidden="true" /> : <Play size={25} fill="currentColor" className="translate-x-0.5" aria-hidden="true" />}
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={isPlaying ? 'pause' : 'play'}
+                      initial={{ opacity: 0, scale: 0.86 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.86 }}
+                      transition={{ duration: 0.16, ease: EMIL_EASE_OUT }}
+                      className="flex"
+                    >
+                      {isPlaying ? (
+                        <Pause size={25} fill="currentColor" aria-hidden="true" />
+                      ) : (
+                        <Play
+                          size={25}
+                          fill="currentColor"
+                          className="translate-x-0.5"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </motion.span>
+                  </AnimatePresence>
                 </motion.button>
                 <motion.button
                   type="button"
@@ -790,71 +1036,157 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             </footer>
               </>
             ) : (
-              <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-5 py-8 sm:px-12">
-                <div className="mb-7">
-                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    ¿En qué quieres enfocarte?
-                  </h1>
-                  <p id="rampage-setup-description" className="mt-2 text-sm leading-6 text-[var(--color-rampage-muted)]">
-                    El título guía las afirmaciones. Puedes añadir detalles para orientar el tono o incluir una intención particular.
-                  </p>
-                </div>
-
-                <form
-                  className="flex flex-col gap-5"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    handleStartRampage();
-                  }}
-                >
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="rampage-topic" className="text-sm font-medium">
-                      Título del Rampage
-                    </label>
-                    <input
-                      id="rampage-topic"
-                      required
-                      maxLength={120}
-                      value={draftTitle}
-                      onChange={(event) => {
-                        setDraftTitle(event.target.value);
-                        setSetupError('');
-                      }}
-                      placeholder="Por ejemplo: Mi identidad"
-                      className="rampage-surface w-full rounded-xl px-4 py-3 text-base text-[var(--color-rampage-ink)] placeholder:text-[var(--color-rampage-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-rampage-accent)]"
-                    />
+              <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <div className="relative m-auto w-full max-w-lg px-5 py-7 sm:px-10 sm:py-10">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="rampage-setup-halo mb-4 h-[5.5rem] w-[5.5rem]" aria-hidden="true">
+                      <div className="rampage-orb-core rampage-setup-orb flex items-center justify-center rounded-full">
+                        <Sparkles
+                          size={22}
+                          strokeWidth={1.5}
+                          className="text-[var(--color-rampage-orb-highlight)]"
+                        />
+                      </div>
+                    </div>
+                    <p className="rampage-setup-eyebrow">Nueva sesión</p>
+                    <h1 className="mt-2 text-[1.7rem] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-3xl">
+                      ¿En qué querés enfocarte?
+                    </h1>
+                    <p
+                      id="rampage-setup-description"
+                      className="mt-2 max-w-sm text-sm leading-6 text-[var(--color-rampage-muted)]"
+                    >
+                      El título guía las afirmaciones. Sumá detalles si querés ajustar el tono de tu sesión.
+                    </p>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="rampage-details" className="text-sm font-medium">
-                      Detalles o características <span className="font-normal text-[var(--color-rampage-muted)]">(opcional)</span>
-                    </label>
-                    <textarea
-                      id="rampage-details"
-                      maxLength={1000}
-                      rows={4}
-                      value={draftDetails}
-                      onChange={(event) => setDraftDetails(event.target.value)}
-                      placeholder="Añade ideas o matices que quieras incluir."
-                      className="rampage-surface w-full resize-y rounded-xl px-4 py-3 text-base leading-6 text-[var(--color-rampage-ink)] placeholder:text-[var(--color-rampage-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-rampage-accent)]"
-                    />
-                  </div>
-
-                  {setupError ? <p role="alert" className="text-sm text-[var(--color-danger)]">{setupError}</p> : null}
-
-                  <button
-                    type="submit"
-                    className="mt-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--color-rampage-accent)] px-6 font-semibold text-[var(--color-rampage-accent-fg)] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-rampage-accent)]"
+                  <form
+                    className="mt-7 flex flex-col gap-5"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      handleStartRampage();
+                    }}
                   >
-                    <Sparkles size={18} aria-hidden="true" />
-                    Crear Rampage
-                  </button>
-                </form>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <label htmlFor="rampage-topic" className="text-sm font-medium">
+                          Título del Rampage
+                        </label>
+                        <span
+                          aria-hidden="true"
+                          className="text-[11px] tabular-nums text-[var(--color-rampage-muted)]"
+                        >
+                          {draftTitle.length}/120
+                        </span>
+                      </div>
+                      <input
+                        id="rampage-topic"
+                        required
+                        maxLength={120}
+                        value={draftTitle}
+                        onChange={(event) => {
+                          setDraftTitle(event.target.value);
+                          setSetupError('');
+                        }}
+                        placeholder="Por ejemplo: Mi identidad"
+                        className="rampage-surface rampage-field w-full rounded-[12px] px-4 py-3 text-base text-[var(--color-rampage-ink)] placeholder:text-[var(--color-rampage-muted)]"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <label htmlFor="rampage-details" className="text-sm font-medium">
+                          Detalles{' '}
+                          <span className="font-normal text-[var(--color-rampage-muted)]">
+                            (opcional)
+                          </span>
+                        </label>
+                        <span
+                          aria-hidden="true"
+                          className="text-[11px] tabular-nums text-[var(--color-rampage-muted)]"
+                        >
+                          {draftDetails.length}/1000
+                        </span>
+                      </div>
+                      <textarea
+                        id="rampage-details"
+                        maxLength={1000}
+                        rows={3}
+                        value={draftDetails}
+                        onChange={(event) => setDraftDetails(event.target.value)}
+                        placeholder="Sumá matices, personas o situaciones que quieras incluir."
+                        className="rampage-surface rampage-field w-full resize-y rounded-[12px] px-4 py-3 text-base leading-6 text-[var(--color-rampage-ink)] placeholder:text-[var(--color-rampage-muted)]"
+                      />
+                    </div>
+
+                    {setupError ? (
+                      <p role="alert" className="text-sm text-[var(--color-danger)]">
+                        {setupError}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-1 flex flex-col gap-2.5">
+                      <button
+                        type="submit"
+                        className="rampage-setup-submit inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-full px-6 text-[0.95rem] font-semibold text-[var(--color-rampage-accent-fg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-rampage-accent)]"
+                      >
+                        <Sparkles size={18} aria-hidden="true" />
+                        Crear Rampage
+                      </button>
+                      <p className="text-center text-xs text-[var(--color-rampage-muted)]">
+                        Vas a poder pausar y retomar la sesión cuando quieras.
+                      </p>
+                    </div>
+                  </form>
+                </div>
               </main>
             )}
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+    <AnimatePresence>
+      {!isOpen && isMinimized && (
+        <motion.aside
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
+          aria-label="Reproducción de Rampage en segundo plano"
+          className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-lg items-center gap-3 rounded-[18px] border border-swiss-border bg-swiss-surface p-3 text-swiss-ink shadow-modal lg:inset-x-auto lg:bottom-5 lg:right-5 lg:w-[min(26rem,calc(100vw-2.5rem))]"
+        >
+          <button
+            type="button"
+            onClick={onRestore}
+            className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+            aria-label={`Abrir reproductor de ${activeRampageRef.current.title}`}
+          >
+            <span className="block truncate text-sm font-semibold">
+              {activeRampageRef.current.title}
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-swiss-ink-muted">
+              {isPlaying ? currentAffirmation : 'En pausa'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void togglePlayback()}
+            aria-label={isPlaying ? 'Pausar Rampage' : 'Continuar Rampage'}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg focus-visible:ring-2 focus-visible:ring-swiss-focus"
+          >
+            {isPlaying ? <Pause size={18} aria-hidden="true" /> : <Play size={18} fill="currentColor" aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            onClick={handleStopBackgroundPlayback}
+            aria-label="Detener Rampage"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-swiss-ink-muted hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+          >
+            <Square size={16} aria-hidden="true" />
+          </button>
+        </motion.aside>
+      )}
+    </AnimatePresence>
+    </>
   );
 };

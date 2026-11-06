@@ -145,7 +145,7 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
             <header className="mb-4 flex items-start justify-between gap-4 sm:mb-3">
               <div className="min-w-0">
                 <p className="progress-composer-eyebrow mb-1.5">Nuevo registro</p>
-                <h2 id="progress-log-title" className="text-xl font-medium tracking-tight sm:text-[1.35rem]">
+                <h2 id="progress-log-title" className="text-[1.375rem] font-semibold tracking-[-0.024em]">
                   ¿Qué cambió hoy?
                 </h2>
                 <p id="progress-log-description" className="mt-2 max-w-sm text-xs leading-[1.55] text-[var(--color-ink-muted)] sm:text-sm">
@@ -174,7 +174,7 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
                   onChange={(event) => setNote(event.target.value)}
                   placeholder="Hoy noté que..."
                   required
-                  className="swiss-composer-field h-[8.5rem] min-h-[8.5rem] w-full resize-none rounded-[1.125rem] px-4 pb-14 pt-4 text-sm leading-6"
+                  className="swiss-composer-field h-[8.5rem] min-h-[8.5rem] w-full resize-none rounded-[12px] px-4 pb-14 pt-4 text-sm leading-6"
                 />
                 <VoiceDictationButton
                   size="lg"
@@ -270,7 +270,7 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
                   type="submit"
                   disabled={isSubmitting || !note.trim()}
                   aria-busy={isSubmitting}
-                  className="progress-composer-submit swiss-btn-primary inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] px-6 text-sm font-semibold disabled:opacity-60"
+                  className="progress-composer-submit swiss-btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2 px-6 text-sm font-semibold disabled:opacity-60"
                 >
                   {isSubmitting && <Check size={17} aria-hidden="true" />}
                   {isSubmitting ? 'Guardando…' : 'Guardar avance'}

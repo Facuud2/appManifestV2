@@ -16,15 +16,12 @@ interface AffirmationEditorModalProps {
   onClose: () => void;
 }
 
-const categories = ['Relaciones', 'Bienestar', 'Abundancia', 'Proyecto personal'];
-
 export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
   isOpen,
   onClose,
 }) => {
   const { addAffirmation } = useAppStore();
   const [text, setText] = useState('');
-  const [category, setCategory] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMobileSheet, setIsMobileSheet] = useState(false);
@@ -46,7 +43,6 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
     returnFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setText('');
-    setCategory('');
     setError('');
 
     const frame = window.requestAnimationFrame(() => textareaRef.current?.focus());
@@ -70,7 +66,7 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
     setIsSubmitting(true);
     setError('');
     try {
-      await addAffirmation(affirmation, category || undefined);
+      await addAffirmation(affirmation);
       onClose();
     } catch (submitError) {
       console.error('No se pudo guardar la afirmación.', submitError);
@@ -128,7 +124,7 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) onClose();
           }}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-swiss-ink/25 p-0 backdrop-blur-md sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 backdrop-blur-[10px] sm:items-center sm:p-4"
         >
           <motion.section
             variants={modalTransition}
@@ -143,12 +139,12 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-swiss-ink-light">
+                <p className="text-[0.8125rem] font-semibold text-swiss-ink-light">
                   Nueva afirmación
                 </p>
                 <h2
                   id="affirmation-editor-title"
-                  className="mt-2 text-xl font-medium tracking-tight text-swiss-ink sm:text-2xl"
+                  className="mt-1.5 text-[1.375rem] font-semibold tracking-[-0.024em] text-swiss-ink sm:text-2xl"
                 >
                   Creá una frase que sea tuya
                 </h2>
@@ -164,8 +160,8 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
             </div>
 
             <p className="mt-4 max-w-md text-sm leading-5 text-swiss-ink-muted">
-              Decime qué querés sentir o manifestar. Vamos a convertirlo en una afirmación breve y
-              natural.
+              Escribí una frase directa y natural, como si ya fuera real. Sin poesía ni palabras
+              raras.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-5">
@@ -178,7 +174,7 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
                   id="new-affirmation-text"
                   value={text}
                   onChange={(event) => setText(event.target.value)}
-                  placeholder="Quiero sentir más..."
+                  placeholder="Por ejemplo: Soy siempre la primera opción"
                   maxLength={500}
                   rows={4}
                   required
@@ -186,30 +182,12 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
                 />
                 <VoiceDictationButton
                   size="md"
-                  className="absolute bottom-3 right-3 h-11 w-11 rounded-xl border-0 bg-swiss-accent text-swiss-accentFg hover:opacity-90"
+                  className="!absolute bottom-3 right-3 h-11 w-11 rounded-xl border-0 bg-swiss-accent text-swiss-accentFg hover:opacity-90"
                   onTranscript={(transcript) =>
                     setText((previous) => (previous ? `${previous} ${transcript}` : transcript))
                   }
                   previousTextTail={text}
                 />
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2" aria-label="Categoría opcional">
-                {categories.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    aria-pressed={category === item}
-                    onClick={() => setCategory(category === item ? '' : item)}
-                    className={`min-h-8 rounded-full px-3 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
-                      category === item
-                        ? 'bg-swiss-accent text-swiss-accentFg'
-                        : 'bg-swiss-control text-swiss-ink-muted hover:text-swiss-ink'
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
               </div>
 
               {error && (
@@ -221,7 +199,7 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
               <button
                 type="submit"
                 disabled={!text.trim() || isSubmitting}
-                className="swiss-btn-primary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm disabled:opacity-50"
+                className="swiss-btn-primary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 px-5 text-sm disabled:opacity-50"
               >
                 {isSubmitting ? 'Guardando…' : 'Crear afirmación'}
                 <ArrowRight aria-hidden="true" size={16} />

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -18,15 +18,21 @@ import { ManifestationEditorModal } from '@/components/journal/ManifestationEdit
 import { AffirmationEditorModal } from '@/components/journal/AffirmationEditorModal';
 import { ProgressLogModal } from '@/components/goals/ProgressLogModal';
 import { SuccessStoryModal } from '@/components/goals/SuccessStoryModal';
+import { audioEngine } from '@/lib/audioEngine';
+import { RampageSet } from '@/types';
 
 export default function HomePage() {
   const { fetchRemoteData, refreshVoiceCalibrationStatus } = useAppStore();
+  const prefersReducedMotion = useReducedMotion();
 
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
 
   // Modals state
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [isRampageOpen, setIsRampageOpen] = useState(false);
+  const [rampageOpenMode, setRampageOpenMode] = useState<'new' | 'restore'>('new');
+  const [rampageToResume, setRampageToResume] = useState<RampageSet | null>(null);
+  const [resumeRequestId, setResumeRequestId] = useState(0);
   const [isNewManifestationOpen, setIsNewManifestationOpen] = useState(false);
   const [isNewAffirmationOpen, setIsNewAffirmationOpen] = useState(false);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
@@ -75,6 +81,18 @@ export default function HomePage() {
     setIsCreateMenuOpen(false);
   }, []);
 
+  const handleOpenNewRampage = useCallback(() => {
+    setRampageToResume(null);
+    setRampageOpenMode('new');
+    setIsRampageOpen(true);
+  }, []);
+
+  const handleContinueRampage = useCallback((rampage: RampageSet) => {
+    void audioEngine?.unlock();
+    setRampageToResume(rampage);
+    setResumeRequestId((requestId) => requestId + 1);
+  }, []);
+
   const handleSelectCreateAction = useCallback((action: CreateAction) => {
     setIsCreateMenuOpen(false);
     if (action === 'manifestation') {
@@ -82,6 +100,8 @@ export default function HomePage() {
     } else if (action === 'affirmation') {
       setIsNewAffirmationOpen(true);
     } else {
+      setRampageToResume(null);
+      setRampageOpenMode('new');
       setIsRampageOpen(true);
     }
   }, []);
@@ -104,7 +124,7 @@ export default function HomePage() {
         activeTab={activeTab}
         onChangeTab={setActiveTab}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
-        onOpenRampage={() => setIsRampageOpen(true)}
+        onOpenRampage={handleOpenNewRampage}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -119,16 +139,21 @@ export default function HomePage() {
         >
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.22, ease: EMIL_EASE_OUT }}
+            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: 0.24, ease: EMIL_EASE_OUT }
+            }
           >
             {activeTab === 'dashboard' && (
               <DashboardView
                 onOpenManifestations={() => setActiveTab('manifestations')}
                 onOpenNewManifestation={() => setIsNewManifestationOpen(true)}
                 onOpenNewProgress={() => handleOpenProgress()}
-                onOpenRampage={() => setIsRampageOpen(true)}
+                onOpenRampage={handleOpenNewRampage}
+                onContinueRampage={handleContinueRampage}
                 isCreateMenuOpen={isCreateMenuOpen}
                 onOpenCreateMenu={handleOpenCreateMenu}
               />
@@ -156,7 +181,7 @@ export default function HomePage() {
         <BottomNavigation
           activeTab={activeTab}
           onChangeTab={setActiveTab}
-          onOpenRampage={() => setIsRampageOpen(true)}
+          onOpenRampage={handleOpenNewRampage}
           onOpenCreateMenu={handleOpenCreateMenu}
           isCreateMenuOpen={isCreateMenuOpen}
         />
@@ -178,6 +203,13 @@ export default function HomePage() {
       <RampagePlayerModal
         isOpen={isRampageOpen}
         onClose={() => setIsRampageOpen(false)}
+        onRestore={() => {
+          setRampageOpenMode('restore');
+          setIsRampageOpen(true);
+        }}
+        openMode={rampageOpenMode}
+        resumeRampage={rampageToResume}
+        resumeRequestId={resumeRequestId}
       />
 
       <ManifestationEditorModal

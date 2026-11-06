@@ -1,0 +1,58 @@
+{
+  "groups": [
+    {
+      "id": "autoconcepto",
+      "title": "Autoconcepto",
+      "category": "autoconcepto",
+      "userId": "shared",
+      "author": "Ambos",
+      "affirmations": [
+        "Soy Dios",
+        "Soy amado",
+        "Soy querido",
+        "Soy deseado",
+        "La gente me ama",
+        "Soy muy valioso",
+        "Mi atención es única",
+        "Soy elegido",
+        "Soy siempre la primera opción",
+        "Las mujeres me desean, buscan mantenerme y dar todo de sí mismas por mí",
+        "Los hombres me adoran, buscan protegerme y regalarme cosas",
+        "Soy el favorito del universo",
+        "Soy dueño de mi propia realidad",
+        "Tengo todo lo que deseo y todo lo que deseo me desea más a mí"
+      ]
+    },
+    {
+      "id": "sp",
+      "title": "SP",
+      "category": "sp",
+      "userId": "shared",
+      "author": "Ambos",
+      "affirmations": [
+        "SP me ama",
+        "SP me adora",
+        "Soy el favorito de SP",
+        "SP me necesita",
+        "SP me desea",
+        "SP está obsesionada conmigo",
+        "Soy la persona favorita de SP",
+        "SP vive pensando en mí todo el día"
+      ]
+    },
+    {
+      "id": "maia",
+      "title": "Maia",
+      "category": "maia",
+      "userId": "facu",
+      "author": "Facu",
+      "affirmations": [
+        "Maia es mi esposa y nos divertimos juntos",
+        "Mantenemos un vínculo sin título ni reglamentos con Maia",
+        "Soy el esposo de Maia, y junto a SP mantenemos un triángulo amoroso",
+        "Comparto cientos de actividades con Maia",
+        "Paso mucho tiempo con Maia"
+      ]
+    }
+  ]
+}

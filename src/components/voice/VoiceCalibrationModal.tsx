@@ -535,7 +535,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
           onClick={(event) => {
             if (event.target === event.currentTarget) handleClose();
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-0 backdrop-blur-md sm:p-5"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-0 backdrop-blur-[10px] sm:p-5"
         >
           <motion.div
             ref={dialogRef}
@@ -554,8 +554,8 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
           >
             <header className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-swiss-actionLavender text-swiss-accent">
-                  <Sparkles aria-hidden="true" size={20} />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center text-swiss-accent">
+                  <Sparkles aria-hidden="true" size={22} strokeWidth={1.7} />
                 </div>
                 <div>
                   <p className="manifestation-composer-eyebrow">Tu voz, tu espacio</p>
@@ -647,7 +647,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                       la voz de este perfil.
                     </p>
                   </div>
-                  <span className="rounded-full bg-swiss-actionLavender px-2.5 py-1 text-xs font-medium text-swiss-accent">
+                  <span className="shrink-0 whitespace-nowrap rounded-full bg-[color:var(--pastel-peri)] px-2.5 py-1 text-xs font-medium text-[color:var(--pastel-peri-ink)]">
                     10–30 s
                   </span>
                 </div>
@@ -731,8 +731,8 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                 transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
                 className="swiss-card p-5 text-center sm:p-6"
               >
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-swiss-actionLavender text-swiss-accent">
-                  <Check aria-hidden="true" size={23} />
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center text-swiss-accent">
+                  <Check aria-hidden="true" size={28} strokeWidth={1.7} />
                 </div>
                 <h3 className="text-lg font-semibold text-swiss-ink">Voz de {recordingName} calibrada</h3>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-swiss-ink-muted">
@@ -769,7 +769,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
             )}
 
             {errorMessage && (
-              <p role="alert" className="rounded-xl border border-swiss-red/25 bg-swiss-red/10 px-4 py-3 text-sm text-swiss-red">
+              <p role="alert" className="rounded-[12px] border border-swiss-red bg-[color:var(--color-danger-bg)] px-4 py-3 text-sm text-swiss-red">
                 {errorMessage}
               </p>
             )}

@@ -15,6 +15,12 @@ import {
   isProfileCalibrated,
   saveVoiceProfileMeta,
 } from '@/lib/voiceStorage';
+import {
+  DEFAULT_AFFIRMATIONS,
+  DEFAULT_RAMPAGE_SETS,
+  mergeDefaultAffirmations,
+  mergeDefaultRampageSets,
+} from '@/lib/affirmationEngine';
 
 export interface ProgressLog {
   id: string;
@@ -33,7 +39,7 @@ export interface ManifestationItem {
   title: string;
   description: string;
   sensoryAnchor?: string;
-  category: string;
+  category?: string;
   status: 'semilla' | 'alineacion' | 'evidencia' | 'materializado';
   targetDate?: string;
   createdAt: string;
@@ -81,12 +87,15 @@ interface AppState {
   addSuccessStory: (story: Omit<SuccessStory, 'id' | 'createdAt'>) => Promise<SuccessStory>;
   deleteSuccessStory: (id: string) => Promise<void>;
 
-  addAffirmation: (text: string, category?: string) => Promise<Affirmation>;
+  addAffirmation: (text: string) => Promise<Affirmation>;
   togglePinAffirmation: (id: string) => Promise<void>;
   incrementAffirmationRepeat: (id: string) => Promise<void>;
   deleteAffirmation: (id: string) => Promise<void>;
 
-  saveRampageSet: (rampage: Omit<RampageSet, 'id' | 'createdAt'>) => Promise<RampageSet>;
+  saveRampageSet: (
+    rampage: Omit<RampageSet, 'id' | 'createdAt'> &
+      Partial<Pick<RampageSet, 'id' | 'createdAt'>>
+  ) => Promise<RampageSet>;
   deleteRampageSet: (id: string) => Promise<void>;
 }
 
@@ -111,7 +120,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       document.documentElement.classList.toggle('dark', isDark);
       document.documentElement.classList.toggle('light', !isDark);
       document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
-        meta.content = isDark ? '#17141d' : '#f8f7fd';
+        meta.content = isDark ? '#121014' : '#f1f1ef';
       });
     }
   },
@@ -119,8 +128,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   manifestations: [],
   progressLogs: [],
   successStories: [],
-  affirmations: [],
-  rampageSets: [],
+  affirmations: DEFAULT_AFFIRMATIONS,
+  rampageSets: DEFAULT_RAMPAGE_SETS,
 
   ambientSound: 'astral_rain',
   setAmbientSound: (ambientSound) => {
@@ -157,8 +166,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         manifestations: json.data.manifestations || [],
         progressLogs: json.data.progressLogs || [],
         successStories: json.data.successStories || [],
-        affirmations: json.data.affirmations || [],
-        rampageSets: json.data.rampageSets || [],
+        affirmations: mergeDefaultAffirmations(json.data.affirmations || []),
+        rampageSets: mergeDefaultRampageSets(json.data.rampageSets || []),
       });
       for (const profile of json.data.profiles || []) {
         if (
@@ -304,7 +313,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }).catch(console.error);
   },
 
-  addAffirmation: async (text, category) => {
+  addAffirmation: async (text) => {
     const id = `aff_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
     const scope = get().activeScope;
@@ -315,7 +324,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       userId: scope,
       author,
       text,
-      category,
       repeatCount: 0,
       pinned: false,
       createdAt: now,
@@ -379,12 +387,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   saveRampageSet: async (rampage) => {
-    const id = `rampage_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
-    const newSet: RampageSet = { ...rampage, id, createdAt: now };
+    const newSet: RampageSet = {
+      ...rampage,
+      id: rampage.id || `rampage_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: rampage.createdAt || now,
+      updatedAt: now,
+    };
 
     set((state) => ({
-      rampageSets: [newSet, ...state.rampageSets],
+      rampageSets: [
+        newSet,
+        ...state.rampageSets.filter((rampageSet) => rampageSet.id !== newSet.id),
+      ],
     }));
 
     fetch('/api/sync', {

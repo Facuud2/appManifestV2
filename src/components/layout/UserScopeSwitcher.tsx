@@ -65,9 +65,14 @@ export const UserScopeSwitcher: React.FC = () => {
         aria-label={`Perfil actual: ${activeLabel}. Cambiar perfil`}
         className="swiss-pill inline-flex min-h-11 items-center gap-2 px-2.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-swiss-focus disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-swiss-actionLavender text-xs font-semibold text-swiss-accent">
-          {activeScope === 'shared' ? <Users aria-hidden="true" size={15} /> : activeLabel[0]}
-        </span>
+        {activeScope === 'shared' ? (
+          <Users aria-hidden="true" size={15} className="text-swiss-ink-muted" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="h-2 w-2 rounded-full bg-[color:var(--pastel-peach-strong)]"
+          />
+        )}
         <span className="max-w-20 truncate text-swiss-ink">{activeLabel}</span>
         <ChevronDown
           aria-hidden="true"
@@ -80,12 +85,12 @@ export const UserScopeSwitcher: React.FC = () => {
           <motion.div
             role="group"
             aria-label="Perfiles disponibles"
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.97 }}
-            transition={{ duration: 0.16, ease: EMIL_EASE_OUT }}
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: -2 }}
+            transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
             style={{ transformOrigin: '100% 0%' }}
-            className="swiss-card absolute right-0 top-full z-50 mt-2 min-w-40 p-1.5"
+            className="swiss-group absolute right-0 top-full z-50 mt-2 min-w-44 p-1 shadow-dropdown"
           >
             {scopes.map((scope) => (
               <button
@@ -97,7 +102,7 @@ export const UserScopeSwitcher: React.FC = () => {
                   setActiveScope(scope.id);
                   setIsOpen(false);
                 }}
-                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-sm text-swiss-ink transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                className="swiss-row min-h-11 rounded-[10px] px-3 text-[0.9375rem]"
               >
                 <span className="flex items-center gap-2">
                   {scope.label}
