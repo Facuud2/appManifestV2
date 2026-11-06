@@ -110,6 +110,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.classList.toggle('dark', isDark);
       document.documentElement.classList.toggle('light', !isDark);
+      document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
+        meta.content = isDark ? '#17141d' : '#f8f7fd';
+      });
     }
   },
 

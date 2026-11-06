@@ -175,6 +175,13 @@ html {
   outline-offset: 2px;
 }
 
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+}
+
 html, body {
   background-color: var(--color-base);
   background-image:
@@ -340,8 +347,10 @@ h1, h2, h3, h4, .font-display {
   transition: background-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out), transform 100ms var(--ease-out);
 }
 
-.swiss-btn-primary:hover {
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-accent) 24%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .swiss-btn-primary:hover {
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  }
 }
 
 .swiss-btn-primary:active {
@@ -357,9 +366,11 @@ h1, h2, h3, h4, .font-display {
   transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
-.swiss-btn-secondary:hover {
-  background-color: var(--control-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) and (pointer: fine) {
+  .swiss-btn-secondary:hover {
+    background-color: var(--control-hover);
+    border-color: var(--border-strong);
+  }
 }
 
 .swiss-modal {
@@ -537,9 +548,11 @@ h1, h2, h3, h4, .font-display {
   color: var(--color-accent-fg);
 }
 
-.manifestation-composer-mic:hover {
-  background-color: color-mix(in srgb, var(--color-accent) 88%, var(--color-ink));
-  color: var(--color-accent-fg);
+@media (hover: hover) and (pointer: fine) {
+  .manifestation-composer-mic:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 88%, var(--color-ink));
+    color: var(--color-accent-fg);
+  }
 }
 
 .manifestation-composer-submit {
@@ -552,8 +565,10 @@ h1, h2, h3, h4, .font-display {
   box-shadow: 0 8px 18px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
-.manifestation-composer-submit:hover {
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-accent) 28%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .manifestation-composer-submit:hover {
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
 }
 
 .manifestation-composer-details summary::-webkit-details-marker {
@@ -592,9 +607,11 @@ h1, h2, h3, h4, .font-display {
   color: var(--color-accent-fg);
 }
 
-.progress-composer-mic:hover {
-  background-color: color-mix(in srgb, var(--color-accent) 88%, var(--color-ink));
-  color: var(--color-accent-fg);
+@media (hover: hover) and (pointer: fine) {
+  .progress-composer-mic:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 88%, var(--color-ink));
+    color: var(--color-accent-fg);
+  }
 }
 
 .progress-composer-link select {
@@ -611,8 +628,10 @@ h1, h2, h3, h4, .font-display {
   box-shadow: 0 8px 18px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
-.progress-composer-submit:hover {
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-accent) 28%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .progress-composer-submit:hover {
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
 }
 
 .swiss-composer-categories {
@@ -679,9 +698,11 @@ h1, h2, h3, h4, .font-display {
   transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform 120ms var(--ease-out);
 }
 
-.rampage-control:hover {
-  border-color: var(--border-strong);
-  color: var(--color-rampage-ink);
+@media (hover: hover) and (pointer: fine) {
+  .rampage-control:hover {
+    border-color: var(--border-strong);
+    color: var(--color-rampage-ink);
+  }
 }
 
 .rampage-control:active {
