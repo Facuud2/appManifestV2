@@ -69,15 +69,18 @@ export default function HomePage() {
   };
 
   const handleOpenCreateMenu = useCallback((trigger: HTMLElement) => {
-    const rect = trigger.getBoundingClientRect();
-    createMenuTriggerRef.current = trigger;
-    setCreateMenuAnchor({
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
+    setIsCreateMenuOpen((currentlyOpen) => {
+      if (currentlyOpen) return false;
+      const rect = trigger.getBoundingClientRect();
+      createMenuTriggerRef.current = trigger;
+      setCreateMenuAnchor({
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+      return true;
     });
-    setIsCreateMenuOpen(true);
   }, []);
 
   const handleCloseCreateMenu = useCallback(() => {
@@ -165,10 +168,11 @@ export default function HomePage() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto w-full max-w-[1160px] flex-1 px-page py-section"
+          className="mx-auto w-full max-w-[1160px] min-w-0 flex-1 px-page py-section"
         >
           <motion.div
             key={activeTab}
+            className="w-full min-w-0"
             initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={

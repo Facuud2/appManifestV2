@@ -128,7 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       variants={STAGGER_CONTAINER}
       initial="hidden"
       animate="show"
-      className="space-y-8 pb-32 text-swiss-ink lg:space-y-10 lg:pb-10"
+      className="w-full min-w-0 space-y-8 pb-32 text-swiss-ink lg:space-y-10 lg:pb-10"
     >
       <motion.section
         variants={STAGGER_ITEM}
@@ -296,11 +296,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       <motion.section
         variants={STAGGER_CONTAINER}
-        className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+        className="grid w-full min-w-0 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
       >
-        <motion.article variants={STAGGER_ITEM} className="swiss-card surface-peri flex min-h-52 flex-col p-5 sm:p-card">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="text-lg font-semibold tracking-[-0.02em] text-swiss-ink">
+        <motion.article
+          variants={STAGGER_ITEM}
+          className="swiss-card surface-peri flex w-full min-w-0 flex-col p-4 sm:p-card"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-base font-semibold tracking-[-0.02em] text-swiss-ink sm:text-lg">
               Continuar escuchando
             </h2>
             <button
@@ -311,7 +314,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
               aria-expanded={isComposerOpen}
               aria-label={isComposerOpen ? 'Cerrar afirmación nueva' : 'Crear una afirmación nueva'}
-              className="swiss-pill inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center text-swiss-accentText transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center text-swiss-accentText transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus sm:min-h-10 sm:min-w-10"
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -322,13 +325,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   transition={{ duration: 0.15, ease: EMIL_EASE_OUT }}
                   className="flex"
                 >
-                  {isComposerOpen ? <X aria-hidden="true" size={17} /> : <Plus aria-hidden="true" size={17} />}
+                  {isComposerOpen ? <X aria-hidden="true" size={16} /> : <Plus aria-hidden="true" size={16} />}
                 </motion.span>
               </AnimatePresence>
             </button>
           </div>
 
-          <div className="glass-panel mt-4 flex flex-1 items-center gap-3.5 rounded-[20px] p-3 sm:gap-4 sm:p-3.5 sm:rounded-[22px]">
+          <div className="glass-panel mt-3.5 flex w-full min-w-0 items-center gap-2.5 rounded-[18px] p-2.5 sm:mt-4 sm:gap-4 sm:p-3.5 sm:rounded-[22px]">
             <button
               type="button"
               onClick={() => {
@@ -350,7 +353,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ? `Continuar escuchando ${latestRampage.title}`
                   : 'Crear tu primer Rampage'
               }
-              className="inline-flex h-12 w-12 sm:h-13 sm:w-13 shrink-0 items-center justify-center rounded-[14px] sm:rounded-[16px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-transform hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus active:scale-[0.96]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-transform hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus active:scale-[0.96] sm:h-13 sm:w-13 sm:rounded-[16px]"
             >
               <AnimatePresence mode="wait" initial={false}>
                 {isRampagePlaying ? (
@@ -362,7 +365,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
                     className="flex"
                   >
-                    <Pause aria-hidden="true" size={19} fill="currentColor" />
+                    <Pause aria-hidden="true" size={18} fill="currentColor" />
                   </motion.span>
                 ) : (
                   <motion.span
@@ -375,7 +378,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   >
                     <Play
                       aria-hidden="true"
-                      size={18}
+                      size={17}
                       fill="currentColor"
                       className="translate-x-[1px]"
                     />
@@ -393,7 +396,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onOpenRampage();
                 }
               }}
-              className="min-w-0 flex-1 text-left rounded-lg transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+              className="min-w-0 flex-1 overflow-hidden text-left rounded-lg transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
               aria-label={
                 latestRampage?.affirmations.length
                   ? `Abrir reproductor de ${latestRampage.title}`
@@ -402,24 +405,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             >
               {latestRampage?.affirmations.length ? (
                 <>
-                  <p className="truncate text-sm sm:text-[0.9375rem] font-semibold text-swiss-ink">
+                  <p className="truncate text-sm font-semibold text-swiss-ink sm:text-[0.9375rem]">
                     {latestRampage.title}
                   </p>
-                  <p className="mt-0.5 truncate text-xs sm:text-[0.8125rem] font-normal leading-4 text-swiss-ink-muted">
+                  <p className="mt-0.5 truncate text-xs font-normal leading-4 text-swiss-ink-muted sm:text-[0.8125rem]">
                     {isRampagePlaying && currentAffirmationText
                       ? `“${currentAffirmationText}”`
                       : `“${latestRampage.affirmations[0].text}”`}
                   </p>
                 </>
               ) : (
-                <p className="text-xs sm:text-sm text-swiss-ink-muted">
+                <p className="text-xs text-swiss-ink-muted sm:text-sm">
                   Creá un Rampage y retomalo desde acá cuando quieras.
                 </p>
               )}
             </button>
 
-            <div className="shrink-0 pl-1">
-              <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={13} />
+            <div className="shrink-0 pl-0.5 sm:pl-1">
+              <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={8} className="sm:hidden" />
+              <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={13} className="hidden sm:flex" />
             </div>
           </div>
 
@@ -438,7 +442,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   Escribe una afirmación
                 </label>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <div className="relative flex-1">
+                  <div className="relative min-w-0 flex-1">
                     <input
                       id="quick-affirmation"
                       type="text"
@@ -464,7 +468,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <button
                     type="submit"
                     disabled={isAddingAffirmation || !newAffirmationText.trim()}
-                    className="swiss-btn-primary inline-flex min-h-12 items-center justify-center gap-2 px-5 text-sm disabled:opacity-50"
+                    className="swiss-btn-primary inline-flex min-h-12 shrink-0 items-center justify-center gap-2 px-5 text-sm disabled:opacity-50"
                   >
                     <Check aria-hidden="true" size={16} />
                     {isAddingAffirmation ? 'Guardando…' : 'Guardar'}
@@ -501,9 +505,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </motion.article>
 
-        <motion.article variants={STAGGER_ITEM} className="swiss-card min-h-52 p-5 sm:p-card">
+        <motion.article
+          variants={STAGGER_ITEM}
+          className="swiss-card flex w-full min-w-0 flex-col p-4 sm:p-card"
+        >
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-[-0.02em] text-swiss-ink">
+            <h2 className="text-base font-semibold tracking-[-0.02em] text-swiss-ink sm:text-lg">
               Esta semana
             </h2>
             <span className="rounded-full bg-[color:var(--pastel-sage)] px-2.5 py-1 text-xs font-semibold text-[color:var(--pastel-sage-ink)]">
@@ -511,8 +518,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
 
-          <div className="mt-5 flex items-center gap-5">
-            <div className="relative h-20 w-20 shrink-0">
+          <div className="mt-4 flex w-full min-w-0 items-center gap-3 sm:mt-5 sm:gap-5">
+            <div className="relative h-16 w-16 shrink-0 sm:h-20 sm:w-20">
               <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
                 <circle
                   cx="50"
@@ -537,17 +544,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
               </svg>
               <span className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-semibold tabular-nums leading-none text-swiss-ink">
+                <span className="text-lg font-semibold tabular-nums leading-none text-swiss-ink sm:text-xl">
                   {week.loggedDays}
                 </span>
-                <span className="mt-0.5 text-[11px] font-medium text-swiss-ink-light">días</span>
+                <span className="mt-0.5 text-[10px] font-medium text-swiss-ink-light sm:text-[11px]">días</span>
               </span>
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex justify-between gap-1">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="grid grid-cols-7 gap-1 text-center sm:gap-1.5">
                 {week.days.map((day) => (
-                  <div key={day.key} className="flex flex-col items-center gap-1.5">
+                  <div key={day.key} className="flex min-w-0 flex-col items-center gap-1 sm:gap-1.5">
                     <span
                       role="img"
                       aria-label={`${day.date.toLocaleDateString('es-ES', {
@@ -556,7 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       })}${day.isToday ? ', hoy' : ''}${
                         day.hasLog ? ', con avance registrado' : ', sin avances registrados'
                       }`}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold ${
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold transition-colors sm:h-7 sm:w-7 sm:text-[11px] ${
                         day.hasLog
                           ? 'bg-[color:var(--pastel-sage)] text-[color:var(--pastel-sage-ink)]'
                           : day.isToday
@@ -571,13 +578,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           transition={{ type: 'spring', stiffness: 520, damping: 28 }}
                           className="flex"
                         >
-                          <Check aria-hidden="true" size={13} />
+                          <Check aria-hidden="true" size={12} />
                         </motion.span>
                       ) : (
                         day.label
                       )}
                     </span>
-                    <span className="text-[11px] tabular-nums text-swiss-ink-light">
+                    <span className="text-[10px] tabular-nums text-swiss-ink-light sm:text-[11px]">
                       {day.date.getDate()}
                     </span>
                   </div>
@@ -586,10 +593,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 border-t border-swiss-border pt-3">
-            <p className="text-xs leading-5 text-swiss-ink-muted">
-              <span className="font-semibold text-swiss-ink">{week.loggedDays} días</span> con
-              avances registrados
+          <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-swiss-border pt-3 sm:mt-4">
+            <p className="truncate text-xs leading-5 text-swiss-ink-muted">
+              <span className="font-semibold text-swiss-ink">{week.loggedDays} días</span> con avances
             </p>
             <button
               type="button"
@@ -597,7 +603,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-semibold text-swiss-accentText transition-colors hover:bg-swiss-control"
             >
               Registrar
-              <ChevronRight aria-hidden="true" size={16} />
+              <ChevronRight aria-hidden="true" size={15} />
             </button>
           </div>
         </motion.article>

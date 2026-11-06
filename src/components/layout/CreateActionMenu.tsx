@@ -1,17 +1,39 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
 import { BookOpen, ChevronRight, Mic, Sparkles, X } from 'lucide-react';
 import {
   BACKDROP_TRANSITION,
   EMIL_EASE_OUT,
-  EMIL_SHEET_SPRING,
   STAGGER_CONTAINER,
   STAGGER_ITEM,
 } from '@/lib/iosSprings';
 
 export type CreateAction = 'manifestation' | 'affirmation' | 'rampage';
+
+const MOBILE_SHEET_VARIANTS: Variants = {
+  hidden: {
+    opacity: 0,
+    y: '100%',
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.28,
+      ease: EMIL_EASE_OUT,
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: '100%',
+    transition: {
+      duration: 0.2,
+      ease: EMIL_EASE_OUT,
+    },
+  },
+};
 
 interface CreateActionMenuProps {
   isOpen: boolean;
@@ -50,6 +72,7 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
   onClose,
   onSelect,
 }) => {
+  const prefersReducedMotion = useReducedMotion();
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const desktopMenuRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -139,9 +162,9 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           onClick={() => onSelect(action.id)}
           variants={STAGGER_ITEM}
           whileTap={{ scale: 0.98 }}
-          className={`create-action group relative flex w-full items-center gap-3.5 text-left transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus ${action.color} ${
+          className={`create-action group relative flex w-full items-center gap-3.5 text-left transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus touch-manipulation select-none active:scale-[0.98] ${action.color} ${
             mobile
-              ? 'mx-2 mb-1.5 min-h-[4.25rem] w-[calc(100%-1rem)] rounded-[16px] px-3.5'
+              ? 'min-h-[4.25rem] w-full rounded-[18px] px-4'
               : 'min-h-[3.5rem] rounded-[12px] px-2.5'
           }`}
         >
@@ -176,7 +199,7 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           exit="exit"
           aria-hidden="true"
           onMouseDown={closeAndRestoreFocus}
-          className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-[10px] lg:hidden"
+          className="fixed inset-0 z-[60] bg-black/35 backdrop-blur-[10px] lg:hidden"
         />
       )}
       {isOpen && (
@@ -187,25 +210,21 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-action-title-mobile"
-          initial={{ opacity: 0, y: '100%' }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{
-            opacity: 0,
-            y: '100%',
-            transition: { duration: 0.22, ease: EMIL_EASE_OUT },
-          }}
-          transition={EMIL_SHEET_SPRING}
+          variants={MOBILE_SHEET_VARIANTS}
+          initial={prefersReducedMotion ? false : 'hidden'}
+          animate="visible"
+          exit={prefersReducedMotion ? undefined : 'exit'}
           onMouseDown={(event) => event.stopPropagation()}
-          className="swiss-modal fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-3 right-3 z-[61] mx-auto w-auto max-w-lg overflow-hidden rounded-[28px] p-0 shadow-modal focus:outline-none lg:hidden"
+          className="swiss-modal fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[61] mx-auto w-auto max-w-lg max-h-[85dvh] overflow-y-auto overscroll-contain rounded-[28px] p-0 shadow-modal focus:outline-none lg:hidden"
         >
-          <div aria-hidden="true" className="flex justify-center pb-1 pt-2.5">
-            <span className="h-1 w-9 rounded-full bg-swiss-ink-light/40" />
+          <div aria-hidden="true" className="flex justify-center pb-1 pt-3 select-none touch-none">
+            <span className="h-1.5 w-10 rounded-full bg-swiss-ink-light/30" />
           </div>
-          <div className="flex items-start justify-between gap-4 px-4 pb-2 pt-1">
+          <div className="flex items-start justify-between gap-4 px-4 pb-2.5 pt-1">
             <div>
               <h2
                 id="create-action-title-mobile"
-                className="text-[1.0625rem] font-semibold tracking-[-0.02em] text-swiss-ink"
+                className="text-[1.125rem] font-semibold tracking-[-0.02em] text-swiss-ink"
               >
                 Crear
               </h2>
@@ -215,24 +234,19 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
               type="button"
               onClick={closeAndRestoreFocus}
               aria-label="Cerrar opciones de creación"
-              className="swiss-pill inline-flex min-h-9 min-w-9 items-center justify-center text-swiss-ink-muted transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-9 min-w-9 items-center justify-center text-swiss-ink-muted transition-colors hover:bg-swiss-control active:bg-swiss-control/80 focus-visible:ring-2 focus-visible:ring-swiss-focus touch-manipulation select-none"
             >
               <X aria-hidden="true" size={16} />
             </button>
           </div>
-          <motion.div
-            variants={STAGGER_CONTAINER}
-            initial="hidden"
-            animate="show"
-            className="pb-2"
-          >
+          <div className="flex flex-col gap-2 px-3 pb-3">
             {renderActions(true)}
-          </motion.div>
-          <div className="border-t border-swiss-border p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          </div>
+          <div className="border-t border-swiss-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={closeAndRestoreFocus}
-              className="min-h-11 w-full rounded-[14px] text-[0.9375rem] font-medium text-swiss-ink transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="min-h-12 w-full rounded-2xl text-[0.9375rem] font-semibold text-swiss-ink transition-colors hover:bg-swiss-control active:bg-swiss-control/80 focus-visible:ring-2 focus-visible:ring-swiss-focus touch-manipulation select-none"
             >
               Cancelar
             </button>

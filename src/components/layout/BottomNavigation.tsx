@@ -33,7 +33,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   return (
     <nav
       aria-label="Navegación móvil"
-      style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}
       className="fixed inset-x-0 bottom-0 z-40 pointer-events-none px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 lg:hidden"
     >
       <div className="swiss-tabbar pointer-events-auto mx-auto grid max-w-xl grid-cols-5 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
@@ -56,7 +55,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               aria-expanded={tab.isCreate ? isCreateMenuOpen : undefined}
               aria-current={isActive ? 'page' : undefined}
               title={tab.label}
-              className={`relative flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center gap-1 rounded-[20px] transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+              className={`relative flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[20px] transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus touch-manipulation select-none active:scale-[0.96] ${
                 tab.isCreate
                   ? 'text-swiss-ink'
                   : isActive
@@ -65,7 +64,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               }`}
             >
               {tab.isCreate ? (
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg shadow-card transition-transform active:scale-95">
+                <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg shadow-card transition-transform active:scale-95">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.span
                       key={isCreateMenuOpen ? 'close' : 'create'}
@@ -84,9 +83,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                       className="flex"
                     >
                       {isCreateMenuOpen ? (
-                        <X aria-hidden="true" size={19} strokeWidth={2.2} />
+                        <X aria-hidden="true" size={18} strokeWidth={2.4} />
                       ) : (
-                        <Icon aria-hidden="true" size={20} strokeWidth={2.2} />
+                        <Icon aria-hidden="true" size={19} strokeWidth={2.4} />
                       )}
                     </motion.span>
                   </AnimatePresence>
@@ -97,11 +96,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   transition={{ type: 'spring', stiffness: 460, damping: 30 }}
                   className="flex"
                 >
-                  <Icon aria-hidden="true" size={21} strokeWidth={isActive ? 2.1 : 1.7} />
+                  <Icon aria-hidden="true" size={19} strokeWidth={isActive ? 2.1 : 1.7} className="sm:h-5 sm:w-5" />
                 </motion.span>
               )}
               <span
-                className={`max-w-full truncate text-[11px] leading-none ${
+                className={`max-w-full truncate text-[10px] sm:text-[11px] leading-none ${
                   isActive ? 'font-semibold' : 'font-medium'
                 } ${tab.isCreate ? 'mt-0.5' : ''}`}
               >
