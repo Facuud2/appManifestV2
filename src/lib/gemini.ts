@@ -103,84 +103,66 @@ export async function generateRampageWithGemini(
   centralTheme: string,
   userScope: string = 'shared',
   userAffirmations: string[] = [],
-  batchSize: number = 3
+  batchSize: number = 3,
+  additionalDetails: string = ''
 ): Promise<{
   affirmations: string[];
-  source: 'GEMINI_LIVE' | 'LOCAL_FALLBACK';
+  source: 'GEMINI_LIVE';
   totalTokens: number;
 }> {
   const apiKey = getGeminiApiKey();
   const count = Math.max(1, Math.min(10, Math.floor(Number.isFinite(batchSize) ? batchSize : 3)));
-
-  if (!apiKey) {
-    // Elegant fallback pool
-    const pool = [
-      'Soy abundancia viva.',
-      'Todo conspira a mi favor.',
-      'Merezco recibir amor.',
-      'Mi mente está en paz.',
-      'Siempre elijo mi poder.',
-      'El camino está despejado.',
-      'Soy merecedor de todo.',
-    ];
-    return {
-      affirmations: pool.sort(() => 0.5 - Math.random()).slice(0, count),
-      source: 'LOCAL_FALLBACK',
-      totalTokens: 0,
-    };
-  }
+  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
 
   const ai = new GoogleGenAI({ apiKey });
-  const modelsToTry = [
-    'gemini-3.5-flash-lite',
-    'gemini-3.8-flash',
-  ];
+  const detailsSection = additionalDetails.trim()
+    ? `\nDetalles adicionales solicitados: "${additionalDetails.trim()}".`
+    : '';
+  const referencesSection = userAffirmations.length
+    ? `\nAfirmaciones propias del perfil, para integrar ocasionalmente sin desplazar el tema central:\n${userAffirmations.map((a) => `- "${a}"`).join('\n')}`
+    : '';
 
   const prompt = `Eres el motor de Reprogramación Subliminal y Rampage.
 Perfil actual: ${userScope === 'maia' ? 'Maia' : userScope === 'facu' ? 'Facu' : 'Dúo (Maia & Facu)'}.
-Tema central: "${centralTheme || 'Abundancia, Amor y Realización'}".
-Afirmaciones de referencia previas:
-${userAffirmations.map((a) => `- "${a}"`).join('\n')}
+Tema central y prioridad absoluta: "${centralTheme.trim()}".${detailsSection}${referencesSection}
 
 REGLAS ESTRICTAS DE ESTILO SUBLIMINAL (CERO TEXTOS POÉTICOS LARGOS):
 1. SIMPLICIDAD Y LONGITUD: Cada afirmación debe tener estrictamente entre 2 y 6 palabras.
 2. TIEMPO PRESENTE: Usa primera persona ("Yo soy...", "Tengo...", "Elijo...", "Siento...").
 3. Asertivas, naturales y rítmicas para repetición en bucle infinito mientras duermes o descansas.
-4. Devuelve ÚNICAMENTE un JSON { "affirmations": string[] } con exactamente ${count} afirmaciones.`;
+4. El tema central siempre guía las frases; integra las referencias solo de vez en cuando y sin cambiar el foco.
+5. Devuelve ÚNICAMENTE un JSON { "affirmations": string[] } con exactamente ${count} afirmaciones.`;
 
-  for (const model of modelsToTry) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: 'application/json' },
-      });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash-lite',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseMimeType: 'application/json' },
+    });
 
-      const raw = (response.text || '').trim();
-      const cleaned = raw.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
-
-      const items: unknown = Array.isArray(parsed) ? parsed : parsed.affirmations;
-      if (Array.isArray(items) && items.length > 0) {
-        return {
-          affirmations: items
-            .slice(0, count)
-            .map((item) => String(item).trim())
-            .filter(Boolean),
-          source: 'GEMINI_LIVE',
-          totalTokens: response.usageMetadata?.totalTokenCount || 0,
-        };
-      }
-    } catch (err: any) {
-      console.warn(`[Gemini Rampage] ${model} error:`, err?.message || err);
+    const raw = (response.text || '').trim();
+    const cleaned = raw.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
+    const parsed: unknown = JSON.parse(cleaned);
+    const items: unknown =
+      typeof parsed === 'object' && parsed !== null && 'affirmations' in parsed
+        ? parsed.affirmations
+        : parsed;
+    const affirmations = Array.isArray(items)
+      ? items.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)
+      : [];
+    if (affirmations.length !== count) {
+      throw new Error(`Gemini no devolvió las ${count} afirmaciones solicitadas.`);
     }
-  }
 
-  return {
-    affirmations: ['Soy paz infinita.', 'Todo se alinea perfecto.', 'Merezco todo lo bueno.'].slice(0, count),
-    source: 'LOCAL_FALLBACK',
-    totalTokens: 0,
-  };
+    return {
+      affirmations,
+      source: 'GEMINI_LIVE',
+      totalTokens: response.usageMetadata?.totalTokenCount || 0,
+    };
+  } catch (error) {
+    console.error('[Gemini Rampage] gemini-3.5-flash-lite error:', error);
+    throw error;
+  }
 }
 
 /**
