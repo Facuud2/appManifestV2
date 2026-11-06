@@ -33,9 +33,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   return (
     <nav
       aria-label="Navegación móvil"
-      className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 lg:hidden"
+      style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}
+      className="fixed inset-x-0 bottom-0 z-40 pointer-events-none px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 lg:hidden"
     >
-      <div className="swiss-tabbar mx-auto grid max-w-xl grid-cols-5 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+      <div className="swiss-tabbar pointer-events-auto mx-auto grid max-w-xl grid-cols-5 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id && !tab.action && !tab.isCreate;
@@ -59,7 +60,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 tab.isCreate
                   ? 'text-swiss-ink'
                   : isActive
-                    ? 'text-swiss-accent'
+                    ? 'text-swiss-accentText'
                     : 'text-swiss-ink-light hover:text-swiss-ink'
               }`}
             >

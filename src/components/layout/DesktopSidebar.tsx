@@ -137,7 +137,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             title="Rampage"
             className="swiss-sidebar-row flex min-h-11 items-center rounded-[10px] px-2.5 text-left text-[0.9375rem] text-swiss-ink-muted transition-colors hover:bg-swiss-control hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-swiss-accent">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-swiss-accentText">
               <Sparkles aria-hidden="true" size={18} />
             </span>
             <span className="swiss-sidebar-reveal min-w-0 flex-1 truncate">Rampage</span>

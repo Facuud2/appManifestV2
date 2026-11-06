@@ -8,6 +8,7 @@ import {
   Feather,
   Footprints,
   Headphones,
+  Pause,
   Play,
   Plus,
   Repeat,
@@ -16,6 +17,8 @@ import {
 import { useAppStore } from '@/store';
 import { RampageSet } from '@/types';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
+import { RampageAudioWaveform } from '@/components/goals/RampageAudioWaveform';
+import { audioEngine } from '@/lib/audioEngine';
 import {
   EMIL_EASE_OUT,
   STAGGER_CONTAINER,
@@ -30,6 +33,10 @@ interface DashboardViewProps {
   onContinueRampage: (rampage: RampageSet) => void;
   isCreateMenuOpen: boolean;
   onOpenCreateMenu: (trigger: HTMLElement) => void;
+  isRampagePlaying?: boolean;
+  currentAffirmationText?: string;
+  onToggleRampagePlayback?: () => void;
+  onRestoreRampage?: () => void;
 }
 
 const weekDayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -45,6 +52,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onContinueRampage,
   isCreateMenuOpen,
   onOpenCreateMenu,
+  isRampagePlaying = false,
+  currentAffirmationText = '',
+  onToggleRampagePlayback,
+  onRestoreRampage,
 }) => {
   const {
     manifestations,
@@ -153,17 +164,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Registrar avance
               </button>
             </div>
-            <p className="mt-4 text-xs font-medium text-[color:var(--pastel-sage-ink)] sm:hidden">
+            <p className="mt-4 text-xs font-medium text-[color:var(--pastel-rose-ink)] sm:hidden">
               Empezá por el orbe: escribí, afirmá o escuchá.
             </p>
           </div>
 
           <div className="hero-orb-stage mx-auto">
-            <div aria-hidden="true" className="hero-orb-bloom">
-              <span className="hero-orb-bloom-a" />
-              <span className="hero-orb-bloom-b" />
-              <span className="hero-orb-bloom-c" />
+            {/* Ambient Aura & Breathing Atmosphere */}
+            <div aria-hidden="true" className="hero-orb-aura">
+              <span className="hero-orb-aura-bloom" />
+              <span className="hero-orb-aura-pulse" />
+              <div className="hero-orb-orbital">
+                <span className="hero-orb-stardust hero-orb-stardust-1" />
+                <span className="hero-orb-stardust hero-orb-stardust-2" />
+              </div>
             </div>
+
+            {/* Interactive 3D Celestial Orb Button */}
             <button
               type="button"
               onClick={(event) => onOpenCreateMenu(event.currentTarget)}
@@ -171,19 +188,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 isCreateMenuOpen ? 'Cerrar menú de creación' : 'Abrir menú de creación'
               }
               aria-expanded={isCreateMenuOpen}
-              className="hero-orb group focus-visible:ring-2 focus-visible:ring-swiss-focus focus-visible:ring-offset-4 focus-visible:ring-offset-swiss-card"
+              className="hero-orb hero-orb-button group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus focus-visible:ring-offset-4 focus-visible:ring-offset-swiss-card"
             >
-              <span className="hero-orb-core">
-                {isCreateMenuOpen ? (
-                  <X aria-hidden="true" size={26} strokeWidth={1.7} />
-                ) : (
-                  <Plus aria-hidden="true" size={30} strokeWidth={1.6} />
-                )}
+              {/* Volumetric 3D Sphere */}
+              <span className="hero-orb-sphere" aria-hidden="true" />
+
+              {/* Floating Action Pill docked at the bottom */}
+              <span
+                className="hero-orb-pill"
+                data-open={isCreateMenuOpen}
+              >
+                <span
+                  className="inline-flex items-center justify-center transition-transform duration-200"
+                  aria-hidden="true"
+                >
+                  {isCreateMenuOpen ? (
+                    <X size={13} strokeWidth={2.4} />
+                  ) : (
+                    <Plus size={13} strokeWidth={2.4} />
+                  )}
+                </span>
+                <span>{isCreateMenuOpen ? 'Cerrar' : 'Crear'}</span>
               </span>
-              <span className="text-[0.8125rem] font-semibold text-swiss-ink">
-                {isCreateMenuOpen ? 'Cerrar' : 'Crear'}
-              </span>
-              <span className="text-xs text-swiss-ink-muted">Abrí tu espacio</span>
             </button>
           </div>
         </div>
@@ -197,7 +223,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={onOpenManifestations}
-            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[0.8125rem] font-medium text-swiss-ink-muted transition-colors hover:text-swiss-accent focus-visible:ring-2 focus-visible:ring-swiss-focus"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[0.8125rem] font-medium text-swiss-ink-muted transition-colors hover:text-swiss-accentText focus-visible:ring-2 focus-visible:ring-swiss-focus"
             aria-label={`Ver todas tus intenciones. ${manifestations.length} guardadas`}
           >
             Ver todo
@@ -212,7 +238,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             variants={STAGGER_ITEM}
             className="swiss-row action-card min-h-[4.25rem] gap-3.5 px-4 focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-swiss-accent">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-swiss-accentText">
               <Headphones aria-hidden="true" size={20} strokeWidth={1.7} />
             </span>
             <span className="min-w-0 flex-1">
@@ -232,7 +258,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             variants={STAGGER_ITEM}
             className="swiss-row action-card min-h-[4.25rem] gap-3.5 px-4 focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-swiss-accent">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-swiss-accentText">
               <Feather aria-hidden="true" size={20} strokeWidth={1.7} />
             </span>
             <span className="min-w-0 flex-1">
@@ -252,7 +278,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             variants={STAGGER_ITEM}
             className="swiss-row action-card min-h-[4.25rem] gap-3.5 px-4 focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-swiss-accent">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-swiss-accentText">
               <Footprints aria-hidden="true" size={20} strokeWidth={1.7} />
             </span>
             <span className="min-w-0 flex-1">
@@ -285,7 +311,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
               aria-expanded={isComposerOpen}
               aria-label={isComposerOpen ? 'Cerrar afirmación nueva' : 'Crear una afirmación nueva'}
-              className="swiss-pill inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center text-swiss-accent transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center text-swiss-accentText transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -302,51 +328,99 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
 
-          <div className="glass-panel mt-4 flex flex-1 items-center gap-3.5 rounded-[16px] p-3 sm:gap-4 sm:p-3.5">
-            <div
-              aria-hidden="true"
-              className="flex h-14 w-14 shrink-0 items-end justify-center gap-[3px] rounded-[14px] bg-[color:var(--pastel-peri)] px-2.5 py-3"
-            >
-              {[10, 18, 26, 16, 22].map((height, index) => (
-                <span
-                  key={index}
-                  className="w-[3px] rounded-full bg-[color:var(--pastel-peri-ink)]"
-                  style={{ height: `${height}px` }}
-                />
-              ))}
-            </div>
-            <div className="min-w-0 flex-1">
-              {latestRampage?.affirmations.length ? (
-                <>
-                  <p className="truncate text-[0.8125rem] font-medium text-swiss-ink">
-                    {latestRampage.title}
-                  </p>
-                  <p className="mt-0.5 line-clamp-2 text-sm font-medium leading-5 text-swiss-ink-muted">
-                    “{latestRampage.affirmations[0].text}”
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm leading-5 text-swiss-ink-muted">
-                  Creá un Rampage y retomalo desde acá cuando quieras.
-                </p>
-              )}
-            </div>
+          <div className="glass-panel mt-4 flex flex-1 items-center gap-3.5 rounded-[20px] p-3 sm:gap-4 sm:p-3.5 sm:rounded-[22px]">
             <button
               type="button"
-              onClick={() =>
-                latestRampage?.affirmations.length
-                  ? onContinueRampage(latestRampage)
-                  : onOpenRampage()
-              }
+              onClick={() => {
+                void audioEngine?.unlock();
+                if (latestRampage?.affirmations.length) {
+                  if (onToggleRampagePlayback) {
+                    onToggleRampagePlayback();
+                  } else {
+                    onContinueRampage(latestRampage);
+                  }
+                } else {
+                  onOpenRampage();
+                }
+              }}
               aria-label={
-                latestRampage?.affirmations.length
+                isRampagePlaying
+                  ? 'Pausar Rampage'
+                  : latestRampage?.affirmations.length
                   ? `Continuar escuchando ${latestRampage.title}`
                   : 'Crear tu primer Rampage'
               }
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg transition-transform hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus active:scale-[0.96]"
+              className="inline-flex h-12 w-12 sm:h-13 sm:w-13 shrink-0 items-center justify-center rounded-[14px] sm:rounded-[16px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-transform hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus active:scale-[0.96]"
             >
-              <Play aria-hidden="true" size={15} fill="currentColor" className="translate-x-[1px]" />
+              <AnimatePresence mode="wait" initial={false}>
+                {isRampagePlaying ? (
+                  <motion.span
+                    key="pause"
+                    initial={{ scale: 0.65, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.65, opacity: 0 }}
+                    transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
+                    className="flex"
+                  >
+                    <Pause aria-hidden="true" size={19} fill="currentColor" />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="play"
+                    initial={{ scale: 0.65, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.65, opacity: 0 }}
+                    transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
+                    className="flex"
+                  >
+                    <Play
+                      aria-hidden="true"
+                      size={18}
+                      fill="currentColor"
+                      className="translate-x-[1px]"
+                    />
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (latestRampage?.affirmations.length && onRestoreRampage) {
+                  onRestoreRampage();
+                } else {
+                  onOpenRampage();
+                }
+              }}
+              className="min-w-0 flex-1 text-left rounded-lg transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+              aria-label={
+                latestRampage?.affirmations.length
+                  ? `Abrir reproductor de ${latestRampage.title}`
+                  : 'Crear Rampage'
+              }
+            >
+              {latestRampage?.affirmations.length ? (
+                <>
+                  <p className="truncate text-sm sm:text-[0.9375rem] font-semibold text-swiss-ink">
+                    {latestRampage.title}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs sm:text-[0.8125rem] font-normal leading-4 text-swiss-ink-muted">
+                    {isRampagePlaying && currentAffirmationText
+                      ? `“${currentAffirmationText}”`
+                      : `“${latestRampage.affirmations[0].text}”`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs sm:text-sm text-swiss-ink-muted">
+                  Creá un Rampage y retomalo desde acá cuando quieras.
+                </p>
+              )}
+            </button>
+
+            <div className="shrink-0 pl-1">
+              <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={13} />
+            </div>
           </div>
 
           <AnimatePresence initial={false}>
@@ -486,7 +560,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         day.hasLog
                           ? 'bg-[color:var(--pastel-sage)] text-[color:var(--pastel-sage-ink)]'
                           : day.isToday
-                            ? 'border border-swiss-focus text-swiss-accent'
+                            ? 'border border-swiss-focus text-swiss-accentText'
                             : 'bg-swiss-control text-swiss-ink-light'
                       }`}
                     >
@@ -520,7 +594,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               type="button"
               onClick={onOpenNewProgress}
-              className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-semibold text-swiss-accent transition-colors hover:bg-swiss-control"
+              className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-semibold text-swiss-accentText transition-colors hover:bg-swiss-control"
             >
               Registrar
               <ChevronRight aria-hidden="true" size={16} />

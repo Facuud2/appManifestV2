@@ -41,6 +41,36 @@ export function getBestSpanishVoice(gender?: 'female' | 'male'): SpeechSynthesis
   return enhanced || spanish[0];
 }
 
+let silentWavUrl: string | null = null;
+
+/** Builds a short silent 8-bit mono WAV used to hold the iOS "playback" audio session. */
+function createSilentWavUrl(): string {
+  if (silentWavUrl) return silentWavUrl;
+  const sampleRate = 8000;
+  const sampleCount = sampleRate / 2;
+  const buffer = new ArrayBuffer(44 + sampleCount);
+  const view = new DataView(buffer);
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+  };
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + sampleCount, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  writeString(36, 'data');
+  view.setUint32(40, sampleCount, true);
+  for (let i = 0; i < sampleCount; i++) view.setUint8(44 + i, 128);
+  silentWavUrl = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+  return silentWavUrl;
+}
+
 class ManifestAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -60,6 +90,7 @@ class ManifestAudioEngine {
   private isSpeechSynthesisPlaying: boolean = false;
   private animFrame: number | null = null;
   private currentEnergy: number = 0;
+  private sessionKeeper: HTMLAudioElement | null = null;
 
   public getAudioContext(): AudioContext {
     if (!this.ctx || this.ctx.state === 'closed') {
@@ -108,12 +139,53 @@ class ManifestAudioEngine {
     this.startEnergyMonitoring();
   }
 
+  /**
+   * iOS routes Web Audio through the "ambient" audio session by default, which is
+   * silenced by the ringer/silent switch. Requesting the "playback" session (iOS 17+)
+   * and keeping a silent media element alive (older iOS) makes Web Audio audible
+   * even when the iPhone is in silent mode, matching desktop behaviour.
+   */
+  private ensurePlaybackAudioSession() {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const audioSession = (navigator as any).audioSession;
+      if (audioSession && audioSession.type !== 'playback') {
+        audioSession.type = 'playback';
+      }
+    } catch (_) {}
+
+    try {
+      if (!this.sessionKeeper) {
+        const element = document.createElement('audio');
+        element.setAttribute('playsinline', '');
+        element.setAttribute('webkit-playsinline', '');
+        element.setAttribute('x-webkit-airplay', 'deny');
+        element.preload = 'auto';
+        element.loop = true;
+        element.src = createSilentWavUrl();
+        this.sessionKeeper = element;
+      }
+      if (this.sessionKeeper.paused) {
+        // Must be invoked synchronously inside the user gesture.
+        void this.sessionKeeper.play().catch(() => {});
+      }
+    } catch (_) {}
+  }
+
+  private async resumeContext(ctx: AudioContext) {
+    // iOS can report "interrupted" (calls, Siri, lock screen) besides "suspended".
+    if ((ctx.state as string) !== 'running') {
+      await ctx.resume();
+    }
+  }
+
   public async unlock(): Promise<boolean> {
     try {
+      // Everything before the first await runs synchronously within the user gesture.
+      this.ensurePlaybackAudioSession();
       const ctx = this.getAudioContext();
-      if (ctx.state === 'suspended') {
-        await ctx.resume();
-      }
+      await this.resumeContext(ctx);
       const buffer = ctx.createBuffer(1, 1, 22050);
       const source = ctx.createBufferSource();
       source.buffer = buffer;
@@ -155,16 +227,32 @@ class ManifestAudioEngine {
     return this.currentEnergy;
   }
 
+  public getIsVoicePlaying(): boolean {
+    return this.isVoicePlaying || this.isSpeechSynthesisPlaying;
+  }
+
+  public getAudioFrequencyData(targetArray?: Uint8Array): Uint8Array | null {
+    if (!this.analyser) return null;
+    const array = targetArray || new Uint8Array(32);
+    this.analyser.getByteFrequencyData(array as any);
+    return array;
+  }
+
   public setAmbience(type: AmbienceType) {
-    if (this.currentAmbience === type) return;
+    if (this.currentAmbience === type && this.ambienceSource) return;
     this.stopAmbience();
     this.currentAmbience = type;
 
     if (type === 'none') return;
 
     try {
+      this.ensurePlaybackAudioSession();
       const ctx = this.getAudioContext();
       if (!this.ambienceGain) return;
+      void this.resumeContext(ctx).catch(() => {});
+      if (ctx.state === 'suspended') {
+        void ctx.resume().catch(() => {});
+      }
 
       const now = ctx.currentTime;
       this.ambienceGain.gain.cancelScheduledValues(now);
@@ -279,9 +367,7 @@ class ManifestAudioEngine {
 
     try {
       const ctx = this.getAudioContext();
-      if (ctx.state === 'suspended') {
-        await ctx.resume();
-      }
+      await this.resumeContext(ctx);
 
       let audioBuffer: AudioBuffer | null = null;
       if (typeof audioSource === 'string') {

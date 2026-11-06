@@ -63,7 +63,7 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
 
       {manifestations.length === 0 ? (
         <div className="swiss-card flex flex-col items-center px-6 py-14 text-center">
-          <span className="flex h-12 w-12 items-center justify-center text-swiss-accent">
+          <span className="flex h-12 w-12 items-center justify-center text-swiss-accentText">
             <Feather size={24} strokeWidth={1.6} />
           </span>
           <h2 className="section-heading mt-4">Todavía no hay escritos</h2>

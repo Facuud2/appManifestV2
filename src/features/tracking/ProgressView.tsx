@@ -57,7 +57,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ onOpenNewProgress })
 
       {progressLogs.length === 0 ? (
         <div className="swiss-card flex flex-col items-center px-6 py-14 text-center">
-          <span className="flex h-12 w-12 items-center justify-center text-swiss-accent">
+          <span className="flex h-12 w-12 items-center justify-center text-swiss-accentText">
             <Footprints size={24} strokeWidth={1.6} />
           </span>
           <h2 className="section-heading mt-4">Todavía no hay avances</h2>
@@ -141,7 +141,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ onOpenNewProgress })
 
                       {manifTitle ? (
                         <div className="mt-3 flex items-center gap-1.5 border-t border-swiss-border pt-2.5 text-xs text-swiss-ink-light">
-                          <Sparkles size={12} className="shrink-0 text-swiss-accent" />
+                          <Sparkles size={12} className="shrink-0 text-swiss-accentText" />
                           <span className="truncate">Vinculado a {manifTitle}</span>
                         </div>
                       ) : (

@@ -37,7 +37,7 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
 
       {successStories.length === 0 ? (
         <div className="swiss-card flex flex-col items-center px-6 py-14 text-center">
-          <span className="flex h-12 w-12 items-center justify-center text-swiss-accent">
+          <span className="flex h-12 w-12 items-center justify-center text-swiss-accentText">
             <Trophy size={24} strokeWidth={1.6} />
           </span>
           <h2 className="section-heading mt-4">Todavía no hay historias</h2>
@@ -117,7 +117,7 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
                 <div className="mt-4 flex items-center justify-between border-t border-swiss-border pt-3.5 text-xs text-swiss-ink-light">
                   <span>Por {story.author}</span>
                   <span className="flex items-center gap-1.5 font-medium text-swiss-ink-muted">
-                    <Sparkles size={12} className="text-swiss-accent" />
+                    <Sparkles size={12} className="text-swiss-accentText" />
                     Evidencia real
                   </span>
                 </div>

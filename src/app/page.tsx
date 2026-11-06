@@ -22,7 +22,7 @@ import { audioEngine } from '@/lib/audioEngine';
 import { RampageSet } from '@/types';
 
 export default function HomePage() {
-  const { fetchRemoteData, refreshVoiceCalibrationStatus } = useAppStore();
+  const { fetchRemoteData, refreshVoiceCalibrationStatus, rampageSets } = useAppStore();
   const prefersReducedMotion = useReducedMotion();
 
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
@@ -33,6 +33,9 @@ export default function HomePage() {
   const [rampageOpenMode, setRampageOpenMode] = useState<'new' | 'restore'>('new');
   const [rampageToResume, setRampageToResume] = useState<RampageSet | null>(null);
   const [resumeRequestId, setResumeRequestId] = useState(0);
+  const [isRampagePlaying, setIsRampagePlaying] = useState(false);
+  const [currentRampageAffirmation, setCurrentRampageAffirmation] = useState('');
+  const toggleRampagePlaybackRef = useRef<(() => void) | null>(null);
   const [isNewManifestationOpen, setIsNewManifestationOpen] = useState(false);
   const [isNewAffirmationOpen, setIsNewAffirmationOpen] = useState(false);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
@@ -92,6 +95,33 @@ export default function HomePage() {
     setRampageToResume(rampage);
     setResumeRequestId((requestId) => requestId + 1);
   }, []);
+
+  const handleRegisterTogglePlayback = useCallback((fn: () => void) => {
+    toggleRampagePlaybackRef.current = fn;
+  }, []);
+
+  const handlePlaybackChange = useCallback((isPlaying: boolean, currentAffirmation?: string) => {
+    setIsRampagePlaying(isPlaying);
+    if (currentAffirmation !== undefined) {
+      setCurrentRampageAffirmation(currentAffirmation);
+    }
+  }, []);
+
+  const handleRestoreRampage = useCallback(() => {
+    setRampageOpenMode('restore');
+    setIsRampageOpen(true);
+  }, []);
+
+  const handleToggleRampagePlayback = useCallback(() => {
+    void audioEngine?.unlock();
+    if (toggleRampagePlaybackRef.current) {
+      toggleRampagePlaybackRef.current();
+    } else if (rampageSets[0]) {
+      handleContinueRampage(rampageSets[0]);
+    } else {
+      handleOpenNewRampage();
+    }
+  }, [handleContinueRampage, handleOpenNewRampage, rampageSets]);
 
   const handleSelectCreateAction = useCallback((action: CreateAction) => {
     setIsCreateMenuOpen(false);
@@ -156,6 +186,10 @@ export default function HomePage() {
                 onContinueRampage={handleContinueRampage}
                 isCreateMenuOpen={isCreateMenuOpen}
                 onOpenCreateMenu={handleOpenCreateMenu}
+                isRampagePlaying={isRampagePlaying}
+                currentAffirmationText={currentRampageAffirmation}
+                onToggleRampagePlayback={handleToggleRampagePlayback}
+                onRestoreRampage={handleRestoreRampage}
               />
             )}
 
@@ -203,13 +237,12 @@ export default function HomePage() {
       <RampagePlayerModal
         isOpen={isRampageOpen}
         onClose={() => setIsRampageOpen(false)}
-        onRestore={() => {
-          setRampageOpenMode('restore');
-          setIsRampageOpen(true);
-        }}
+        onRestore={handleRestoreRampage}
         openMode={rampageOpenMode}
         resumeRampage={rampageToResume}
         resumeRequestId={resumeRequestId}
+        onPlaybackChange={handlePlaybackChange}
+        registerTogglePlayback={handleRegisterTogglePlayback}
       />
 
       <ManifestationEditorModal

@@ -554,7 +554,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
           >
             <header className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center text-swiss-accent">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center text-swiss-accentText">
                   <Sparkles aria-hidden="true" size={22} strokeWidth={1.7} />
                 </div>
                 <div>
@@ -654,7 +654,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                 <div className="space-y-2.5">
                   {CALIBRATION_PHRASES.map((phrase, index) => (
                     <p key={phrase.id} className="rounded-xl bg-swiss-control px-3.5 py-3 text-sm leading-relaxed text-swiss-ink">
-                      <span className="mr-2 text-xs font-semibold text-swiss-accent">{index + 1}</span>
+                      <span className="mr-2 text-xs font-semibold text-swiss-accentText">{index + 1}</span>
                       {phrase.text}
                     </p>
                   ))}
@@ -692,7 +692,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
             {!isCompleted && captureStage === 'consent' && (
               <section className="swiss-card p-4 sm:p-5">
                 <div className="mb-3 flex items-center gap-2">
-                  <ShieldCheck aria-hidden="true" size={18} className="text-swiss-accent" />
+                  <ShieldCheck aria-hidden="true" size={18} className="text-swiss-accentText" />
                   <p className="text-sm font-semibold text-swiss-ink">2. Consentimiento de {recordingName}</p>
                 </div>
                 <p className="text-xs leading-relaxed text-swiss-ink-muted">
@@ -731,7 +731,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                 transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
                 className="swiss-card p-5 text-center sm:p-6"
               >
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center text-swiss-accent">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center text-swiss-accentText">
                   <Check aria-hidden="true" size={28} strokeWidth={1.7} />
                 </div>
                 <h3 className="text-lg font-semibold text-swiss-ink">Voz de {recordingName} calibrada</h3>

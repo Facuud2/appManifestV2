@@ -120,7 +120,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       document.documentElement.classList.toggle('dark', isDark);
       document.documentElement.classList.toggle('light', !isDark);
       document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
-        meta.content = isDark ? '#121014' : '#f1f1ef';
+        meta.content = isDark ? '#171014' : '#fdf4f7';
       });
     }
   },

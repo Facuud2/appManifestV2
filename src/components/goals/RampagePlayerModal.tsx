@@ -33,6 +33,7 @@ import type {
   RampageManifestationContext,
 } from '@/lib/affirmationEngine';
 import { RampageSet, UserScope } from '@/types';
+import { RampageAudioWaveform } from './RampageAudioWaveform';
 
 interface RampagePlayerModalProps {
   isOpen: boolean;
@@ -42,9 +43,28 @@ interface RampagePlayerModalProps {
   resumeRampage: RampageSet | null;
   resumeRequestId: number;
   centralTheme?: string;
+  onPlaybackChange?: (isPlaying: boolean, currentAffirmation?: string) => void;
+  registerTogglePlayback?: (toggleFn: () => void) => void;
 }
 
 const RAMPAGE_BATCH_SIZE = 3;
+
+/*
+ * Displacement map for the Liquid Glass mini player. R encodes horizontal offset, G vertical;
+ * a blurred neutral (#808080) plate keeps the centre undistorted so only the rim refracts.
+ */
+const LIQUID_GLASS_LENS_MAP = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="r" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#f00"/></linearGradient>
+      <linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#0f0"/></linearGradient>
+      <filter id="b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>
+    </defs>
+    <rect width="200" height="60" fill="url(#r)"/>
+    <rect width="200" height="60" fill="url(#g)" style="mix-blend-mode:screen"/>
+    <rect x="12" y="10" width="176" height="40" rx="14" fill="#808080" filter="url(#b)"/>
+  </svg>`,
+)}`;
 
 export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   isOpen,
@@ -54,6 +74,8 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   resumeRampage,
   resumeRequestId,
   centralTheme = '',
+  onPlaybackChange,
+  registerTogglePlayback,
 }) => {
   const {
     activeScope,
@@ -79,11 +101,35 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const [loopCount, setLoopCount] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  // Liquid Glass lensing needs SVG filters inside backdrop-filter (Chromium only).
+  const [canRefract, setCanRefract] = useState(false);
+  const miniPlayerRef = useRef<HTMLElement | null>(null);
   const [draftTitle, setDraftTitle] = useState(centralTheme);
   const [draftDetails, setDraftDetails] = useState('');
   const [setupError, setSetupError] = useState('');
   const [audioPreparationWarning, setAudioPreparationWarning] = useState('');
   const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setCanRefract(/Chrome\/\d+/.test(ua) && !/CriOS|FxiOS/.test(ua));
+  }, []);
+
+  // Specular sheen follows the pointer without re-rendering React.
+  const handleMiniPlayerPointerMove = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    const node = miniPlayerRef.current;
+    if (!node || event.pointerType === 'touch') return;
+    const rect = node.getBoundingClientRect();
+    node.style.setProperty('--lg-x', `${((event.clientX - rect.left) / rect.width) * 100}%`);
+    node.style.setProperty('--lg-y', `${((event.clientY - rect.top) / rect.height) * 100}%`);
+  }, []);
+
+  const handleMiniPlayerPointerLeave = useCallback(() => {
+    const node = miniPlayerRef.current;
+    if (!node) return;
+    node.style.removeProperty('--lg-x');
+    node.style.removeProperty('--lg-y');
+  }, []);
   const reactiveHaloEnergy = useMotionValue(0);
   const outerRingScaleTarget = useTransform(reactiveHaloEnergy, (energy) => 1 + energy * 0.35);
   const middleRingScaleTarget = useTransform(reactiveHaloEnergy, (energy) => 1 + energy * 0.18);
@@ -580,55 +626,74 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setIsSynthesizing(true);
     setPlaybackError('');
 
-    try {
-      const audio = await prepareAudio(text, speaker);
-
-      if (!audio) throw new Error('No se pudo preparar el audio.');
+    const handleNext = () => {
       if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
-      setIsSynthesizing(false);
+      nextAffirmationTimerRef.current = window.setTimeout(() => {
+        if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
+        void (async () => {
+          let nextIndex = index + 1;
+          while (
+            nextIndex >= affirmationQueueRef.current.length &&
+            batchLoadPromiseRef.current
+          ) {
+            setIsSynthesizing(true);
+            await batchLoadPromiseRef.current;
+          }
+          if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
+
+          const latestQueue = affirmationQueueRef.current;
+          if (latestQueue.length === 0) return;
+          if (nextIndex >= latestQueue.length) nextIndex = 0;
+          setCurrentAffirmationIndex(nextIndex);
+          setLoopCount((count) => count + 1);
+          void playCurrentItem(nextIndex);
+        })();
+      }, 1200);
+    };
+
+    let audio: AudioBuffer | null = null;
+    try {
+      audio = await prepareAudio(text, speaker);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      console.warn('[Rampage] No se pudo obtener audio de Gemini (ej. 429), usando síntesis del navegador:', error);
+    }
+
+    if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
+    setIsSynthesizing(false);
+
+    if (audio) {
       setAudioPreparationWarning('');
       void audioEngine.playVoice(
         audio,
-        () => {
-          if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
-          nextAffirmationTimerRef.current = window.setTimeout(() => {
-            if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
-            void (async () => {
-              let nextIndex = index + 1;
-              while (
-                nextIndex >= affirmationQueueRef.current.length &&
-                batchLoadPromiseRef.current
-              ) {
-                setIsSynthesizing(true);
-                await batchLoadPromiseRef.current;
-              }
-              if (!isPlayingRef.current || requestId !== playbackRequestRef.current) return;
-
-              const latestQueue = affirmationQueueRef.current;
-              if (latestQueue.length === 0) return;
-              if (nextIndex >= latestQueue.length) nextIndex = 0;
-              setCurrentAffirmationIndex(nextIndex);
-              setLoopCount((count) => count + 1);
-              void playCurrentItem(nextIndex);
-            })();
-          }, 1200);
-        },
+        handleNext,
         (error: Error) => {
           if (requestId !== playbackRequestRef.current) return;
-          isPlayingRef.current = false;
-          setIsPlaying(false);
-          setIsSynthesizing(false);
-          setPlaybackError(error.message);
+          console.warn('[Rampage] Falló reproducción Web Audio, intentando speakVoice:', error);
+          const spoke = audioEngine.speakVoice(
+            text,
+            { gender: speaker === 'maia' ? 'female' : 'male', rate: 0.88 },
+            handleNext
+          );
+          if (!spoke) {
+            nextAffirmationTimerRef.current = window.setTimeout(handleNext, 3000);
+          }
         }
       );
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      if (requestId !== playbackRequestRef.current) return;
-      setIsSynthesizing(false);
-      setPlaybackError(error instanceof Error ? error.message : 'Error al generar audio.');
-      isPlayingRef.current = false;
-      setIsPlaying(false);
-      audioEngine.stopVoice();
+    } else {
+      // Fallback: Gemini TTS no disponible (429 Too Many Requests, sin cuota o sin conexión)
+      setAudioPreparationWarning('Gemini ocupado (429). Reproduciendo con voz del navegador');
+      const spoke = audioEngine.speakVoice(
+        text,
+        {
+          gender: speaker === 'maia' ? 'female' : 'male',
+          rate: 0.88,
+        },
+        handleNext
+      );
+      if (!spoke) {
+        nextAffirmationTimerRef.current = window.setTimeout(handleNext, 3500);
+      }
     }
   };
 
@@ -639,9 +704,32 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   }, [affirmationQueue, hasStarted, resumeRequestId]);
 
   const togglePlayback = async () => {
-    const queue = affirmationQueueRef.current;
-    if (!audioEngine || queue.length === 0) return;
+    if (!audioEngine) return;
     await audioEngine.unlock(); // taste-skill-ignore: Resume the audio context from the user's playback gesture.
+
+    let queue = affirmationQueueRef.current;
+
+    // Si la cola está vacía, inicializar desde el último Rampage disponible
+    if (queue.length === 0) {
+      const targetRampage = resumeRampage || userRampageSetsRef.current[0];
+      if (targetRampage && targetRampage.affirmations.length > 0) {
+        const affirmations = targetRampage.affirmations
+          .map((a) => a.text.trim())
+          .filter(Boolean);
+        if (affirmations.length > 0) {
+          activeRampageRef.current = { title: targetRampage.title, details: '' };
+          activeRampageSetRef.current = targetRampage;
+          affirmationQueueRef.current = affirmations;
+          setAffirmationQueue(affirmations);
+          setCurrentAffirmationIndex(0);
+          setHasStarted(true);
+          setIsMinimized(true);
+          queue = affirmations;
+        }
+      }
+    }
+
+    if (queue.length === 0) return;
 
     if (isPlaying) {
       isPlayingRef.current = false;
@@ -658,9 +746,25 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       setPlaybackError('');
       setIsPlaying(true);
       isPlayingRef.current = true;
+      if (ambientSound !== 'none') {
+        audioEngine.setAmbience(ambientSound as AmbienceType);
+      }
       void playCurrentItem(currentAffirmationIndex);
     }
   };
+
+  const togglePlaybackRef = useRef(togglePlayback);
+  togglePlaybackRef.current = togglePlayback;
+
+  useEffect(() => {
+    registerTogglePlayback?.(() => {
+      void togglePlaybackRef.current();
+    });
+  }, [registerTogglePlayback]);
+
+  useEffect(() => {
+    onPlaybackChange?.(isPlaying, affirmationQueue[currentAffirmationIndex]);
+  }, [isPlaying, currentAffirmationIndex, affirmationQueue, onPlaybackChange]);
 
   const handleSkipForward = async () => {
     if (!audioEngine || affirmationQueueRef.current.length === 0) return;
@@ -1148,31 +1252,75 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     <AnimatePresence>
       {!isOpen && isMinimized && (
         <motion.aside
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 12 }}
-          transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
+          ref={miniPlayerRef}
+          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 18, scale: 0.92 }}
+          animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+          exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.95 }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0.15, ease: EMIL_EASE_OUT }
+              : { type: 'spring', stiffness: 420, damping: 30, mass: 0.9, opacity: { duration: 0.18, ease: EMIL_EASE_OUT } }
+          }
+          onPointerMove={handleMiniPlayerPointerMove}
+          onPointerLeave={handleMiniPlayerPointerLeave}
+          data-refract={canRefract ? 'true' : undefined}
           aria-label="Reproducción de Rampage en segundo plano"
-          className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-lg items-center gap-3 rounded-[18px] border border-swiss-border bg-swiss-surface p-3 text-swiss-ink shadow-modal lg:inset-x-auto lg:bottom-5 lg:right-5 lg:w-[min(26rem,calc(100vw-2.5rem))]"
+          className="liquid-glass-player fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-lg items-center gap-3 rounded-[22px] p-3 pl-4 text-swiss-ink lg:inset-x-auto lg:bottom-5 lg:right-5 lg:w-[min(26rem,calc(100vw-2.5rem))]"
         >
+          {/* Lens map: neutral grey centre, red/green ramps toward the edges bend the backdrop like thick glass. */}
+          <svg className="pointer-events-none absolute h-0 w-0" aria-hidden="true" focusable="false">
+            <filter
+              id="lg-player-lens"
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              colorInterpolationFilters="sRGB"
+            >
+              <feImage
+                x="0"
+                y="0"
+                width="100%"
+                height="100%"
+                preserveAspectRatio="none"
+                result="lensMap"
+                href={LIQUID_GLASS_LENS_MAP}
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="lensMap"
+                scale="48"
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
+            </filter>
+          </svg>
+          <span className="lg-refract" aria-hidden="true" />
+          <span className="lg-tint" aria-hidden="true" />
+          <span className="lg-sheen" aria-hidden="true" />
+          <span className="lg-rim" aria-hidden="true" />
+
           <button
             type="button"
             onClick={onRestore}
-            className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+            className="lg-content min-w-0 flex-1 rounded-[12px] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
             aria-label={`Abrir reproductor de ${activeRampageRef.current.title}`}
           >
             <span className="block truncate text-sm font-semibold">
               {activeRampageRef.current.title}
             </span>
-            <span className="mt-0.5 block truncate text-xs text-swiss-ink-muted">
+            <span className="lg-subtext mt-0.5 block truncate text-xs">
               {isPlaying ? currentAffirmation : 'En pausa'}
             </span>
           </button>
+          <div className="lg-content hidden shrink-0 sm:flex items-center">
+            <RampageAudioWaveform isPlaying={isPlaying} barCount={8} />
+          </div>
           <button
             type="button"
             onClick={() => void togglePlayback()}
             aria-label={isPlaying ? 'Pausar Rampage' : 'Continuar Rampage'}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg focus-visible:ring-2 focus-visible:ring-swiss-focus"
+            className="lg-content lg-droplet inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-swiss-accentFg focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
             {isPlaying ? <Pause size={18} aria-hidden="true" /> : <Play size={18} fill="currentColor" aria-hidden="true" />}
           </button>
@@ -1180,9 +1328,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             type="button"
             onClick={handleStopBackgroundPlayback}
             aria-label="Detener Rampage"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-swiss-ink-muted hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+            className="lg-content lg-bubble inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
-            <Square size={16} aria-hidden="true" />
+            <Square size={15} aria-hidden="true" />
           </button>
         </motion.aside>
       )}
