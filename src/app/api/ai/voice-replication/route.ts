@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       args: [
         profileId,
         profileId === 'maia' ? 'Maia' : 'Facu',
-        profileId === 'maia' ? '🌸' : '⚡',
+        profileId === 'maia' ? 'maia' : 'facu',
         JSON.stringify(voiceProfileMeta),
         (existing.rows[0]?.created_at as string) || now,
         now,

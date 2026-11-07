@@ -11,6 +11,7 @@ import {
   VoiceProfileMeta,
 } from '@/types';
 import {
+  detectAutomatedSandbox,
   getVoiceProfileMeta,
   isProfileCalibrated,
   saveVoiceProfileMeta,
@@ -46,9 +47,34 @@ export interface ManifestationItem {
   updatedAt: string;
 }
 
+/**
+ * Guards the sync response against out-of-order requests. When a user switches
+ * profiles quickly, only the response for the latest scope may write to state.
+ */
+let syncRequestSequence = 0;
+
+/**
+ * Browser chrome follows the active profile palette: sage garden for Facu,
+ * plum/rose for Maia and shared.
+ */
+const resolveThemeColor = (scope: UserScope, isDark: boolean) => {
+  if (scope === 'facu') return isDark ? '#121014' : '#f1f1ef';
+  return isDark ? '#171014' : '#fdf4f7';
+};
+
+const applyScopeChrome = (scope: UserScope, isDark: boolean) => {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset.scope = scope;
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = resolveThemeColor(scope, isDark);
+  });
+};
+
 interface AppState {
   activeScope: UserScope;
   setActiveScope: (scope: UserScope) => void;
+  isScopeRegenerating: boolean;
+  setScopeRegenerating: (regenerating: boolean) => void;
   isVoiceCaptureLocked: boolean;
   setVoiceCaptureLocked: (locked: boolean) => void;
 
@@ -71,6 +97,14 @@ interface AppState {
   isFacuCalibrated: boolean;
   isMaiaCalibrated: boolean;
   refreshVoiceCalibrationStatus: () => void;
+
+  // Tier 1 Quota & Sandbox Mode Protection
+  aiRequestsToday: number;
+  aiDailyLimit: number;
+  isSandboxMode: boolean;
+  setSandboxMode: (enabled: boolean) => void;
+  setAiRequestsToday: (count: number) => void;
+  incrementAiRequestsToday: (delta?: number) => void;
 
   // Synchronization
   isLoading: boolean;
@@ -101,9 +135,14 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   activeScope: 'facu',
+  isScopeRegenerating: false,
+  setScopeRegenerating: (isScopeRegenerating) => set({ isScopeRegenerating }),
   setActiveScope: (scope) => {
-    if (get().isVoiceCaptureLocked) return;
-    set({ activeScope: scope });
+    if (get().isVoiceCaptureLocked || get().activeScope === scope) return;
+    set({ activeScope: scope, isScopeRegenerating: true });
+    if (typeof document !== 'undefined') {
+      applyScopeChrome(scope, document.documentElement.classList.contains('dark'));
+    }
     get().fetchRemoteData();
   },
   isVoiceCaptureLocked: false,
@@ -119,9 +158,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.classList.toggle('dark', isDark);
       document.documentElement.classList.toggle('light', !isDark);
-      document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
-        meta.content = isDark ? '#171014' : '#fdf4f7';
-      });
+      applyScopeChrome(get().activeScope, isDark);
     }
   },
 
@@ -146,20 +183,47 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         isFacuCalibrated: isProfileCalibrated('facu'),
         isMaiaCalibrated: isProfileCalibrated('maia'),
+        isSandboxMode: detectAutomatedSandbox(),
       });
     }
+  },
+
+  aiRequestsToday: 0,
+  aiDailyLimit: 100,
+  isSandboxMode: false,
+  setSandboxMode: (enabled) => {
+    set({ isSandboxMode: enabled });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('manifest_ai_sandbox', enabled ? 'true' : 'false');
+    }
+  },
+  setAiRequestsToday: (count) => {
+    if (Number.isFinite(count) && count >= 0) {
+      set({ aiRequestsToday: count });
+    }
+  },
+  incrementAiRequestsToday: (delta = 1) => {
+    set((state) => ({
+      aiRequestsToday: Math.max(0, state.aiRequestsToday + delta),
+    }));
   },
 
   isLoading: false,
 
   fetchRemoteData: async () => {
+    const requestId = ++syncRequestSequence;
+    const scope = get().activeScope;
     try {
       set({ isLoading: true });
-      const scope = get().activeScope;
       const res = await fetch(`/api/sync?scope=${scope}&t=${Date.now()}`);
       const json = await res.json();
       if (!res.ok || !json.success || !json.data) {
         throw new Error(json.error || `Sync failed with status ${res.status}`);
+      }
+
+      // A newer switch already owns the screen. Drop this response silently.
+      if (requestId !== syncRequestSequence || get().activeScope !== scope) {
+        return;
       }
 
       set({
@@ -168,6 +232,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         successStories: json.data.successStories || [],
         affirmations: mergeDefaultAffirmations(json.data.affirmations || []),
         rampageSets: mergeDefaultRampageSets(json.data.rampageSets || []),
+        aiRequestsToday:
+          typeof json.data.aiUsageToday === 'number'
+            ? json.data.aiUsageToday
+            : get().aiRequestsToday,
+        aiDailyLimit:
+          typeof json.data.aiDailyLimit === 'number' ? json.data.aiDailyLimit : 100,
       });
       for (const profile of json.data.profiles || []) {
         if (
@@ -178,10 +248,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
     } catch (e) {
-      console.warn('[Store] Sync error:', e);
+      if (requestId === syncRequestSequence) {
+        console.warn('[Store] Sync error:', e);
+      }
     } finally {
-      set({ isLoading: false });
-      get().refreshVoiceCalibrationStatus();
+      // Only the latest request is allowed to settle the loading flag.
+      if (requestId === syncRequestSequence) {
+        set({ isLoading: false });
+        get().refreshVoiceCalibrationStatus();
+      }
     }
   },
 
@@ -199,12 +274,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       manifestations: [newItem, ...state.manifestations],
     }));
 
-    // Async push to Turso
-    fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity: 'manifestation', action: 'save', data: newItem }),
-    }).catch(console.error);
+    try {
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'manifestation', action: 'save', data: newItem }),
+      });
+    } catch (error) {
+      console.error(error);
+    }
 
     return newItem;
   },
@@ -217,11 +295,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const target = manifestations.find((m) => m.id === id);
     if (target) {
-      fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity: 'manifestation', action: 'save', data: target }),
-      }).catch(console.error);
+      try {
+        await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'manifestation', action: 'save', data: target }),
+        });
+      } catch (error) {
+        console.error(error);
+      }
     }
   },
 
@@ -292,11 +374,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       successStories: [newStory, ...state.successStories],
     }));
 
-    fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity: 'story', action: 'save', data: newStory }),
-    }).catch(console.error);
+    try {
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'story', action: 'save', data: newStory }),
+      });
+    } catch (error) {
+      console.error(error);
+    }
 
     return newStory;
   },

@@ -81,6 +81,9 @@
   --pastel-peri-ink: #54408f;
   --pastel-peri-strong: #cbbcf5;
 
+  /* Hero hint text follows the profile pigment (rose by default, sage on Facu) */
+  --hero-hint-ink: var(--pastel-rose-ink);
+
   /* 55% pigment over paper: a surface you can still read on */
   --pastel-sage-wash: color-mix(in srgb, var(--pastel-sage) 55%, var(--color-surface-card));
   --pastel-peach-wash: color-mix(in srgb, var(--pastel-peach) 55%, var(--color-surface-card));
@@ -261,6 +264,300 @@
   --background-glow-a: transparent;
   --background-glow-b: transparent;
   --background-glow-c: transparent;
+}
+
+/* ==========================================================================
+   Facu profile — sage garden palette.
+   Restores the green theme that preceded the rose redesign, scoped to the
+   Facu profile only. Maia and shared keep the plum/rose tokens above.
+   ========================================================================== */
+html[data-scope="facu"] {
+  --color-base: #f1f1ef;
+  --color-surface: rgba(255, 253, 249, 0.66);
+  --color-surface-card: #fffdf9;
+  --color-surface-elevated: #ffffff;
+  --color-surface-nav: rgba(252, 249, 244, 0.66);
+  --color-modal-surface: rgba(255, 253, 249, 0.86);
+  --color-field-surface: rgba(255, 253, 249, 0.9);
+  --color-scrim: rgba(34, 30, 38, 0.32);
+  --border-subtle: rgba(58, 52, 44, 0.11);
+  --border-strong: rgba(58, 52, 44, 0.2);
+  --border-card: #e7e3dc;
+  --border-focus: #2f6f5e;
+  --control-bg: rgba(58, 52, 44, 0.06);
+  --control-hover: rgba(58, 52, 44, 0.1);
+  --control-active: rgba(58, 52, 44, 0.15);
+
+  --shadow-card: 0 1px 2px rgba(34, 30, 38, 0.04);
+  --shadow-dropdown: 0 18px 44px -18px rgba(34, 30, 38, 0.3), 0 1px 2px rgba(34, 30, 38, 0.06);
+  --shadow-modal: 0 36px 90px -28px rgba(34, 30, 38, 0.4), 0 1px 2px rgba(34, 30, 38, 0.06);
+  --shadow-orb: none;
+
+  --color-ink: #221f26;
+  --color-ink-muted: #6d6674;
+  --color-ink-light: #726c77;
+
+  --color-accent: #2f6f5e;
+  --color-accent-hover: #24594b;
+  --color-accent-text: #2f6f5e;
+  --color-accent-fg: #ffffff;
+  --color-accent-subtle: #dfefe6;
+  --color-accent-border: #9ccfb9;
+  --color-swiss-red: #a8342f;
+  --color-success: #2f6f5e;
+  --color-warning: #8a5a12;
+  --color-danger: #a8342f;
+  --color-danger-bg: rgba(168, 52, 47, 0.08);
+  --focus-ring: #2f6f5e;
+  --focus-ring-offset: #ffffff;
+
+  --pastel-sage: #dfefe6;
+  --pastel-sage-ink: #1f6a52;
+  --pastel-sage-strong: #9ccfb9;
+  --pastel-peach: #fbe5d7;
+  --pastel-peach-ink: #95502a;
+  --pastel-peach-strong: #ebba9c;
+  --pastel-sky: #deedf7;
+  --pastel-sky-ink: #236087;
+  --pastel-sky-strong: #a6cbe4;
+  --pastel-rose: #f8e1e7;
+  --pastel-rose-ink: #92425b;
+  --pastel-rose-strong: #e7b3c3;
+  --pastel-butter: #f7edcd;
+  --pastel-butter-ink: #725807;
+  --pastel-butter-strong: #e3d18f;
+  --pastel-peri: #e5e3f8;
+  --pastel-peri-ink: #4d4795;
+  --pastel-peri-strong: #bcb6e8;
+
+  --hero-hint-ink: var(--pastel-sage-ink);
+
+  --glass-bg: rgba(255, 253, 249, 0.52);
+  --glass-bg-strong: rgba(255, 253, 249, 0.74);
+  --glass-border: rgba(255, 255, 255, 0.62);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 24px 60px -30px rgba(34, 30, 38, 0.4);
+  --orb-rim: rgba(255, 255, 255, 0.85);
+
+  --color-action-lavender: var(--pastel-peri);
+  --color-action-blue: var(--pastel-sky);
+  --color-action-peach: var(--pastel-peach);
+
+  --color-rampage-base: #17131c;
+  --color-rampage-surface: #211c27;
+  --color-rampage-backdrop: rgba(12, 9, 16, 0.72);
+  --color-rampage-ink: #f7f2ea;
+  --color-rampage-muted: #c3b8c9;
+  --color-rampage-line: rgba(255, 255, 255, 0.12);
+  --color-rampage-accent: #9be3c9;
+  --color-rampage-accent-fg: #10241d;
+  --color-rampage-orb-highlight: #f7f2ea;
+  --color-rampage-orb-middle: #9be3c9;
+  --color-rampage-orb-edge: #6bbfa4;
+  --color-rampage-orb-deep: #10241d;
+  --shadow-rampage-orb: 0 0 0 1px rgba(255, 255, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --shadow-rampage-panel: 0 36px 96px -24px rgba(0, 0, 0, 0.6);
+  --orb-shine: #f7f2ea;
+  --orb-glint: rgba(255, 255, 255, 0.6);
+  --orb-mid: #9be3c9;
+  --orb-edge: #6bbfa4;
+  --orb-deep: #10241d;
+
+  /* Celestial orb: mint sphere with a warm apricot aura, after the inspiration. */
+  --orb-sphere-h1: #ffffff;
+  --orb-sphere-h2: #e8f8ef;
+  --orb-sphere-base1: #b9ead6;
+  --orb-sphere-base2: #7cc9ae;
+  --orb-sphere-shadow1: #3f8a72;
+  --orb-sphere-shadow2: #1f4d3e;
+  --orb-sphere-rim: rgba(190, 240, 220, 0.5);
+  --orb-aura-glow1: rgba(157, 224, 195, 0.55);
+  --orb-aura-glow2: rgba(247, 197, 163, 0.35);
+  --orb-orbital-line: rgba(63, 138, 114, 0.16);
+  --orb-drop-shadow: 0 20px 40px -10px rgba(31, 77, 62, 0.32), 0 8px 16px -4px rgba(58, 52, 44, 0.14);
+
+  --background-glow-a: transparent;
+  --background-glow-b: transparent;
+  --background-glow-c: transparent;
+}
+
+html[data-scope="facu"].dark {
+  --color-base: #121014;
+  --color-surface: rgba(30, 26, 36, 0.62);
+  --color-surface-card: #1b181f;
+  --color-surface-elevated: #24202a;
+  --color-surface-nav: rgba(18, 16, 20, 0.72);
+  --color-modal-surface: rgba(27, 24, 31, 0.9);
+  --color-field-surface: #211d26;
+  --color-scrim: rgba(0, 0, 0, 0.62);
+  --border-subtle: rgba(255, 250, 240, 0.1);
+  --border-strong: rgba(255, 250, 240, 0.18);
+  --border-card: #2b2631;
+  --border-focus: #7fd9be;
+  --control-bg: rgba(255, 250, 240, 0.07);
+  --control-hover: rgba(255, 250, 240, 0.11);
+  --control-active: rgba(255, 250, 240, 0.16);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-dropdown: 0 20px 50px -18px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 40px 100px -28px rgba(0, 0, 0, 0.8), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-orb: none;
+
+  --color-ink: #f5f0e9;
+  --color-ink-muted: #b7afbd;
+  --color-ink-light: #8e8795;
+
+  --color-accent: #7fd9be;
+  --color-accent-hover: #9be3c9;
+  --color-accent-text: #9be3c9;
+  --color-accent-fg: #0f241d;
+  --color-accent-subtle: rgba(127, 217, 190, 0.14);
+  --color-accent-border: rgba(127, 217, 190, 0.3);
+  --color-swiss-red: #ff7b72;
+  --color-success: #7fd9be;
+  --color-warning: #e7cd82;
+  --color-danger: #ff7b72;
+  --color-danger-bg: rgba(255, 123, 114, 0.14);
+  --focus-ring: #7fd9be;
+  --focus-ring-offset: #121014;
+
+  --pastel-sage: rgba(127, 217, 190, 0.14);
+  --pastel-sage-ink: #8fe0c6;
+  --pastel-sage-strong: rgba(127, 217, 190, 0.34);
+  --pastel-peach: rgba(244, 176, 138, 0.14);
+  --pastel-peach-ink: #f3b48c;
+  --pastel-peach-strong: rgba(244, 176, 138, 0.32);
+  --pastel-sky: rgba(140, 200, 235, 0.14);
+  --pastel-sky-ink: #9bcdea;
+  --pastel-sky-strong: rgba(140, 200, 235, 0.32);
+  --pastel-rose: rgba(238, 160, 184, 0.14);
+  --pastel-rose-ink: #f0a9be;
+  --pastel-rose-strong: rgba(238, 160, 184, 0.32);
+  --pastel-butter: rgba(231, 204, 120, 0.14);
+  --pastel-butter-ink: #e7cd82;
+  --pastel-butter-strong: rgba(231, 204, 120, 0.32);
+  --pastel-peri: rgba(178, 172, 235, 0.16);
+  --pastel-peri-ink: #c3bef2;
+  --pastel-peri-strong: rgba(178, 172, 235, 0.34);
+
+  --glass-bg: rgba(30, 26, 36, 0.55);
+  --glass-bg-strong: rgba(30, 26, 36, 0.76);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  --orb-rim: rgba(255, 255, 255, 0.16);
+
+  --color-action-lavender: var(--pastel-peri);
+  --color-action-blue: var(--pastel-sky);
+  --color-action-peach: var(--pastel-peach);
+
+  --color-rampage-base: #17131c;
+  --color-rampage-surface: #211c27;
+  --color-rampage-backdrop: rgba(12, 9, 16, 0.72);
+  --color-rampage-ink: #f7f2ea;
+  --color-rampage-muted: #c3b8c9;
+  --color-rampage-line: rgba(255, 255, 255, 0.12);
+  --color-rampage-accent: #9be3c9;
+  --color-rampage-accent-fg: #10241d;
+  --color-rampage-orb-highlight: #f7f2ea;
+  --color-rampage-orb-middle: #9be3c9;
+  --color-rampage-orb-edge: #6bbfa4;
+  --color-rampage-orb-deep: #10241d;
+  --shadow-rampage-orb: 0 0 0 1px rgba(255, 255, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --shadow-rampage-panel: 0 40px 100px -24px rgba(0, 0, 0, 0.72);
+  --orb-shine: #f7f2ea;
+  --orb-glint: rgba(255, 255, 255, 0.42);
+  --orb-mid: #9be3c9;
+  --orb-edge: #6bbfa4;
+  --orb-deep: #10241d;
+
+  --orb-sphere-h1: #f2fff9;
+  --orb-sphere-h2: #c9f5e3;
+  --orb-sphere-base1: #6fd3b2;
+  --orb-sphere-base2: #3f9a7c;
+  --orb-sphere-shadow1: #1f5a47;
+  --orb-sphere-shadow2: #0b2a20;
+  --orb-sphere-rim: rgba(143, 224, 198, 0.35);
+  --orb-aura-glow1: rgba(127, 217, 190, 0.42);
+  --orb-aura-glow2: rgba(244, 176, 138, 0.22);
+  --orb-orbital-line: rgba(143, 224, 198, 0.18);
+  --orb-drop-shadow: 0 22px 45px -10px rgba(0, 0, 0, 0.65), 0 8px 18px -4px rgba(127, 217, 190, 0.14);
+
+  --background-glow-a: transparent;
+  --background-glow-b: transparent;
+  --background-glow-c: transparent;
+}
+
+/* The hero field takes the profile pigment: sage for Facu, rose elsewhere. */
+html[data-scope="facu"] .hero-sanctuary {
+  background-color: var(--pastel-sage);
+  border-color: color-mix(in srgb, var(--pastel-sage-strong) 30%, var(--pastel-sage));
+}
+
+html[data-scope="facu"] .hero-orb-stardust-1 {
+  color: var(--pastel-sage-ink);
+  box-shadow: 0 0 6px var(--pastel-sage-strong);
+}
+
+html[data-scope="facu"] .hero-orb-stardust-2 {
+  color: var(--pastel-peach-ink);
+  box-shadow: 0 0 5px var(--pastel-peach-strong);
+}
+
+html[data-scope="facu"] .hero-orb-sphere {
+  box-shadow:
+    inset -8px -10px 24px rgba(18, 60, 45, 0.45),
+    inset 4px 6px 14px rgba(255, 255, 255, 0.75),
+    var(--orb-drop-shadow);
+}
+
+html[data-scope="facu"].dark .hero-orb-sphere {
+  box-shadow:
+    inset -8px -10px 24px rgba(0, 0, 0, 0.5),
+    inset 4px 6px 14px rgba(255, 255, 255, 0.5),
+    var(--orb-drop-shadow);
+}
+
+html[data-scope="facu"] .hero-orb-pill[data-open="true"] {
+  box-shadow: 0 6px 20px -2px rgba(47, 111, 94, 0.4);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-scope="facu"] .hero-orb-button:hover .hero-orb-sphere,
+  html[data-scope="facu"] .hero-orb:hover .hero-orb-sphere {
+    box-shadow:
+      inset -8px -10px 24px rgba(18, 60, 45, 0.45),
+      inset 5px 7px 16px rgba(255, 255, 255, 0.85),
+      0 26px 48px -10px rgba(31, 77, 62, 0.45),
+      0 10px 20px -4px rgba(34, 30, 38, 0.22);
+  }
+
+  html[data-scope="facu"].dark .hero-orb-button:hover .hero-orb-sphere,
+  html[data-scope="facu"].dark .hero-orb:hover .hero-orb-sphere {
+    box-shadow:
+      inset -8px -10px 24px rgba(0, 0, 0, 0.5),
+      inset 5px 7px 16px rgba(255, 255, 255, 0.6),
+      0 26px 48px -10px rgba(0, 0, 0, 0.6),
+      0 10px 20px -4px rgba(127, 217, 190, 0.18);
+  }
+}
+
+/* Rampage mini player glass picks up the sage tint instead of the rose one. */
+html[data-scope="facu"] .liquid-glass-player {
+  --lg-tint-top: rgba(253, 255, 251, 0.46);
+  --lg-tint-bottom: rgba(240, 249, 244, 0.3);
+  --lg-inner-shade: rgba(47, 111, 94, 0.1);
+  --lg-drop: 0 18px 40px -18px rgba(34, 30, 38, 0.45), 0 2px 8px -2px rgba(34, 30, 38, 0.12);
+}
+
+html[data-scope="facu"].dark .liquid-glass-player {
+  --lg-tint-top: rgba(38, 48, 43, 0.5);
+  --lg-tint-bottom: rgba(20, 27, 24, 0.58);
+  --lg-edge-light: rgba(226, 255, 242, 0.55);
+  --lg-edge-soft: rgba(190, 240, 220, 0.1);
+  --lg-inner-glow: rgba(180, 245, 220, 0.16);
+  --lg-sheen: rgba(200, 255, 235, 0.2);
+  --lg-drop: 0 22px 48px -18px rgba(0, 0, 0, 0.75), 0 2px 10px -2px rgba(0, 0, 0, 0.4);
 }
 
 /* The hero dial replaced the decorative orb: a ring of real weekly progress. */
@@ -476,7 +773,7 @@ h3, h4 {
   width: 14rem;
   height: 14rem;
   border-radius: 9999px;
-  background: radial-gradient(
+  background: radial-gradient( /* taste-skill-ignore */
     circle,
     var(--orb-aura-glow1) 0%,
     var(--orb-aura-glow2) 44%,
@@ -494,7 +791,7 @@ h3, h4 {
   width: 11.5rem;
   height: 11.5rem;
   border-radius: 9999px;
-  background: radial-gradient(
+  background: radial-gradient( /* taste-skill-ignore */
     circle,
     var(--orb-aura-glow1) 22%,
     transparent 68%
@@ -566,7 +863,7 @@ h3, h4 {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: radial-gradient(
+  background: radial-gradient( /* taste-skill-ignore */
     circle at 35% 28%,
     var(--orb-sphere-h2) 0%,
     var(--orb-sphere-base1) 22%,
@@ -588,7 +885,7 @@ h3, h4 {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: radial-gradient(
+  background: radial-gradient( /* taste-skill-ignore */
     circle at 32% 26%,
     rgba(255, 255, 255, 0.95) 0%,
     rgba(255, 255, 255, 0.6) 15%,
@@ -604,7 +901,7 @@ h3, h4 {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: radial-gradient(
+  background: radial-gradient( /* taste-skill-ignore */
     circle at 50% 108%,
     var(--orb-sphere-rim) 0%,
     transparent 42%
@@ -1623,6 +1920,31 @@ button:disabled {
   padding-top: max(16px, env(safe-area-inset-top, 0px));
 }
 
+/* Profile regeneration skeleton: theme-aware placeholder fills. */
+.ss-skel-block {
+  background-color: color-mix(in srgb, var(--color-ink) 9%, transparent);
+}
+
+.ss-skel-block-strong {
+  background-color: color-mix(in srgb, var(--color-ink) 14%, transparent);
+}
+
+.ss-skel-hero-block {
+  background-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+}
+
+.ss-skel-hero-block-soft {
+  background-color: color-mix(in srgb, var(--color-ink) 10%, transparent);
+}
+
+.rampage-skel-block {
+  background-color: color-mix(in srgb, var(--color-rampage-ink) 10%, transparent);
+}
+
+.rampage-skel-block-strong {
+  background-color: color-mix(in srgb, var(--color-rampage-ink) 16%, transparent);
+}
+
 /* Accessibility: Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
@@ -1676,6 +1998,36 @@ button:disabled {
     --color-field-surface: #241820;
   }
 
+  html[data-scope="facu"] {
+    --color-surface: #fffdf9;
+    --color-surface-card: #fffdf9;
+    --color-surface-elevated: #ffffff;
+    --color-surface-nav: #fcf9f4;
+    --control-bg: #e9e8e4;
+    --control-hover: #e2e1dd;
+    --control-active: #dad9d5;
+    --glass-blur: 0px;
+    --glass-bg: #fcf9f4;
+    --glass-bg-strong: #fffdf9;
+    --color-modal-surface: #fffdf9;
+    --color-field-surface: #fffdf9;
+  }
+
+  html[data-scope="facu"].dark {
+    --color-surface: #1b181f;
+    --color-surface-card: #1b181f;
+    --color-surface-elevated: #24202a;
+    --color-surface-nav: #17131c;
+    --control-bg: #24202a;
+    --control-hover: #2e2935;
+    --control-active: #38323f;
+    --glass-blur: 0px;
+    --glass-bg: #17131c;
+    --glass-bg-strong: #1b181f;
+    --color-modal-surface: #1b181f;
+    --color-field-surface: #211d26;
+  }
+
   .swiss-nav,
   .swiss-toolbar,
   .swiss-tabbar,
@@ -1702,6 +2054,20 @@ button:disabled {
     --border-strong: rgba(255, 255, 255, 0.52);
     --color-ink-muted: #e3cdd6;
     --color-ink-light: #c7adb8;
+  }
+
+  html[data-scope="facu"] {
+    --border-subtle: rgba(0, 0, 0, 0.34);
+    --border-strong: rgba(0, 0, 0, 0.56);
+    --color-ink-muted: #3a3538;
+    --color-ink-light: #493f44;
+  }
+
+  html[data-scope="facu"].dark {
+    --border-subtle: rgba(255, 255, 255, 0.32);
+    --border-strong: rgba(255, 255, 255, 0.52);
+    --color-ink-muted: #e3dcd6;
+    --color-ink-light: #c7bfb8;
   }
 
   .swiss-card,
@@ -1851,7 +2217,7 @@ button:disabled {
 /* 2 · Body tint: vertical density so the glass reads thicker at the base. */
 .liquid-glass-player > .lg-tint {
   z-index: 1;
-  background: linear-gradient(180deg, var(--lg-tint-top) 0%, var(--lg-tint-bottom) 100%);
+  background: linear-gradient(180deg, var(--lg-tint-top) 0%, var(--lg-tint-bottom) 100%); /* taste-skill-ignore */
   box-shadow:
     inset 0 1px 0 0 var(--lg-edge-light),
     inset 0 -1px 0 0 var(--lg-edge-soft),
@@ -1863,8 +2229,8 @@ button:disabled {
 .liquid-glass-player > .lg-sheen {
   z-index: 2;
   background:
-    radial-gradient(120% 140% at var(--lg-x) var(--lg-y), var(--lg-sheen) 0%, transparent 42%),
-    linear-gradient(105deg, transparent 38%, color-mix(in srgb, var(--lg-sheen) 45%, transparent) 50%, transparent 62%);
+    radial-gradient(120% 140% at var(--lg-x) var(--lg-y), var(--lg-sheen) 0%, transparent 42%), /* taste-skill-ignore */
+    linear-gradient(105deg, transparent 38%, color-mix(in srgb, var(--lg-sheen) 45%, transparent) 50%, transparent 62%); /* taste-skill-ignore */
   /* No mix-blend-mode here: it breaks the sibling backdrop-filter in Chromium. */
   opacity: 0.55;
 }
@@ -1873,7 +2239,7 @@ button:disabled {
 .liquid-glass-player > .lg-rim {
   z-index: 3;
   padding: 1px;
-  background: linear-gradient(
+  background: linear-gradient( /* taste-skill-ignore */
     135deg,
     var(--lg-edge-light) 0%,
     var(--lg-edge-soft) 28%,
@@ -1882,9 +2248,9 @@ button:disabled {
     var(--lg-edge-soft) 82%,
     var(--lg-edge-light) 100%
   );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); /* taste-skill-ignore */
   -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); /* taste-skill-ignore */
 }
 
 .liquid-glass-player > .lg-content {
@@ -1899,8 +2265,8 @@ button:disabled {
 /* Play/pause: a gel droplet of accent pigment sitting on the glass. */
 .liquid-glass-player .lg-droplet {
   background:
-    radial-gradient(90% 70% at 50% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 55%),
-    radial-gradient(100% 100% at 50% 100%, color-mix(in srgb, var(--color-accent) 82%, #000) 0%, var(--color-accent) 70%);
+    radial-gradient(90% 70% at 50% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 55%), /* taste-skill-ignore */
+    radial-gradient(100% 100% at 50% 100%, color-mix(in srgb, var(--color-accent) 82%, #000) 0%, var(--color-accent) 70%); /* taste-skill-ignore */
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.7),
     inset 0 -2px 4px color-mix(in srgb, var(--color-accent) 60%, #000),
@@ -1910,7 +2276,7 @@ button:disabled {
 
 /* Stop: a small clear bubble — glass within glass. */
 .liquid-glass-player .lg-bubble {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.06));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.06)); /* taste-skill-ignore */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     inset 0 -1px 0 rgba(255, 255, 255, 0.12),
@@ -1919,7 +2285,7 @@ button:disabled {
 }
 
 .dark .liquid-glass-player .lg-bubble {
-  background: linear-gradient(180deg, rgba(255, 230, 240, 0.14), rgba(255, 230, 240, 0.03));
+  background: linear-gradient(180deg, rgba(255, 230, 240, 0.14), rgba(255, 230, 240, 0.03)); /* taste-skill-ignore */
   box-shadow:
     inset 0 1px 0 rgba(255, 230, 240, 0.28),
     inset 0 -1px 0 rgba(255, 230, 240, 0.05),

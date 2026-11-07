@@ -2,15 +2,22 @@
 
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Feather, Footprints, LayoutGrid, Plus, Sparkles, Trophy, X } from 'lucide-react';
-import { EMIL_EASE_OUT } from '@/lib/iosSprings';
+import { Feather, Footprints, LayoutGrid, Plus, Quote, X } from 'lucide-react';
+import { APPLE_ELASTIC_SPRING, EMIL_EASE_OUT } from '@/lib/iosSprings';
 
-export type NavTab = 'dashboard' | 'manifestations' | 'rampage' | 'progress' | 'stories';
+export type NavTab =
+  | 'dashboard'
+  | 'affirmations'
+  | 'manifestations'
+  | 'rampage'
+  | 'progress'
+  | 'stories'
+  | 'create';
 
 interface BottomNavigationProps {
   activeTab: NavTab;
   onChangeTab: (tab: NavTab) => void;
-  onOpenRampage: () => void;
+  onOpenRampage?: () => void;
   onOpenCreateMenu: (trigger: HTMLElement) => void;
   isCreateMenuOpen: boolean;
 }
@@ -18,16 +25,20 @@ interface BottomNavigationProps {
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeTab,
   onChangeTab,
-  onOpenRampage,
   onOpenCreateMenu,
   isCreateMenuOpen,
 }) => {
-  const tabs = [
-    { id: 'dashboard' as NavTab, label: 'Inicio', icon: LayoutGrid },
-    { id: 'rampage' as NavTab, label: 'Rampage', icon: Sparkles, action: onOpenRampage },
-    { id: 'manifestations' as NavTab, label: 'Crear', icon: Plus, isCreate: true },
-    { id: 'progress' as NavTab, label: 'Avances', icon: Footprints },
-    { id: 'stories' as NavTab, label: 'Historias', icon: Trophy },
+  const tabs: Array<{
+    id: NavTab;
+    label: string;
+    icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+    isCreate?: boolean;
+  }> = [
+    { id: 'dashboard', label: 'Inicio', icon: LayoutGrid },
+    { id: 'affirmations', label: 'Afirmaciones', icon: Quote },
+    { id: 'create', label: 'Crear', icon: Plus, isCreate: true },
+    { id: 'manifestations', label: 'Manifestaciones', icon: Feather },
+    { id: 'progress', label: 'Avances', icon: Footprints },
   ];
 
   return (
@@ -35,10 +46,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
       aria-label="Navegación móvil"
       className="fixed inset-x-0 bottom-0 z-40 pointer-events-none px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 lg:hidden"
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 bottom-0 -z-10 h-24 bg-[color:var(--bg-primary)] opacity-85 blur-xl"
+      />
       <div className="swiss-tabbar pointer-events-auto mx-auto grid max-w-xl grid-cols-5 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id && !tab.action && !tab.isCreate;
+          const isActive = activeTab === tab.id && !tab.isCreate;
 
           return (
             <button
@@ -47,9 +62,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               onClick={(event) =>
                 tab.isCreate
                   ? onOpenCreateMenu(event.currentTarget)
-                  : tab.action
-                    ? tab.action()
-                    : onChangeTab(tab.id)
+                  : onChangeTab(tab.id)
               }
               aria-label={tab.isCreate && isCreateMenuOpen ? 'Cerrar opciones de creación' : tab.label}
               aria-expanded={tab.isCreate ? isCreateMenuOpen : undefined}
@@ -63,6 +76,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     : 'text-swiss-ink-light hover:text-swiss-ink'
               }`}
             >
+              {isActive && (
+                <motion.span
+                  layoutId="bottomDockCapsule"
+                  transition={APPLE_ELASTIC_SPRING}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0.5 -z-10 rounded-[18px] bg-swiss-control"
+                />
+              )}
               {tab.isCreate ? (
                 <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg shadow-card transition-transform active:scale-95">
                   <AnimatePresence mode="wait" initial={false}>
@@ -93,14 +114,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               ) : (
                 <motion.span
                   animate={{ scale: isActive ? 1.04 : 1 }}
-                  transition={{ type: 'spring', stiffness: 460, damping: 30 }}
+                  transition={APPLE_ELASTIC_SPRING}
                   className="flex"
                 >
                   <Icon aria-hidden="true" size={19} strokeWidth={isActive ? 2.1 : 1.7} className="sm:h-5 sm:w-5" />
                 </motion.span>
               )}
               <span
-                className={`max-w-full truncate text-[10px] sm:text-[11px] leading-none ${
+                className={`max-w-full truncate px-0.5 text-[10px] sm:text-[11px] leading-none ${
                   isActive ? 'font-semibold' : 'font-medium'
                 } ${tab.isCreate ? 'mt-0.5' : ''}`}
               >

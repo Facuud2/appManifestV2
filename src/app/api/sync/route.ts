@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { turso } from '@/lib/turso';
 import { ensureDefaultAffirmations } from '@/lib/affirmationSeed';
+import { getDailyAiUsage, TIER_1_DAILY_LIMIT } from '@/lib/gemini';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -113,6 +114,8 @@ export async function GET(req: NextRequest) {
       updatedAt: r.updated_at as string,
     }));
 
+    const aiUsageToday = await getDailyAiUsage();
+
     return NextResponse.json({
       success: true,
       data: {
@@ -122,6 +125,8 @@ export async function GET(req: NextRequest) {
         affirmations,
         rampageSets,
         profiles,
+        aiUsageToday,
+        aiDailyLimit: TIER_1_DAILY_LIMIT,
       },
     });
   } catch (error: any) {
@@ -177,8 +182,18 @@ export async function POST(req: NextRequest) {
 
       if (entity === 'manifestation') {
         await turso.execute({
-          sql: `INSERT OR REPLACE INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          sql: `INSERT INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  user_id = excluded.user_id,
+                  author = excluded.author,
+                  title = excluded.title,
+                  description = excluded.description,
+                  sensory_anchor = excluded.sensory_anchor,
+                  category = excluded.category,
+                  status = excluded.status,
+                  target_date = excluded.target_date,
+                  updated_at = excluded.updated_at;`,
           args: [
             data.id,
             data.userId || 'facu',
@@ -259,7 +274,7 @@ export async function POST(req: NextRequest) {
           args: [
             data.id,
             data.name,
-            data.avatar || '✨',
+            data.avatar || 'shared',
             data.voiceSamplePhrases ? JSON.stringify(data.voiceSamplePhrases) : null,
             data.voiceToneProfile ? JSON.stringify(data.voiceToneProfile) : null,
             data.hasCalibratedVoice ? 1 : 0,

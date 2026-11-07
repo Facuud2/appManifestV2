@@ -2,31 +2,48 @@
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronRight, Feather, Footprints } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { EMIL_CARD_TAP, EMIL_EASE_OUT } from '@/lib/iosSprings';
+import { EMIL_EASE_OUT } from '@/lib/iosSprings';
 
 interface FeaturedIntentionCardProps {
   onSelectManifestation?: (id: string) => void;
+  onOpenNewProgress?: (manifId?: string) => void;
 }
+
+const statusTone: Record<string, string> = {
+  semilla: 'bg-swiss-butter text-swiss-butterInk',
+  alineacion: 'bg-swiss-sky text-swiss-skyInk',
+  evidencia: 'bg-swiss-sage text-swiss-sageInk',
+  materializado: 'bg-swiss-rose text-swiss-roseInk',
+};
+
+const statusLabel: Record<string, string> = {
+  semilla: 'Semilla',
+  alineacion: 'Alineación',
+  evidencia: 'Evidencia',
+  materializado: 'Materializado',
+};
+
+const formatCategoryLabel = (category?: string) => {
+  if (!category) return 'Intención personal';
+  const normalized = category.trim().toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
 
 export const FeaturedIntentionCard: React.FC<FeaturedIntentionCardProps> = ({
   onSelectManifestation,
+  onOpenNewProgress,
 }) => {
   const { manifestations, progressLogs } = useAppStore();
 
   const featuredData = useMemo(() => {
-    // Find first active manifestation or fallback to mockup default
-    const active = manifestations.find((m) => m.status === 'alineacion' || m.status === 'evidencia') || manifestations[0];
+    const active =
+      manifestations.find((m) => m.status === 'alineacion' || m.status === 'evidencia') ||
+      manifestations[0];
 
     if (!active) {
-      return {
-        id: 'mock_featured',
-        category: 'PROYECTO PERSONAL',
-        title: 'Mi trabajo creativo crece de forma liviana y sostenida.',
-        advancesCount: 0,
-        daysCount: 1,
-      };
+      return null;
     }
 
     const linkedLogs = progressLogs.filter((log) => log.manifestationId === active.id);
@@ -37,103 +54,133 @@ export const FeaturedIntentionCard: React.FC<FeaturedIntentionCardProps> = ({
 
     return {
       id: active.id,
-      category: active.category ? active.category.toUpperCase() : 'PROYECTO PERSONAL',
-      title: active.title || 'Mi trabajo creativo crece de forma liviana y sostenida.',
+      category: formatCategoryLabel(active.category),
+      title: active.title,
+      description: active.description,
+      sensoryAnchor: active.sensoryAnchor,
+      status: active.status,
       advancesCount: linkedLogs.length,
       daysCount: diffDays,
     };
   }, [manifestations, progressLogs]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
+    <motion.aside
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.32, ease: EMIL_EASE_OUT }}
-      className="relative flex h-full flex-col items-center justify-between overflow-hidden rounded-[26px] border border-white/80 bg-white/75 p-6 text-center shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/60 sm:p-7"
+      transition={{ duration: 0.26, ease: EMIL_EASE_OUT }}
+      aria-labelledby="featured-intention-heading"
+      className="swiss-card surface-peri flex flex-col justify-between p-5 sm:p-6"
     >
-      {/* Background Glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 h-44 w-44 rounded-full bg-purple-200/40 blur-3xl dark:bg-purple-900/20"
-      />
+      {featuredData ? (
+        <>
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <h2 id="featured-intention-heading" className="section-heading">
+                Intención en foco
+              </h2>
+              <span
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
+                  statusTone[featuredData.status] ?? 'bg-swiss-control text-swiss-ink-muted'
+                }`}
+              >
+                <span className="pastel-dot" aria-hidden="true" />
+                {statusLabel[featuredData.status] ?? featuredData.status}
+              </span>
+            </div>
 
-      {/* Top Header */}
-      <div className="w-full">
-        <p className="text-[11px] font-bold tracking-widest uppercase text-swiss-ink-muted/80">
-          INTENCIÓN DESTACADA
-        </p>
-      </div>
+            <p className="mt-3 text-xs font-medium text-swiss-ink-muted">
+              {featuredData.category}
+            </p>
 
-      {/* 3D Celestial Purple Sphere with White Sparkles */}
-      <div className="my-5 flex flex-col items-center">
-        <div className="relative flex items-center justify-center">
-          {/* Ambient Rim & Drop Shadow */}
-          <div
-            className="relative flex h-24 w-24 items-center justify-center rounded-full transition-transform duration-300 hover:scale-105"
-            style={{
-              background:
-                'radial-gradient(circle at 35% 28%, #ffffff 0%, #dfccfb 18%, #9d75e0 50%, #683db8 80%, #3e1d77 100%)',
-              boxShadow:
-                '0 18px 36px -10px rgba(104, 61, 184, 0.45), inset 0 -6px 12px rgba(45, 17, 90, 0.55), inset 0 3px 6px rgba(255, 255, 255, 0.85)',
-            }}
-          >
-            {/* Sparkles Cluster inside the orb */}
-            <div className="relative flex items-center justify-center">
-              <Sparkles
-                size={28}
-                className="text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.35)]"
-                strokeWidth={2.2}
-              />
+            <h3 className="mt-1 text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
+              {featuredData.title}
+            </h3>
+
+            {featuredData.description && (
+              <p className="mt-2 line-clamp-3 text-sm leading-6 text-swiss-ink-muted">
+                {featuredData.description}
+              </p>
+            )}
+
+            {featuredData.sensoryAnchor && (
+              <div className="mt-3.5 rounded-[12px] bg-swiss-control px-3.5 py-3 text-[0.8125rem] leading-5 text-swiss-ink-muted">
+                <span className="mb-1 block text-xs font-semibold text-swiss-ink-light">
+                  Anclaje sensorial
+                </span>
+                “{featuredData.sensoryAnchor}”
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 border-t border-swiss-border pt-4">
+            <div className="grid grid-cols-2 divide-x divide-swiss-border">
+              <div className="pr-4">
+                <span className="block text-xs font-medium text-swiss-ink-muted">
+                  Avances vinculados
+                </span>
+                <span className="mt-0.5 block text-xl font-semibold tracking-tight tabular-nums text-swiss-ink">
+                  {featuredData.advancesCount}
+                </span>
+              </div>
+
+              <div className="pl-4">
+                <span className="block text-xs font-medium text-swiss-ink-muted">
+                  Tiempo en camino
+                </span>
+                <span className="mt-0.5 block text-xl font-semibold tracking-tight tabular-nums text-swiss-ink">
+                  {featuredData.daysCount}{' '}
+                  <span className="text-xs font-normal text-swiss-ink-light">
+                    {featuredData.daysCount === 1 ? 'día' : 'días'}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-swiss-border pt-3.5">
+              {onOpenNewProgress && (
+                <button
+                  type="button"
+                  onClick={() => onOpenNewProgress(featuredData.id)}
+                  className="swiss-btn-secondary inline-flex min-h-9 items-center gap-1.5 px-3 text-xs font-medium focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                >
+                  <Footprints size={13} aria-hidden="true" />
+                  Sumar avance
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onSelectManifestation?.(featuredData.id)}
+                className="inline-flex min-h-9 items-center gap-1 rounded-full px-2.5 text-xs font-semibold text-swiss-accentText transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              >
+                <span>Ver en Manifestaciones</span>
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
             </div>
           </div>
+        </>
+      ) : (
+        <div className="py-4">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-swiss-control text-swiss-accentText">
+            <Feather size={18} strokeWidth={1.7} aria-hidden="true" />
+          </span>
+          <h2 id="featured-intention-heading" className="section-heading mt-3">
+            Intención en foco
+          </h2>
+          <p className="mt-1.5 text-sm leading-6 text-swiss-ink-muted">
+            Cuando escribas una intención en Manifestaciones, vas a poder vincularle cada señal y seguir su recorrido desde acá.
+          </p>
+          <button
+            type="button"
+            onClick={() => onSelectManifestation?.('')}
+            className="mt-4 inline-flex min-h-9 items-center gap-1 rounded-full px-2 text-xs font-semibold text-swiss-accentText transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+          >
+            <span>Ir a Manifestaciones</span>
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
         </div>
-
-        {/* Category Pill */}
-        <p className="mt-4 text-[10px] font-bold tracking-widest uppercase text-swiss-ink-muted/70">
-          {featuredData.category}
-        </p>
-
-        {/* Intention Headline */}
-        <h2 className="mt-2 max-w-xs text-base font-bold leading-snug text-swiss-ink sm:text-[17px]">
-          {featuredData.title}
-        </h2>
-      </div>
-
-      {/* Metrics Counter */}
-      <div className="w-full">
-        <div className="flex items-center justify-center gap-8 border-t border-slate-100 py-3.5 dark:border-white/5">
-          <div className="text-center">
-            <span className="block text-xl font-bold tracking-tight text-swiss-ink">
-              {featuredData.advancesCount}
-            </span>
-            <span className="block text-xs font-medium text-swiss-ink-muted">
-              avances
-            </span>
-          </div>
-
-          <div className="h-6 w-px bg-slate-200 dark:bg-zinc-800" />
-
-          <div className="text-center">
-            <span className="block text-xl font-bold tracking-tight text-swiss-ink">
-              {featuredData.daysCount}
-            </span>
-            <span className="block text-xs font-medium text-swiss-ink-muted">
-              días
-            </span>
-          </div>
-        </div>
-
-        {/* Action Link Button */}
-        <motion.button
-          type="button"
-          whileTap={EMIL_CARD_TAP}
-          onClick={() => onSelectManifestation?.(featuredData.id)}
-          className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-purple-50/90 py-2.5 px-4 text-xs font-semibold text-[color:var(--pastel-peri-ink)] transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50"
-        >
-          <span>Ver recorrido completo</span>
-          <ChevronRight size={14} strokeWidth={2.4} />
-        </motion.button>
-      </div>
-    </motion.div>
+      )}
+    </motion.aside>
   );
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
@@ -8,6 +8,7 @@ import {
   Feather,
   Footprints,
   Headphones,
+  Mic,
   Pause,
   Play,
   Plus,
@@ -30,6 +31,7 @@ interface DashboardViewProps {
   onOpenNewManifestation: () => void;
   onOpenNewProgress: () => void;
   onOpenRampage: () => void;
+  onOpenCalibration?: () => void;
   onContinueRampage: (rampage: RampageSet) => void;
   isCreateMenuOpen: boolean;
   onOpenCreateMenu: (trigger: HTMLElement) => void;
@@ -39,16 +41,14 @@ interface DashboardViewProps {
   onRestoreRampage?: () => void;
 }
 
-const weekDayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-
-const getDateKey = (date: Date) =>
-  `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+const SKELETON_WAVE_BARS = [12, 22, 30, 16, 26, 14, 24, 18, 28, 14, 20];
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenManifestations,
   onOpenNewManifestation,
   onOpenNewProgress,
   onOpenRampage,
+  onOpenCalibration,
   onContinueRampage,
   isCreateMenuOpen,
   onOpenCreateMenu,
@@ -58,51 +58,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onRestoreRampage,
 }) => {
   const {
+    activeScope,
+    isFacuCalibrated,
+    isMaiaCalibrated,
     manifestations,
-    progressLogs,
     affirmations,
     rampageSets,
     addAffirmation,
     incrementAffirmationRepeat,
   } = useAppStore();
 
+  const isCurrentProfileCalibrated =
+    activeScope === 'maia'
+      ? isMaiaCalibrated
+      : activeScope === 'facu'
+        ? isFacuCalibrated
+        : isFacuCalibrated || isMaiaCalibrated;
+
   const [newAffirmationText, setNewAffirmationText] = useState('');
   const [isAddingAffirmation, setIsAddingAffirmation] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [affirmationError, setAffirmationError] = useState('');
 
-  const week = useMemo(() => {
-    const today = new Date();
-    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-
-    const days = weekDayLabels.map((label, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      return { label, date, key: getDateKey(date) };
-    });
-
-    const loggedDayKeys = new Set(
-      progressLogs.flatMap((log) => {
-        const date = new Date(log.createdAt);
-        return Number.isNaN(date.getTime()) ? [] : [getDateKey(date)];
-      }),
-    );
-
-    return {
-      days: days.map((day) => ({
-        ...day,
-        hasLog: loggedDayKeys.has(day.key),
-        isToday: day.key === getDateKey(today),
-      })),
-      loggedDays: days.filter((day) => loggedDayKeys.has(day.key)).length,
-    };
-  }, [progressLogs]);
-
   const featuredAffirmation =
     affirmations.find((affirmation) => affirmation.pinned) ?? affirmations[0];
   const latestRampage = rampageSets[0];
-  const weekProgress = week.loggedDays / 7;
 
   const handleAddQuickAffirmation = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -164,7 +144,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Registrar avance
               </button>
             </div>
-            <p className="mt-4 text-xs font-medium text-[color:var(--pastel-rose-ink)] sm:hidden">
+            <p className="mt-4 text-xs font-medium text-[color:var(--hero-hint-ink)] sm:hidden">
               Empezá por el orbe: escribí, afirmá o escuchá.
             </p>
           </div>
@@ -296,7 +276,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       <motion.section
         variants={STAGGER_CONTAINER}
-        className="grid w-full min-w-0 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+        className="w-full min-w-0"
       >
         <motion.article
           variants={STAGGER_ITEM}
@@ -331,101 +311,159 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
 
-          <div className="glass-panel mt-3.5 flex w-full min-w-0 items-center gap-2.5 rounded-[18px] p-2.5 sm:mt-4 sm:gap-4 sm:p-3.5 sm:rounded-[22px]">
-            <button
-              type="button"
-              onClick={() => {
-                void audioEngine?.unlock();
-                if (latestRampage?.affirmations.length) {
-                  if (onToggleRampagePlayback) {
-                    onToggleRampagePlayback();
+          {isCurrentProfileCalibrated ? (
+            <div
+              data-testid="continue-listening-player"
+              className="glass-panel mt-3.5 flex w-full min-w-0 items-center gap-2.5 rounded-[18px] p-2.5 sm:mt-4 sm:gap-4 sm:rounded-[22px] sm:p-3.5"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  void audioEngine?.unlock();
+                  if (latestRampage?.affirmations.length) {
+                    if (onToggleRampagePlayback) {
+                      onToggleRampagePlayback();
+                    } else {
+                      onContinueRampage(latestRampage);
+                    }
                   } else {
-                    onContinueRampage(latestRampage);
+                    onOpenRampage();
                   }
-                } else {
-                  onOpenRampage();
+                }}
+                aria-label={
+                  isRampagePlaying
+                    ? 'Pausar Rampage'
+                    : latestRampage?.affirmations.length
+                    ? `Continuar escuchando ${latestRampage.title}`
+                    : 'Crear tu primer Rampage'
                 }
-              }}
-              aria-label={
-                isRampagePlaying
-                  ? 'Pausar Rampage'
-                  : latestRampage?.affirmations.length
-                  ? `Continuar escuchando ${latestRampage.title}`
-                  : 'Crear tu primer Rampage'
-              }
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-transform hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus active:scale-[0.96] sm:h-13 sm:w-13 sm:rounded-[16px]"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {isRampagePlaying ? (
-                  <motion.span
-                    key="pause"
-                    initial={{ scale: 0.65, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.65, opacity: 0 }}
-                    transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
-                    className="flex"
-                  >
-                    <Pause aria-hidden="true" size={18} fill="currentColor" />
-                  </motion.span>
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-transform hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus active:scale-[0.96] sm:h-13 sm:w-13 sm:rounded-[16px]"
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  {isRampagePlaying ? (
+                    <motion.span
+                      key="pause"
+                      initial={{ scale: 0.65, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.65, opacity: 0 }}
+                      transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
+                      className="flex"
+                    >
+                      <Pause aria-hidden="true" size={18} fill="currentColor" />
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="play"
+                      initial={{ scale: 0.65, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.65, opacity: 0 }}
+                      transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
+                      className="flex"
+                    >
+                      <Play
+                        aria-hidden="true"
+                        size={17}
+                        fill="currentColor"
+                        className="translate-x-[1px]"
+                      />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (latestRampage?.affirmations.length && onRestoreRampage) {
+                    onRestoreRampage();
+                  } else {
+                    onOpenRampage();
+                  }
+                }}
+                className="min-w-0 flex-1 overflow-hidden rounded-lg text-left transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+                aria-label={
+                  latestRampage?.affirmations.length
+                    ? `Abrir reproductor de ${latestRampage.title}`
+                    : 'Crear Rampage'
+                }
+              >
+                {latestRampage?.affirmations.length ? (
+                  <>
+                    <p className="truncate text-sm font-semibold text-swiss-ink sm:text-[0.9375rem]">
+                      {latestRampage.title}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs font-normal leading-4 text-swiss-ink-muted sm:text-[0.8125rem]">
+                      {isRampagePlaying && currentAffirmationText
+                        ? `“${currentAffirmationText}”`
+                        : `“${latestRampage.affirmations[0].text}”`}
+                    </p>
+                  </>
                 ) : (
-                  <motion.span
-                    key="play"
-                    initial={{ scale: 0.65, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.65, opacity: 0 }}
-                    transition={{ duration: 0.14, ease: EMIL_EASE_OUT }}
-                    className="flex"
-                  >
-                    <Play
-                      aria-hidden="true"
-                      size={17}
-                      fill="currentColor"
-                      className="translate-x-[1px]"
-                    />
-                  </motion.span>
+                  <p className="text-xs text-swiss-ink-muted sm:text-sm">
+                    Creá un Rampage y retomalo desde acá cuando quieras.
+                  </p>
                 )}
-              </AnimatePresence>
-            </button>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (latestRampage?.affirmations.length && onRestoreRampage) {
-                  onRestoreRampage();
-                } else {
-                  onOpenRampage();
-                }
-              }}
-              className="min-w-0 flex-1 overflow-hidden text-left rounded-lg transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
-              aria-label={
-                latestRampage?.affirmations.length
-                  ? `Abrir reproductor de ${latestRampage.title}`
-                  : 'Crear Rampage'
-              }
-            >
-              {latestRampage?.affirmations.length ? (
-                <>
-                  <p className="truncate text-sm font-semibold text-swiss-ink sm:text-[0.9375rem]">
-                    {latestRampage.title}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs font-normal leading-4 text-swiss-ink-muted sm:text-[0.8125rem]">
-                    {isRampagePlaying && currentAffirmationText
-                      ? `“${currentAffirmationText}”`
-                      : `“${latestRampage.affirmations[0].text}”`}
-                  </p>
-                </>
-              ) : (
-                <p className="text-xs text-swiss-ink-muted sm:text-sm">
-                  Creá un Rampage y retomalo desde acá cuando quieras.
-                </p>
-              )}
-            </button>
-
-            <div className="shrink-0 pl-0.5 sm:pl-1">
-              <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={8} className="sm:hidden" />
-              <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={13} className="hidden sm:flex" />
+              <div className="shrink-0 pl-0.5 sm:pl-1">
+                <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={8} className="sm:hidden" />
+                <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={13} className="hidden sm:flex" />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              data-testid="continue-listening-uncalibrated"
+              className="glass-panel relative mt-3.5 min-h-[8.5rem] w-full min-w-0 overflow-hidden rounded-[18px] p-3.5 sm:mt-4 sm:min-h-[9rem] sm:rounded-[22px] sm:p-4"
+            >
+              {/* Skeleton anatómico del reproductor en el fondo */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none flex h-full w-full select-none flex-col justify-between gap-3 opacity-80"
+              >
+                <div className="flex w-full items-center gap-3 sm:gap-4">
+                  <span className="ss-skel-block-strong block h-12 w-12 shrink-0 rounded-[14px] sm:h-14 sm:w-14 sm:rounded-[16px]" />
+                  <div className="min-w-0 flex-1 space-y-2.5">
+                    <span className="ss-skel-block-strong block h-4 w-[min(12rem,58%)] rounded-full" />
+                    <span className="ss-skel-block block h-3 w-[min(18rem,84%)] rounded-full" />
+                  </div>
+                  <div className="flex shrink-0 items-end gap-1 pr-1">
+                    {SKELETON_WAVE_BARS.map((height, index) => (
+                      <span
+                        key={index}
+                        className={`ss-skel-block-strong block w-1 rounded-full ${
+                          index > 5 ? 'hidden sm:block' : ''
+                        }`}
+                        style={{ height }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <span className="ss-skel-block block h-2 w-full rounded-full" />
+                  <span className="ss-skel-block block h-2.5 w-12 shrink-0 rounded-full" />
+                </div>
+              </div>
+
+              {/* Indicación por encima y botón de Calibrar Voz en el centro */}
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[color:var(--glass-bg)] px-4 py-3 text-center backdrop-blur-[3px]">
+                <p className="max-w-md text-xs font-semibold leading-snug text-swiss-ink sm:text-sm">
+                  Calibrá tu voz para crear y escuchar un Rampage
+                </p>
+                <p className="mt-0.5 max-w-sm text-[11px] leading-4 text-swiss-ink-muted sm:text-xs">
+                  Registrá tu timbre vocal para que tus afirmaciones suenen con tu propia voz.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => (onOpenCalibration ? onOpenCalibration() : onOpenRampage())}
+                  data-testid="continue-listening-calibrate-btn"
+                  className="swiss-btn-primary mt-2.5 inline-flex min-h-11 items-center justify-center gap-2 px-5 text-[0.8125rem] shadow-card focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                >
+                  <Mic aria-hidden="true" size={16} />
+                  Calibrar voz
+                </button>
+              </div>
+            </div>
+          )}
 
           <AnimatePresence initial={false}>
             {isComposerOpen && (
@@ -503,109 +541,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               veces
             </button>
           )}
-        </motion.article>
-
-        <motion.article
-          variants={STAGGER_ITEM}
-          className="swiss-card flex w-full min-w-0 flex-col p-4 sm:p-card"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-[-0.02em] text-swiss-ink sm:text-lg">
-              Esta semana
-            </h2>
-            <span className="rounded-full bg-[color:var(--pastel-sage)] px-2.5 py-1 text-xs font-semibold text-[color:var(--pastel-sage-ink)]">
-              {week.loggedDays}/7 días
-            </span>
-          </div>
-
-          <div className="mt-4 flex w-full min-w-0 items-center gap-3 sm:mt-5 sm:gap-5">
-            <div className="relative h-16 w-16 shrink-0 sm:h-20 sm:w-20">
-              <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="none"
-                  stroke="var(--control-bg)"
-                  strokeWidth="10"
-                />
-                <motion.circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="none"
-                  stroke="var(--color-accent)"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  strokeDasharray={264}
-                  initial={{ strokeDashoffset: 264 }}
-                  animate={{ strokeDashoffset: 264 - 264 * weekProgress }}
-                  transition={{ duration: 0.5, ease: EMIL_EASE_OUT }}
-                />
-              </svg>
-              <span className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-semibold tabular-nums leading-none text-swiss-ink sm:text-xl">
-                  {week.loggedDays}
-                </span>
-                <span className="mt-0.5 text-[10px] font-medium text-swiss-ink-light sm:text-[11px]">días</span>
-              </span>
-            </div>
-
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="grid grid-cols-7 gap-1 text-center sm:gap-1.5">
-                {week.days.map((day) => (
-                  <div key={day.key} className="flex min-w-0 flex-col items-center gap-1 sm:gap-1.5">
-                    <span
-                      role="img"
-                      aria-label={`${day.date.toLocaleDateString('es-ES', {
-                        weekday: 'long',
-                        day: 'numeric',
-                      })}${day.isToday ? ', hoy' : ''}${
-                        day.hasLog ? ', con avance registrado' : ', sin avances registrados'
-                      }`}
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold transition-colors sm:h-7 sm:w-7 sm:text-[11px] ${
-                        day.hasLog
-                          ? 'bg-[color:var(--pastel-sage)] text-[color:var(--pastel-sage-ink)]'
-                          : day.isToday
-                            ? 'border border-swiss-focus text-swiss-accentText'
-                            : 'bg-swiss-control text-swiss-ink-light'
-                      }`}
-                    >
-                      {day.hasLog ? (
-                        <motion.span
-                          initial={{ scale: 0.75, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ type: 'spring', stiffness: 520, damping: 28 }}
-                          className="flex"
-                        >
-                          <Check aria-hidden="true" size={12} />
-                        </motion.span>
-                      ) : (
-                        day.label
-                      )}
-                    </span>
-                    <span className="text-[10px] tabular-nums text-swiss-ink-light sm:text-[11px]">
-                      {day.date.getDate()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-swiss-border pt-3 sm:mt-4">
-            <p className="truncate text-xs leading-5 text-swiss-ink-muted">
-              <span className="font-semibold text-swiss-ink">{week.loggedDays} días</span> con avances
-            </p>
-            <button
-              type="button"
-              onClick={onOpenNewProgress}
-              className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-semibold text-swiss-accentText transition-colors hover:bg-swiss-control"
-            >
-              Registrar
-              <ChevronRight aria-hidden="true" size={15} />
-            </button>
-          </div>
         </motion.article>
       </motion.section>
     </motion.div>

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserScopeSwitcher } from './UserScopeSwitcher';
-import { Ellipsis, Mic, Moon, Sun } from 'lucide-react';
+import { Ellipsis, FlaskConical, Mic, Moon, ShieldCheck, Sun } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
 
@@ -18,8 +18,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
     isMaiaCalibrated,
     themeMode,
     setThemeMode,
+    aiRequestsToday,
+    aiDailyLimit,
+    isSandboxMode,
+    setSandboxMode,
   } = useAppStore();
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const preferencesRef = useRef<HTMLDivElement>(null);
   const preferencesTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -44,6 +49,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
       | 'system'
       | null;
     setThemeMode(saved ?? 'system');
+
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      const standaloneMq = window.matchMedia('(display-mode: standalone)');
+      setIsStandalone(
+        standaloneMq.matches ||
+          Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone)
+      );
+    }
   }, [setThemeMode]);
 
   useEffect(() => {
@@ -90,6 +103,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
           <p className="truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-swiss-ink">
             {greeting}
           </p>
+          {isStandalone && (
+            <span className="hidden rounded-full bg-swiss-control px-2 py-0.5 text-[11px] font-semibold text-swiss-ink-muted sm:inline-flex">
+              PWA
+            </span>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
@@ -119,38 +137,46 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
                 }`}
               />
               <Mic aria-hidden="true" size={15} />
-              {isCurrentCalibrated ? 'Voz lista' : 'Calibrar voz'}
+              Calibrar voz
             </button>
           </div>
-          <div ref={preferencesRef} className="relative lg:hidden">
+
+          <div ref={preferencesRef} className="relative">
             <button
               ref={preferencesTriggerRef}
               type="button"
-              aria-label="Preferencias y voz"
+              aria-label="Ajustes y cuota IA"
               aria-expanded={isPreferencesOpen}
               aria-haspopup="true"
-              aria-controls="mobile-preferences-menu"
-              title="Preferencias y voz"
+              aria-controls="preferences-menu"
+              title="Ajustes, voz y cuota Tier 1"
               onClick={() => setIsPreferencesOpen((open) => !open)}
-              className="swiss-pill inline-flex min-h-10 min-w-10 items-center justify-center text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              className="swiss-pill inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 px-2.5 text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
+              {isSandboxMode && (
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-full bg-swiss-success"
+                  title="Modo Sandbox IA activo"
+                />
+              )}
               <Ellipsis aria-hidden="true" size={19} />
             </button>
             <AnimatePresence>
               {isPreferencesOpen && (
                 <motion.div
-                  id="mobile-preferences-menu"
+                  id="preferences-menu"
                   initial={{ opacity: 0, scale: 0.96, y: -4 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.98, y: -2 }}
                   transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
                   style={{ transformOrigin: '100% 0%' }}
-                  className="swiss-group absolute right-0 top-full z-50 mt-2 w-56 p-1 shadow-dropdown"
+                  className="swiss-group absolute right-0 top-full z-50 mt-2 w-64 p-1.5 shadow-dropdown"
                 >
                   <button
                     type="button"
                     onClick={toggleTheme}
-                    className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem]"
+                    className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem] lg:hidden"
                   >
                     {isDark ? (
                       <Sun aria-hidden="true" size={17} />
@@ -161,11 +187,52 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
                   </button>
                   <button
                     type="button"
-                    onClick={onOpenCalibration}
-                    className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem]"
+                    onClick={() => {
+                      setIsPreferencesOpen(false);
+                      onOpenCalibration();
+                    }}
+                    className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem] lg:hidden"
                   >
                     <Mic aria-hidden="true" size={17} />
-                    {isCurrentCalibrated ? 'Ajustes de voz' : 'Calibrar voz'}
+                    Calibrar voz
+                  </button>
+
+                  <div className="my-1 border-t border-[color:var(--border-subtle)] px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-swiss-ink">
+                        <ShieldCheck size={14} className="text-swiss-accentText" aria-hidden="true" />
+                        Cuota Tier 1
+                      </span>
+                      <span
+                        data-testid="ai-quota-counter"
+                        className="text-xs font-semibold tabular-nums text-swiss-ink-muted"
+                      >
+                        Solicitudes IA hoy: {aiRequestsToday} / {aiDailyLimit}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isSandboxMode}
+                    data-testid="ai-sandbox-toggle"
+                    onClick={() => setSandboxMode(!isSandboxMode)}
+                    className="swiss-row flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-[0.875rem]"
+                  >
+                    <span className="inline-flex items-center gap-2 font-medium text-swiss-ink">
+                      <FlaskConical size={16} aria-hidden="true" />
+                      Modo Sandbox IA
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        isSandboxMode
+                          ? 'bg-[color:var(--pastel-sage)] text-[color:var(--pastel-sage-ink)]'
+                          : 'bg-swiss-control text-swiss-ink-muted'
+                      }`}
+                    >
+                      {isSandboxMode ? 'Activo' : 'Off'}
+                    </span>
                   </button>
                 </motion.div>
               )}

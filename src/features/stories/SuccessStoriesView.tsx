@@ -11,7 +11,7 @@ interface SuccessStoriesViewProps {
 }
 
 export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNewStory }) => {
-  const { successStories, deleteSuccessStory } = useAppStore();
+  const { successStories, manifestations, deleteSuccessStory } = useAppStore();
   const shouldStaggerCards = successStories.length <= 6;
 
   return (
@@ -100,6 +100,13 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
                   <h2 className="text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
                     {story.title}
                   </h2>
+                  {story.manifestationId && (
+                    <p className="mt-1 text-xs font-medium text-swiss-accentText">
+                      Vinculada a:{' '}
+                      {manifestations.find((m) => m.id === story.manifestationId)?.title ||
+                        'Manifestación cumplida'}
+                    </p>
+                  )}
                   <p className="mt-2 text-sm leading-6 text-swiss-ink-muted whitespace-pre-line">
                     {story.story}
                   </p>

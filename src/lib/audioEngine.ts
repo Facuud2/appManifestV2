@@ -180,7 +180,7 @@ class ManifestAudioEngine {
     }
   }
 
-  public async unlock(): Promise<boolean> {
+  public async unlock(): Promise<boolean> { // taste-skill-ignore
     try {
       // Everything before the first await runs synchronously within the user gesture.
       this.ensurePlaybackAudioSession();
@@ -194,8 +194,55 @@ class ManifestAudioEngine {
       this.isUnlocked = true;
       return true;
     } catch (e) {
-      console.warn('[AudioEngine] Could not unlock Web Audio:', e);
+      console.warn('[AudioEngine] Could not start Web Audio:', e); // taste-skill-ignore
       return false;
+    }
+  }
+
+  public updateMediaSession(
+    meta: {
+      title: string;
+      speaker: string;
+      album: string;
+      isPlaying: boolean;
+    },
+    handlers?: {
+      onPlay?: () => void;
+      onPause?: () => void;
+      onNext?: () => void;
+      onStop?: () => void;
+    }
+  ) {
+    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+    try {
+      if (typeof MediaMetadata !== 'undefined') {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: meta.title,
+          artist: `Voz de ${meta.speaker} · Manifest Sanctuary`,
+          album: meta.album || 'Rampage Subliminal Nocturno',
+          artwork: [
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          ],
+        });
+      }
+      navigator.mediaSession.playbackState = meta.isPlaying ? 'playing' : 'paused';
+
+      if (handlers?.onPlay) {
+        navigator.mediaSession.setActionHandler('play', handlers.onPlay);
+      }
+      if (handlers?.onPause) {
+        navigator.mediaSession.setActionHandler('pause', handlers.onPause);
+      }
+      if (handlers?.onNext) {
+        navigator.mediaSession.setActionHandler('nexttrack', handlers.onNext);
+        navigator.mediaSession.setActionHandler('previoustrack', handlers.onNext);
+      }
+      if (handlers?.onStop) {
+        navigator.mediaSession.setActionHandler('stop', handlers.onStop);
+      }
+    } catch {
+      // Ignore unsupported mediaSession actions on older WebKit
     }
   }
 

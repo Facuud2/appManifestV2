@@ -19,6 +19,28 @@ export function ensureDefaultAffirmations(): Promise<void> {
 }
 
 async function seedDefaults(): Promise<void> {
+  await Promise.all([
+    turso.execute({
+      sql: `CREATE TABLE IF NOT EXISTS audio_cache (
+              hash TEXT PRIMARY KEY,
+              profile_id TEXT NOT NULL,
+              affirmation_text TEXT NOT NULL,
+              audio_base64 TEXT NOT NULL,
+              voice_used TEXT,
+              created_at TEXT NOT NULL
+            );`,
+      args: [],
+    }),
+    turso.execute({
+      sql: `CREATE TABLE IF NOT EXISTS ai_usage_daily (
+              date_key TEXT PRIMARY KEY,
+              request_count INTEGER DEFAULT 0,
+              updated_at TEXT NOT NULL
+            );`,
+      args: [],
+    }),
+  ]);
+
   const [affirmationsCount, rampageSetsCount] = await Promise.all([
     turso.execute({
       sql: `SELECT COUNT(*) AS count FROM affirmations WHERE id LIKE 'default%';`,

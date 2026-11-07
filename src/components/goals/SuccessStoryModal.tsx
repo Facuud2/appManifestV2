@@ -21,8 +21,9 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
   manifestationTitle = '',
   manifestationId,
 }) => {
-  const { activeScope, addSuccessStory, updateManifestationStatus } = useAppStore();
+  const { activeScope, manifestations, addSuccessStory, updateManifestationStatus } = useAppStore();
 
+  const [selectedManifId, setSelectedManifId] = useState(manifestationId || '');
   const [title, setTitle] = useState(manifestationTitle);
   const [story, setStory] = useState('');
   const [gratitudeNote, setGratitudeNote] = useState('');
@@ -36,6 +37,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
     setSaveError(false);
+    setSelectedManifId(manifestationId || '');
 
     if (manifestationTitle) setTitle(manifestationTitle);
 
@@ -43,7 +45,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
       window.cancelAnimationFrame(frame);
       previousFocus?.focus();
     };
-  }, [isOpen, manifestationTitle]);
+  }, [isOpen, manifestationId, manifestationTitle]);
 
   const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
@@ -75,8 +77,9 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
     setIsSubmitting(true);
     setSaveError(false);
     try {
+      const targetManifId = selectedManifId || manifestationId || undefined;
       await addSuccessStory({
-        manifestationId,
+        manifestationId: targetManifId,
         userId: activeScope,
         author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Ambos',
         title: title.trim(),
@@ -87,13 +90,14 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
         mindsetShift: '',
       });
 
-      if (manifestationId) {
-        await updateManifestationStatus(manifestationId, 'materializado');
+      if (targetManifId) {
+        await updateManifestationStatus(targetManifId, 'materializado');
       }
 
       setTitle('');
       setStory('');
       setGratitudeNote('');
+      setSelectedManifId('');
 
       try {
         confetti({
@@ -167,6 +171,32 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
             </header>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="success-story-manifestation" className="mb-2 block text-sm font-semibold">
+                  Vincular a una manifestación <span className="font-normal text-[var(--color-ink-muted)]">· opcional</span>
+                </label>
+                <select
+                  id="success-story-manifestation"
+                  value={selectedManifId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setSelectedManifId(nextId);
+                    if (nextId && !title.trim()) {
+                      const matched = manifestations.find((item) => item.id === nextId);
+                      if (matched) setTitle(matched.title);
+                    }
+                  }}
+                  className="swiss-composer-field min-h-12 w-full px-4 py-3 text-base"
+                >
+                  <option value="">Historia independiente (sin vínculo específico)</option>
+                  {manifestations.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <label htmlFor="success-story-title" className="text-sm font-semibold">

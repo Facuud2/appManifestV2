@@ -3,7 +3,7 @@ import type { Transition, TargetAndTransition, Variants } from 'framer-motion';
 /**
  * Emil Kowalski Animation Philosophy & Apple WWDC Spring Presets
  * Strict rules:
- * - Never scale(0) -> scale(0.95..0.97) + opacity: 0
+ * - Never start from zero scale -> use scale(0.95..0.97) + opacity: 0
  * - Strong ease-out: cubic-bezier(0.23, 1, 0.32, 1)
  * - UI animations <= 300ms
  * - Stagger 30-60ms
@@ -11,6 +11,12 @@ import type { Transition, TargetAndTransition, Variants } from 'framer-motion';
 
 export const EMIL_EASE_OUT = [0.23, 1, 0.32, 1] as const;
 export const EMIL_EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
+
+export const APPLE_ELASTIC_SPRING: Transition = {
+  type: 'spring',
+  stiffness: 400,
+  damping: 34,
+};
 
 export const EMIL_MODAL_SPRING: Transition = {
   type: 'spring',

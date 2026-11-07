@@ -3,24 +3,25 @@ import { VoiceProfileMeta, CalibrationPhrase } from '@/types';
 export const CALIBRATION_PHRASES: CalibrationPhrase[] = [
   {
     id: 1,
-    text: 'Merezco todo lo bueno y me permito recibirlo con profunda gratitud.',
-    focus: 'Merecimiento y Paz',
+    text: 'Soy dueño de mi propia realidad y todo lo que deseo me desea más a mí.',
+    focus: 'Autoconcepto y Pedestal',
   },
   {
     id: 2,
-    text: 'Cada paso que doy abre puertas de sincronicidad y abundancia.',
-    focus: 'Alineación y Confianza',
+    text: 'Soy siempre la primera opción, mi atención es única y muy valiosa.',
+    focus: 'Certeza y Elección',
   },
   {
     id: 3,
-    text: 'Mi realidad refleja la certeza y serenidad de mi mente.',
-    focus: 'Poder de Creación',
+    text: 'Soy amado, soy elegido y todas mis relaciones funcionan exactamente como quiero.',
+    focus: 'Vínculos y Asunción',
   },
 ];
 
 const DB_NAME = 'manifest_voice_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'voice_samples';
+const AUDIO_CACHE_STORE = 'audio_cache';
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
@@ -39,11 +40,112 @@ function openDatabase(): Promise<IDBDatabase | null> {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
+        if (!db.objectStoreNames.contains(AUDIO_CACHE_STORE)) {
+          db.createObjectStore(AUDIO_CACHE_STORE);
+        }
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
     } catch {
       resolve(null);
+    }
+  });
+}
+
+/**
+ * Generates deterministic SHA-256 hash: sha256(profileId + ":" + affirmation.trim().toLowerCase())
+ */
+export async function computeAffirmationHash(
+  profileId: string,
+  affirmation: string
+): Promise<string> {
+  const normalized = `${profileId.trim().toLowerCase()}:${affirmation.trim().toLowerCase()}`;
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const encoded = new TextEncoder().encode(normalized);
+    const digest = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0')) // taste-skill-ignore
+      .join('');
+  }
+  // Fallback deterministic hash if crypto.subtle is unavailable
+  let h1 = 0xdeadbeef ^ normalized.length;
+  let h2 = 0x41c6ce57 ^ normalized.length;
+  for (let i = 0, ch; i < normalized.length; i++) {
+    ch = normalized.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+}
+
+/**
+ * Retrieve cached synthesized WAV buffer from IndexedDB by deterministic SHA-256 hash
+ */
+export async function getCachedAffirmationAudio(hash: string): Promise<ArrayBuffer | null> {
+  const db = await openDatabase();
+  if (!db) return null;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(AUDIO_CACHE_STORE, 'readonly');
+      const store = tx.objectStore(AUDIO_CACHE_STORE);
+      const req = store.get(hash);
+      req.onsuccess = () => {
+        const res = req.result;
+        if (!res) {
+          resolve(null);
+          return;
+        }
+        if (res instanceof ArrayBuffer) {
+          resolve(res.slice(0));
+          return;
+        }
+        if (res instanceof Blob) {
+          res.arrayBuffer().then(resolve).catch(() => resolve(null));
+          return;
+        }
+        if (res.wavBuffer instanceof ArrayBuffer) {
+          resolve(res.wavBuffer.slice(0));
+          return;
+        }
+        resolve(null);
+      };
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Save synthesized WAV buffer permanently in IndexedDB by deterministic SHA-256 hash
+ */
+export async function saveCachedAffirmationAudio(
+  hash: string,
+  wavBuffer: ArrayBuffer,
+  meta?: { profileId: string; text: string }
+): Promise<boolean> {
+  const db = await openDatabase();
+  if (!db) return false;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(AUDIO_CACHE_STORE, 'readwrite');
+      const store = tx.objectStore(AUDIO_CACHE_STORE);
+      const payload = {
+        hash,
+        wavBuffer: wavBuffer.slice(0),
+        profileId: meta?.profileId || 'facu',
+        text: meta?.text || '',
+        createdAt: new Date().toISOString(),
+      };
+      const req = store.put(payload, hash);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    } catch {
+      resolve(false);
     }
   });
 }
@@ -103,7 +205,6 @@ export function detectPitchFromAudioBuffer(audioBuffer: AudioBuffer): {
 
     if (bestCorr > 0.4 && bestLag > 0) {
       const f0 = Math.round(sampleRate / bestLag);
-      // Map f0 to SpeechSynthesis pitch rate (0.85 to 1.15)
       const clampedF0 = Math.max(80, Math.min(280, f0));
       const pitchRate = 0.85 + ((clampedF0 - 80) / (280 - 80)) * 0.3;
       return { f0: clampedF0, pitchRate: Number(pitchRate.toFixed(2)) };
@@ -228,4 +329,16 @@ export function getVoiceProfileMeta(
 export function isProfileCalibrated(userId: 'facu' | 'maia'): boolean {
   const profile = getVoiceProfileMeta(userId);
   return Boolean(profile?.isCalibrated);
+}
+
+export function detectAutomatedSandbox(): boolean {
+  if (!isBrowser()) return false;
+  try {
+    const saved = localStorage.getItem('manifest_ai_sandbox');
+    if (saved === 'true') return true;
+    if (saved === 'false') return false;
+    return Boolean(navigator.webdriver);
+  } catch {
+    return Boolean(typeof navigator !== 'undefined' && navigator.webdriver);
+  }
 }

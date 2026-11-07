@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { NavTab } from './BottomNavigation';
-import { Feather, Footprints, LayoutGrid, Mic, Sparkles, Trophy } from 'lucide-react';
+import { Feather, Footprints, LayoutGrid, Mic, Quote, Sparkles, Trophy } from 'lucide-react';
 import { useAppStore } from '@/store';
 
 interface DesktopSidebarProps {
@@ -18,8 +18,16 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onOpenCalibration,
   onOpenRampage,
 }) => {
-  const { manifestations, successStories, activeScope, isFacuCalibrated, isMaiaCalibrated } =
-    useAppStore();
+  const {
+    manifestations,
+    affirmations,
+    successStories,
+    activeScope,
+    isFacuCalibrated,
+    isMaiaCalibrated,
+    aiRequestsToday,
+    aiDailyLimit,
+  } = useAppStore();
 
   const isCurrentCalibrated =
     activeScope === 'maia'
@@ -31,15 +39,21 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const menuItems = [
     { id: 'dashboard' as NavTab, label: 'Inicio', icon: LayoutGrid },
     {
+      id: 'affirmations' as NavTab,
+      label: 'Afirmaciones',
+      icon: Quote,
+      badge: affirmations.length,
+    },
+    {
       id: 'manifestations' as NavTab,
-      label: 'Escritos',
+      label: 'Manifestaciones',
       icon: Feather,
       badge: manifestations.length,
     },
     { id: 'progress' as NavTab, label: 'Avances', icon: Footprints },
     {
       id: 'stories' as NavTab,
-      label: 'Historias de éxito',
+      label: 'Historias',
       icon: Trophy,
       badge: successStories.length,
     },
@@ -182,9 +196,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               {isCurrentCalibrated ? 'Voz lista' : 'Tu voz te espera'}
             </p>
             <p className="mt-0.5 text-xs leading-5 text-swiss-ink-muted">
-              {isCurrentCalibrated
-                ? 'Tus afirmaciones suenan con tu tono.'
-                : 'Calibra tu voz para que las afirmaciones suenen como vos.'}
+              Solicitudes IA hoy: {aiRequestsToday} / {aiDailyLimit}
             </p>
           </div>
         </div>

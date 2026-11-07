@@ -1,15 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateRampageWithGemini } from '@/lib/gemini';
+import { UserScope } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const centralTheme = typeof body.centralTheme === 'string' ? body.centralTheme.trim().slice(0, 120) : '';
-    const additionalDetails =
-      typeof body.additionalDetails === 'string' ? body.additionalDetails.trim().slice(0, 1000) : '';
-    const userScope = body.userScope;
+    const centralTheme =
+      typeof body.centralTheme === 'string' ? body.centralTheme.trim().slice(0, 120) : '';
+    const rawNuances =
+      typeof body.nuances === 'string'
+        ? body.nuances
+        : typeof body.additionalDetails === 'string'
+          ? body.additionalDetails
+          : '';
+    const additionalDetails = rawNuances.trim().slice(0, 1000);
+
+    const rawScope = body.profileId || body.userScope || 'shared';
+    const userScope: UserScope =
+      rawScope === 'facu' || rawScope === 'maia' || rawScope === 'shared'
+        ? rawScope
+        : 'shared';
+
+    const requestedCount = Number(body.count ?? body.batchSize ?? 11);
+    const count = [5, 11, 15].includes(requestedCount)
+      ? requestedCount
+      : Number.isFinite(requestedCount) && requestedCount > 0
+        ? Math.min(20, Math.floor(requestedCount))
+        : 11;
+
+    const sandbox =
+      Boolean(body.sandbox) ||
+      req.headers.get('x-ai-sandbox') === 'true' ||
+      process.env.AI_SANDBOX === 'true';
+
     const userAffirmations = Array.isArray(body.userAffirmations)
       ? body.userAffirmations
           .filter((item: unknown): item is string => typeof item === 'string')
@@ -17,6 +42,7 @@ export async function POST(req: NextRequest) {
           .filter(Boolean)
           .slice(0, 20)
       : [];
+
     const rawManifestations: unknown[] = Array.isArray(body.userManifestations)
       ? body.userManifestations
       : [];
@@ -56,39 +82,43 @@ export async function POST(req: NextRequest) {
               )
               .map((affirmation) => affirmation.trim().slice(0, 300))
               .filter(Boolean)
-              .slice(0, 12)
+              .slice(0, 15)
           : [],
       }))
       .filter((item) => item.title && item.affirmations.length > 0)
       .slice(0, 5);
-    const batchSize = Number(body.batchSize);
 
     if (!centralTheme) {
-      return NextResponse.json({ success: false, error: 'El título del Rampage es requerido' }, { status: 400 });
-    }
-
-    if (userScope !== 'facu' && userScope !== 'maia' && userScope !== 'shared') {
-      return NextResponse.json({ success: false, error: 'Perfil de Rampage inválido' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'El título del Rampage es requerido' },
+        { status: 400 }
+      );
     }
 
     const result = await generateRampageWithGemini(
       centralTheme || 'Mi identidad',
       userScope,
       userAffirmations,
-      Number.isFinite(batchSize) ? batchSize : 3,
+      count,
       additionalDetails,
       userManifestations,
-      userRampages
+      userRampages,
+      sandbox
     );
 
     return NextResponse.json({
       success: true,
+      affirmations: result.affirmations,
       data: result,
     });
   } catch (error) {
     console.error('[API /api/ai/rampage] Error:', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error en generación de rampage' },
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Error en generación de rampage',
+      },
       { status: 500 }
     );
   }

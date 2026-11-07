@@ -17,6 +17,7 @@ unavailable.
 | 009 | [Reveal the progress timeline connector once](./009-progress-timeline-line-reveal.md) | LOW | DONE |
 | 010 | [Crossfade the Rampage play and pause states](./010-rampage-transport-state-crossfade.md) | LOW | DONE |
 | 011 | [Pastel cutie palette (Pinkie Pie, sin gradientes)](./011-pastel-cutie-palette.md) | HIGH | DONE |
+| 012 | [Dividir "Escritos" en Manifestaciones y Afirmaciones](./012-split-escritos-manifestaciones-afirmaciones.md) | HIGH | DONE |
 
 ## Recommended execution order
 

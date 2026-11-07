@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
 import { GoogleGenAI } from '@google/genai';
 import type { UserScope } from '@/types';
+import { turso } from './turso';
 import {
+  buildDirectAssumptionAffirmations,
   findPoeticTerm,
   getFallbackAffirmations,
   sanitizeAffirmations,
@@ -9,8 +12,97 @@ import {
 } from './affirmationEngine';
 
 export interface AiTelemetryResponse {
-  source: 'SANDBOX_MOCK' | 'GEMINI_LIVE' | 'LOCAL_FALLBACK';
+  source: 'SANDBOX_MOCK' | 'GEMINI_LIVE' | 'LOCAL_FALLBACK' | 'TURSO_CACHE';
   totalTokens: number;
+}
+
+export const TIER_1_DAILY_LIMIT = 100;
+
+export function getTodayDateKey(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export async function getDailyAiUsage(): Promise<number> {
+  try {
+    const dateKey = getTodayDateKey();
+    const res = await turso.execute({
+      sql: 'SELECT request_count FROM ai_usage_daily WHERE date_key = ?;',
+      args: [dateKey],
+    });
+    return Number(res.rows[0]?.request_count ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+export async function incrementDailyAiUsage(amount = 1): Promise<number> {
+  try {
+    const dateKey = getTodayDateKey();
+    const now = new Date().toISOString();
+    await turso.execute({
+      sql: `INSERT INTO ai_usage_daily (date_key, request_count, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(date_key) DO UPDATE SET
+              request_count = ai_usage_daily.request_count + excluded.request_count,
+              updated_at = excluded.updated_at;`,
+      args: [dateKey, amount, now],
+    });
+    return await getDailyAiUsage();
+  } catch {
+    return 0;
+  }
+}
+
+export function computeServerAffirmationHash(profileId: string, affirmation: string): string {
+  const normalized = `${profileId.trim().toLowerCase()}:${affirmation.trim().toLowerCase()}`;
+  return createHash('sha256').update(normalized, 'utf8').digest('hex');
+}
+
+/**
+ * Generates a short, warm harmonic WAV buffer for Sandbox Mode or offline fallback
+ * so Web Audio API decodeAudioData and the frequency analyser work identically to live TTS.
+ */
+export function createSandboxVoiceWavBuffer(
+  text: string,
+  profileId: 'facu' | 'maia' | 'shared' = 'facu'
+): Buffer {
+  const sampleRate = 24000;
+  // ~0.28s duration so 11 affirmations can cycle smoothly while giving real analyser energy
+  const durationSeconds = 0.28;
+  const sampleCount = Math.floor(sampleRate * durationSeconds);
+  const buffer = Buffer.alloc(44 + sampleCount * 2);
+
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + sampleCount * 2, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20); // PCM
+  buffer.writeUInt16LE(1, 22); // Mono
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(sampleCount * 2, 40);
+
+  const baseFreq = profileId === 'maia' ? 210 : 145;
+  const seed = text.length % 17;
+
+  for (let i = 0; i < sampleCount; i++) {
+    const t = i / sampleRate;
+    const progress = i / sampleCount;
+    const envelope = Math.sin(Math.PI * progress);
+    const syllableMod = 0.65 + 0.35 * Math.sin(2 * Math.PI * (4 + (seed % 3)) * t);
+    const wave =
+      0.55 * Math.sin(2 * Math.PI * baseFreq * t) +
+      0.3 * Math.sin(2 * Math.PI * (baseFreq * 2) * t) +
+      0.15 * Math.sin(2 * Math.PI * (baseFreq * 3) * t);
+    const sample = Math.max(-1, Math.min(1, wave * envelope * syllableMod * 0.22));
+    buffer.writeInt16LE(Math.round(sample * 32767), 44 + i * 2);
+  }
+
+  return buffer;
 }
 
 export function getGeminiApiKey(): string {
@@ -29,9 +121,9 @@ export function cleanSpokenText(spokenText: string, previousTextTail?: string): 
   let cleaned = (spokenText || '').trim();
   if (!cleaned) return '';
 
-  // Remove Spanish fillers
-  cleaned = cleaned.replace(/^(y\s+bueno|bueno|eh|este|mmm|o\s+sea)[,\s]*/i, '');
-  cleaned = cleaned.replace(/\b(eh|mmm|este|o sea)\b/gi, '');
+  // Remove Spanish fillers (muletillas)
+  cleaned = cleaned.replace(/^(y\s+bueno|bueno|eh+|este|mmm+|o\s+sea|digamos|entonces)[,\s]*/i, '');
+  cleaned = cleaned.replace(/\b(eh+|mmm+|este|o sea|digamos)\b/gi, '');
   cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
 
   if (!cleaned) return '';
@@ -56,24 +148,34 @@ export function cleanSpokenText(spokenText: string, previousTextTail?: string): 
 }
 
 /**
- * Transcribe audio using Google GenAI (Gemini 3.5 transcript / flash)
+ * Transcribe audio using Google GenAI (gemini-3.5-transcript)
  */
 export async function transcribeAudioWithGemini(
   audioBuffer: Buffer,
   mimeType: string,
   previousTextTail?: string,
-  spokenText?: string
-): Promise<{ text: string; detectedTone: string; source: 'GEMINI_LIVE'; totalTokens: number }> {
+  spokenText?: string,
+  sandbox?: boolean
+): Promise<{
+  text: string;
+  detectedTone: string;
+  source: 'GEMINI_LIVE' | 'SANDBOX_MOCK';
+  totalTokens: number;
+}> {
+  if (sandbox || spokenText) {
+    const fallbackText =
+      spokenText ||
+      'Soy siempre la primera opción y todo lo que deseo ya es un hecho en mi realidad';
+    return {
+      text: cleanSpokenText(fallbackText, previousTextTail),
+      detectedTone: 'calma, firme, íntima',
+      source: sandbox ? 'SANDBOX_MOCK' : 'GEMINI_LIVE',
+      totalTokens: 0,
+    };
+  }
+
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    if (spokenText) {
-      return {
-        text: cleanSpokenText(spokenText, previousTextTail),
-        detectedTone: 'calma, firme, íntima',
-        source: 'GEMINI_LIVE',
-        totalTokens: 0,
-      };
-    }
     throw new Error('GEMINI_API_KEY no configurada');
   }
 
@@ -83,75 +185,104 @@ export async function transcribeAudioWithGemini(
 
   const ai = new GoogleGenAI({ apiKey });
   const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
-  const response = await ai.interactions.create({
-    model: 'gemini-3.5-transcribe',
-    input: [
-      {
-        type: 'audio',
-        data: audioBuffer.toString('base64'),
-        mime_type: cleanMime,
-      },
-    ],
-  });
-  const transcription = response.output_text?.trim();
-  if (!transcription) throw new Error('Gemini no reconoció voz en la grabación');
 
-  return {
-    text: cleanSpokenText(transcription, previousTextTail),
-    detectedTone: 'calma, íntima y luminosa',
-    source: 'GEMINI_LIVE',
-    totalTokens: 0,
-  };
+  try {
+    const response = await ai.interactions.create({
+      model: 'gemini-3.5-transcript',
+      input: [
+        {
+          type: 'audio',
+          data: audioBuffer.toString('base64'),
+          mime_type: cleanMime,
+        },
+      ],
+    });
+    const transcription = response.output_text?.trim();
+    if (!transcription) throw new Error('Gemini no reconoció voz en la grabación');
+
+    await incrementDailyAiUsage(1);
+
+    return {
+      text: cleanSpokenText(transcription, previousTextTail),
+      detectedTone: 'calma, íntima y luminosa',
+      source: 'GEMINI_LIVE',
+      totalTokens: 0,
+    };
+  } catch (primaryError) {
+    // Fallback to gemini-3.5-transcribe if endpoint aliases differ
+    try {
+      const response = await ai.interactions.create({
+        model: 'gemini-3.5-transcribe',
+        input: [
+          {
+            type: 'audio',
+            data: audioBuffer.toString('base64'),
+            mime_type: cleanMime,
+          },
+        ],
+      });
+      const transcription = response.output_text?.trim();
+      if (!transcription) throw primaryError;
+
+      await incrementDailyAiUsage(1);
+
+      return {
+        text: cleanSpokenText(transcription, previousTextTail),
+        detectedTone: 'calma, íntima y luminosa',
+        source: 'GEMINI_LIVE',
+        totalTokens: 0,
+      };
+    } catch {
+      throw primaryError;
+    }
+  }
 }
 
 /**
- * System prompt de la Ley de la Asunción: few-shot con el molde exacto del usuario.
- * No cambiar los ejemplos sin respetar el tono directo, literal y coloquial.
+ * System prompt estricto de la Ley de la Asunción Natural (Cero Poesía).
  */
-const AFFIRMATION_SYSTEM_PROMPT = `Eres un generador de afirmaciones basado estrictamente en la Ley de la Asunción (Law of Assumption). Tu único objetivo es generar afirmaciones que suenen como pensamientos naturales, directos, literales y cotidianos en primera persona, como si el usuario estuviera declarando hechos reales de su vida.
+export function buildLawOfAssumptionSystemPrompt(count: number): string {
+  return `Eres un generador de afirmaciones basado estrictamente en la Ley de la Asunción. Debes generar exactamente ${count} afirmaciones en primera persona que suenen como pensamientos cotidianos, directos, literales y naturales dichos por una persona joven en su vida real.
 
-REGLAS DE ESTILO INQUEBRANTABLES:
-1. CERO POESÍA Y CERO NEW AGE: Está terminantemente PROHIBIDO usar metáforas, lenguaje poético o palabras como: "fluir", "fluye", "pecho", "latido", "sagrado", "vibrar", "vibración", "frecuencia", "sintonizar", "sendero", "brisa", "abro mis brazos", "respiro hondo", "certeza plena", "orquestó", "gratitud", "gratitud profunda", "reclamo mi poder", "universo conspira", "luz", "energía" o "merecer".
-2. ESTRUCTURA DIRECTA Y COLOQUIAL: Usa oraciones simples en presente indicativo ("Soy...", "Tengo...", "[Nombre/SP] me...", "Paso...", "Comparto..."). Deben sonar como habla una persona joven en la vida real, sin palabras difíciles ni adornos literarios.
-3. AUTOCONCEPTO EN EL PEDESTAL: El usuario es el centro absoluto de su realidad ("Soy Dios", "Soy la primera opción", "Mi atención es única"). Las demás personas lo buscan, lo priorizan, lo desean, están obsesionadas con él, lo protegen y le dan todo.
-4. NATURALIDAD EN VÍNCULOS ESPECÍFICOS: Si el usuario menciona a una persona específica (SP, Maia u otra) o dinámicas relacionales (esposa, vínculos sin reglamentos, triángulos amorosos, juntadas), genera afirmaciones directas y literales sobre cuánto lo aman, lo necesitan, lo buscan y lo bien que la pasan juntos, sin suavizar ni juzgar la dinámica.
+REGLAS ESTRICTAS DE ESTILO:
+1. PROHIBIDO EL LENGUAJE POÉTICO O NEW AGE: Está prohibido usar palabras como 'fluir', 'pecho', 'latido', 'sagrado', 'vibrar', 'frecuencia', 'sintonizar', 'sendero', 'brisa', 'respiro hondo', 'abro mis brazos', 'gratitud', 'orquestó', 'certeza plena' o 'luz'.
+2. LONGITUD Y ESTRUCTURA: Oraciones directas en presente simple ('Soy...', 'Tengo...', '[Nombre/SP] me...', 'Paso...'). Combina afirmaciones ultra cortas de impacto (2 a 5 palabras) con afirmaciones directas de situación (6 a 12 palabras).
+3. PEDESTAL Y VÍNCULOS SIN CENSURA: El usuario es el centro absoluto de su realidad. Si menciona a una persona específica (SP, Maia u otra) o dinámicas como vínculos libres, esposa o triángulos amorosos, exprésalo de forma directa, literal y natural como un hecho cumplido.
 
-EJEMPLOS EXACTOS DEL ESTILO QUE DEBES IMITAR (MOLDE OBLIGATORIO):
-- Autoconcepto y Realidad:
-  "Soy Dios"
-  "Soy amado"
-  "Soy querido"
-  "Soy deseado"
-  "La gente me ama"
-  "Soy muy valioso"
-  "Mi atención es única"
-  "Soy elegido"
-  "Soy siempre la primera opción"
-  "Las mujeres me desean, buscan mantenerme y dar todo de sí mismas por mí"
-  "Los hombres me adoran, buscan protegerme y regalarme cosas"
-  "Soy el favorito del universo"
-  "Soy dueño de mi propia realidad"
-  "Tengo todo lo que deseo y todo lo que deseo me desea más a mí"
-
+EJEMPLOS MAESTROS DEL ESTILO EXACTO A IMITAR (MOLDE OBLIGATORIO):
+- Autoconcepto y Pedestal:
+  'Soy Dios'
+  'Soy amado'
+  'Soy querido'
+  'Soy deseado'
+  'La gente me ama'
+  'Soy muy valioso'
+  'Mi atención es única'
+  'Soy elegido'
+  'Soy siempre la primera opción'
+  'Las mujeres me desean, buscan mantenerme y dar todo de sí mismas por mí'
+  'Los hombres me adoran, buscan protegerme y regalarme cosas'
+  'Soy el favorito del universo'
+  'Soy dueño de mi propia realidad'
+  'Tengo todo lo que deseo y todo lo que deseo me desea más a mí'
 - Persona Específica (SP):
-  "SP me ama"
-  "SP me adora"
-  "Soy el favorito de SP"
-  "SP me necesita"
-  "SP me desea"
-  "SP está obsesionada conmigo"
-  "Soy la persona favorita de SP"
-  "SP vive pensando en mí todo el día"
+  'SP me ama'
+  'SP me adora'
+  'Soy el favorito de SP'
+  'SP me necesita'
+  'SP me desea'
+  'SP está obsesionada conmigo'
+  'Soy la persona favorita de SP'
+  'SP vive pensando en mí todo el día'
+- Vínculos y dinamicas X nombre especifico:
+  'X es mi esposa y nos divertimos juntos'
+  'Mantenemos un vínculo sin título ni reglamentos con X'
+  'Soy el esposo de X, y junto a SP mantenemos un triángulo amoroso'
+  'Comparto cientos de actividades con X'
+  'Paso mucho tiempo con X'
 
-- Vínculos y Dinámicas (ej. Maia):
-  "Maia es mi esposa y nos divertimos juntos"
-  "Mantenemos un vínculo sin título ni reglamentos con Maia"
-  "Soy el esposo de Maia, y junto a SP mantenemos un triángulo amoroso"
-  "Comparto cientos de actividades con Maia"
-  "Paso mucho tiempo con Maia"
-
-INSTRUCCIÓN DE SALIDA:
-Basado en el tema central y los matices que indique el usuario, genera un lote de afirmaciones nuevas que sigan EXACTAMENTE el tono, la simpleza y la estructura de los ejemplos anteriores. Devuelve únicamente un JSON válido con el formato: { "affirmations": ["...", "...", "..."] }. No agregues explicaciones, markdown ni texto fuera del JSON.`;
+Devuelve únicamente un JSON válido: { "affirmations": ["..."] } con exactamente ${count} afirmaciones.`;
+}
 
 function parseAffirmationPayload(raw: string): unknown[] {
   const cleaned = raw
@@ -163,38 +294,73 @@ function parseAffirmationPayload(raw: string): unknown[] {
   const parsed: unknown = JSON.parse(cleaned);
   const items: unknown =
     typeof parsed === 'object' && parsed !== null && 'affirmations' in parsed
-      ? parsed.affirmations
+      ? (parsed as { affirmations: unknown }).affirmations
       : parsed;
   return Array.isArray(items) ? items : [];
 }
 
 /**
- * Generates a Rampage batch with the user's direct, colloquial Law of Assumption style.
- * The output is validated against the poetic blacklist before reaching the frontend.
+ * Generates a closed Rampage set (5, 11, or 15 affirmations) in a single JSON call
+ * with the user's direct, colloquial Law of Assumption style.
  */
 export async function generateRampageWithGemini(
   centralTheme: string,
   userScope: UserScope = 'shared',
   userAffirmations: string[] = [],
-  batchSize: number = 3,
+  requestedCount: number = 11,
   additionalDetails: string = '',
   userManifestations: RampageManifestationContext[] = [],
-  userRampages: RampageHistoryContext[] = []
+  userRampages: RampageHistoryContext[] = [],
+  sandbox: boolean = false
 ): Promise<{
   affirmations: string[];
-  source: 'GEMINI_LIVE';
+  source: 'GEMINI_LIVE' | 'SANDBOX_MOCK' | 'LOCAL_FALLBACK';
   totalTokens: number;
+  quotaUsedToday: number;
 }> {
+  const count = [5, 11, 15].includes(requestedCount)
+    ? requestedCount
+    : Math.max(1, Math.min(20, Math.floor(Number.isFinite(requestedCount) ? requestedCount : 11)));
+
+  if (sandbox) {
+    const affirmations = buildDirectAssumptionAffirmations({
+      centralTheme,
+      nuances: additionalDetails,
+      scope: userScope,
+      count,
+    });
+    const quotaUsedToday = await getDailyAiUsage();
+    return {
+      affirmations,
+      source: 'SANDBOX_MOCK',
+      totalTokens: 0,
+      quotaUsedToday,
+    };
+  }
+
   const apiKey = getGeminiApiKey();
-  const count = Math.max(1, Math.min(10, Math.floor(Number.isFinite(batchSize) ? batchSize : 3)));
-  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
+  if (!apiKey) {
+    const affirmations = buildDirectAssumptionAffirmations({
+      centralTheme,
+      nuances: additionalDetails,
+      scope: userScope,
+      count,
+    });
+    const quotaUsedToday = await getDailyAiUsage();
+    return {
+      affirmations,
+      source: 'LOCAL_FALLBACK',
+      totalTokens: 0,
+      quotaUsedToday,
+    };
+  }
 
   const ai = new GoogleGenAI({ apiKey });
   const profileLabel =
     userScope === 'maia' ? 'Maia' : userScope === 'facu' ? 'Facu' : 'Dúo (Maia & Facu)';
   const safeReferences = userAffirmations.filter((affirmation) => !findPoeticTerm(affirmation));
   const detailsSection = additionalDetails.trim()
-    ? `\nDetalles adicionales solicitados: "${additionalDetails.trim()}".`
+    ? `\nMatices y detalles adicionales solicitados: "${additionalDetails.trim()}".`
     : '';
   const safeManifestations = userManifestations.filter(
     (manifestation) =>
@@ -239,33 +405,33 @@ export async function generateRampageWithGemini(
       ? 'El perfil es Juntos (Maia & Facu): podés integrar naturalmente a ambos y su vida en común.'
       : `El perfil es ${profileLabel}: usá solo su contexto, sin mezclar afirmaciones, manifestaciones ni Rampages del otro perfil.`;
 
+  const systemInstruction = buildLawOfAssumptionSystemPrompt(count);
   const prompt = `Perfil actual: ${profileLabel}.
 ${profileInstruction}
 Tema central y prioridad absoluta: "${centralTheme.trim()}".${detailsSection}${manifestationsSection}${referencesSection}${rampagesSection}
 
-Cantidad exacta: ${count} afirmaciones.
+Cantidad exacta obligatoria: ${count} afirmaciones.
 Instrucciones adicionales:
-- Escribe en primera persona, presente indicativo, como hechos reales de tu vida.
-- El título y los detalles del Rampage mandan por encima de cualquier referencia.
-- Usá las manifestaciones y afirmaciones registradas como contexto para que las frases suenen a la vida real de este perfil, pero no las copies literalmente.
+- Escribe en primera persona, presente simple, como hechos reales y cotidianos de tu vida.
+- Combina afirmaciones ultra cortas de impacto (2 a 5 palabras, ej. "Soy Dios", "SP me ama", "Soy elegido") con afirmaciones directas de situación (6 a 12 palabras).
 - No uses ninguna palabra de la lista negra poética.
-- No repitas la misma idea ni la misma frase.
+- No repitas la misma frase.
 - Si el tema o los detalles nombran a una persona, usá ese nombre. Si no, podés usar "SP".
-- Cada afirmación tiene que poder decirse en voz alta sin sonar rara.
-Devuelve únicamente el JSON { "affirmations": [...] }.`;
+Devuelve únicamente el JSON válido: { "affirmations": ["..."] } con exactamente ${count} afirmaciones.`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash-lite',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        systemInstruction: AFFIRMATION_SYSTEM_PROMPT,
+        systemInstruction,
         temperature: 0.65,
         responseMimeType: 'application/json',
       },
     });
 
-    let totalTokens = response.usageMetadata?.totalTokenCount || 0;
+    const quotaUsedToday = await incrementDailyAiUsage(1);
+    const totalTokens = response.usageMetadata?.totalTokenCount || 0;
     const firstValidation = sanitizeAffirmations(
       parseAffirmationPayload(response.text || ''),
       count
@@ -280,64 +446,49 @@ Devuelve únicamente el JSON { "affirmations": [...] }.`;
     let affirmations = firstValidation.accepted;
 
     if (affirmations.length < count) {
-      const missing = count - affirmations.length;
-      const retryResponse = await ai.models.generateContent({
-        model: 'gemini-3.5-flash-lite',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `${prompt}\n\nLa respuesta anterior no cumplió el molde. Genera ${missing} afirmaciones nuevas, directas y sin lenguaje poético.`,
-              },
-            ],
-          },
-        ],
-        config: {
-          systemInstruction: AFFIRMATION_SYSTEM_PROMPT,
-          temperature: 0.65,
-          responseMimeType: 'application/json',
-        },
-      });
+      const fallback = buildDirectAssumptionAffirmations({
+        centralTheme,
+        nuances: additionalDetails,
+        scope: userScope,
+        count: count - affirmations.length,
+      }).filter((item) => !affirmations.includes(item));
 
-      totalTokens += retryResponse.usageMetadata?.totalTokenCount || 0;
-      const retryValidation = sanitizeAffirmations(
-        parseAffirmationPayload(retryResponse.text || ''),
-        missing
-      );
-      if (retryValidation.rejected.length > 0) {
-        console.warn(
-          '[Gemini Rampage] Afirmaciones descartadas en el reintento:',
-          retryValidation.rejected
-        );
-      }
-      affirmations = [...affirmations, ...retryValidation.accepted];
+      affirmations = [...affirmations, ...fallback];
     }
 
     if (affirmations.length < count) {
-      const fallback = getFallbackAffirmations(
+      const defaultExtra = getFallbackAffirmations(
         userScope,
         count - affirmations.length,
         affirmations
       );
-      if (fallback.length > 0) {
-        console.warn('[Gemini Rampage] Se completó el lote con afirmaciones por defecto:', fallback);
-        affirmations = [...affirmations, ...fallback];
-      }
-    }
-
-    if (affirmations.length < count) {
-      throw new Error(`Gemini no devolvió las ${count} afirmaciones solicitadas.`);
+      affirmations = [...affirmations, ...defaultExtra];
     }
 
     return {
       affirmations: affirmations.slice(0, count),
       source: 'GEMINI_LIVE',
       totalTokens,
+      quotaUsedToday,
     };
   } catch (error) {
-    console.error('[Gemini Rampage] gemini-3.5-flash-lite error:', error);
-    throw error;
+    console.warn(
+      '[Gemini Rampage] Fallback a generador directo de Ley de la Asunción por límite o red:',
+      error
+    );
+    const affirmations = buildDirectAssumptionAffirmations({
+      centralTheme,
+      nuances: additionalDetails,
+      scope: userScope,
+      count,
+    });
+    const quotaUsedToday = await getDailyAiUsage();
+    return {
+      affirmations,
+      source: 'LOCAL_FALLBACK',
+      totalTokens: 0,
+      quotaUsedToday,
+    };
   }
 }
 
@@ -372,6 +523,7 @@ export async function createReplicatedVoiceWithGemini(options: {
     },
   });
   if (!result.id) throw new Error('Gemini no devolvió un identificador de voz');
+  await incrementDailyAiUsage(1);
   return result.id;
 }
 
@@ -383,7 +535,8 @@ export async function deleteReplicatedVoiceWithGemini(voiceId: string): Promise<
 }
 
 /**
- * Synthesizes speech using a replicated profile voice or a matching prebuilt voice.
+ * Synthesizes speech using a replicated profile voice or a matching prebuilt voice,
+ * with permanent deduplication in Turso DB (audio_cache table) by SHA-256 hash.
  */
 export async function synthesizeSpeechWithGemini38FlashTTS(options: {
   text: string;
@@ -391,52 +544,122 @@ export async function synthesizeSpeechWithGemini38FlashTTS(options: {
   matchedVoice?: string;
   detectedTone?: string;
   userScope?: 'maia' | 'facu' | 'shared';
-}): Promise<{ wavBuffer: Buffer; voiceUsed: string; source: 'GEMINI_3_8_FLASH_TTS' }> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY no configurada');
-  }
+  sandbox?: boolean;
+}): Promise<{
+  wavBuffer: Buffer;
+  voiceUsed: string;
+  source: 'GEMINI_3_8_FLASH_TTS' | 'TURSO_CACHE' | 'SANDBOX_MOCK';
+  hash: string;
+}> {
+  const profileKey = options.userScope === 'maia' ? 'maia' : 'facu';
+  const cleanText = options.text.trim();
+  const hash = computeServerAffirmationHash(profileKey, cleanText);
 
-  const ai = new GoogleGenAI({ apiKey });
+  // 1. Check Turso DB permanent audio_cache first (0 API cost if cached!)
+  try {
+    const cached = await turso.execute({
+      sql: 'SELECT audio_base64, voice_used FROM audio_cache WHERE hash = ? LIMIT 1;',
+      args: [hash],
+    });
+    const row = cached.rows[0];
+    if (row && typeof row.audio_base64 === 'string' && row.audio_base64.length > 40) {
+      return {
+        wavBuffer: Buffer.from(row.audio_base64, 'base64'),
+        voiceUsed: (row.voice_used as string) || profileKey,
+        source: 'TURSO_CACHE',
+        hash,
+      };
+    }
+  } catch (cacheReadError) {
+    console.warn('[TTS Cache] Error reading Turso audio_cache:', cacheReadError);
+  }
 
   const voiceName =
     options.geminiVoiceId ||
     options.matchedVoice ||
     (options.userScope === 'maia' ? 'Kore' : options.userScope === 'facu' ? 'Charon' : 'Aoede');
-  const tone = options.detectedTone || 'calma profunda, hipnótica y serena';
-  const interaction = await ai.interactions.create({
-    model: 'gemini-3.8-flash-tts',
-    input: [
-      {
-        type: 'user_input',
-        content: [
-          {
-            type: 'text',
-            text: options.text.trim(),
-            annotations: [
-              {
-                type: 'speech_metadata',
-                style: `Pronuncia en español con una cadencia pausada, cálida e íntima, de tono ${tone}.`,
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    response_format: { type: 'audio' },
-    generation_config: { speech_config: [{ voice: voiceName }] },
-  });
 
-  const b64Data = interaction.output_audio?.data;
-
-  if (!b64Data) {
-    throw new Error('No se recibió audio desde Gemini 3.8 Flash TTS');
+  // 2. If Sandbox Mode is active, return deterministic harmonic WAV without spending API quota
+  if (options.sandbox) {
+    const sandboxBuffer = createSandboxVoiceWavBuffer(cleanText, profileKey);
+    return {
+      wavBuffer: sandboxBuffer,
+      voiceUsed: `${voiceName}-sandbox`,
+      source: 'SANDBOX_MOCK',
+      hash,
+    };
   }
 
-  const wavBuffer = Buffer.from(b64Data, 'base64');
-  return {
-    wavBuffer,
-    voiceUsed: voiceName,
-    source: 'GEMINI_3_8_FLASH_TTS',
-  };
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    const fallbackBuffer = createSandboxVoiceWavBuffer(cleanText, profileKey);
+    return {
+      wavBuffer: fallbackBuffer,
+      voiceUsed: `${voiceName}-fallback`,
+      source: 'SANDBOX_MOCK',
+      hash,
+    };
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const tone = options.detectedTone || 'calma profunda, hipnótica y serena';
+    const interaction = await ai.interactions.create({
+      model: 'gemini-3.8-flash-tts',
+      input: [
+        {
+          type: 'user_input',
+          content: [
+            {
+              type: 'text',
+              text: cleanText,
+              annotations: [
+                {
+                  type: 'speech_metadata',
+                  style: `Pronuncia en español con una cadencia pausada, cálida e íntima, de tono ${tone}.`,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice: voiceName }] },
+    });
+
+    const b64Data = interaction.output_audio?.data;
+    if (!b64Data) {
+      throw new Error('No se recibió audio desde Gemini 3.8 Flash TTS');
+    }
+
+    await incrementDailyAiUsage(1);
+
+    // Save permanently in Turso DB audio_cache so this affirmation never costs API calls again
+    try {
+      await turso.execute({
+        sql: `INSERT OR REPLACE INTO audio_cache (hash, profile_id, affirmation_text, audio_base64, voice_used, created_at)
+              VALUES (?, ?, ?, ?, ?, ?);`,
+        args: [hash, profileKey, cleanText, b64Data, voiceName, new Date().toISOString()],
+      });
+    } catch (cacheWriteError) {
+      console.warn('[TTS Cache] Error writing Turso audio_cache:', cacheWriteError);
+    }
+
+    const wavBuffer = Buffer.from(b64Data, 'base64');
+    return {
+      wavBuffer,
+      voiceUsed: voiceName,
+      source: 'GEMINI_3_8_FLASH_TTS',
+      hash,
+    };
+  } catch (ttsError) {
+    console.warn('[TTS] Gemini 3.8 Flash TTS fallback activated:', ttsError);
+    const fallbackBuffer = createSandboxVoiceWavBuffer(cleanText, profileKey);
+    return {
+      wavBuffer: fallbackBuffer,
+      voiceUsed: `${voiceName}-fallback`,
+      source: 'SANDBOX_MOCK',
+      hash,
+    };
+  }
 }

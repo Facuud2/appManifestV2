@@ -7,6 +7,7 @@ import {
   Check,
   Loader2,
   Mic,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   Square,
@@ -17,6 +18,9 @@ import {
   CALIBRATION_PHRASES,
   convertRecordingToWav,
   detectPitchFromAudioBuffer,
+  getProfileAudioSample,
+  getVoiceProfileMeta,
+  saveProfileAudioSample,
   saveVoiceProfileMeta,
 } from '@/lib/voiceStorage';
 import { useAppStore } from '@/store';
@@ -48,6 +52,9 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
 }) => {
   const {
     activeScope,
+    isFacuCalibrated,
+    isMaiaCalibrated,
+    isSandboxMode,
     isVoiceCaptureLocked,
     refreshVoiceCalibrationStatus,
     setVoiceCaptureLocked,
@@ -55,6 +62,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
   const [profileId, setProfileId] = useState<ProfileId>(
     targetUser || (activeScope === 'maia' ? 'maia' : 'facu')
   );
+  const [isReRecording, setIsReRecording] = useState(false);
   const [captureStage, setCaptureStage] = useState<CaptureStage>('sample');
   const [sampleAudio, setSampleAudio] = useState<Blob | null>(null);
   const [consentAudio, setConsentAudio] = useState<Blob | null>(null);
@@ -244,9 +252,11 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
 
         const meta = result.data.voiceProfileMeta as VoiceProfileMeta;
         saveVoiceProfileMeta(profileId, meta);
+        await saveProfileAudioSample(profileId, sourceAudio);
         refreshVoiceCalibrationStatus();
         setWarningMessage(result.data.warning || '');
         setConsentAudio(recordedConsent);
+        setIsReRecording(false);
         setIsCompleted(true);
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
@@ -276,6 +286,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
           sampleAudioRef.current = wav;
           setSampleAudio(wav);
           sampleDurationRef.current = durationSeconds;
+          await saveProfileAudioSample(profileId, wav);
           await analyzeSample(wav);
         } catch (error) {
           setErrorMessage(`No se pudo preparar la grabación. ${getErrorMessage(error)}`);
@@ -427,6 +438,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
     }
 
     resetCapture();
+    setIsReRecording(false);
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const root = document.documentElement;
     const previousRootOverflow = root.style.overflow;
@@ -463,8 +475,18 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
       isVoiceCaptureLocked ||
       nextProfile === profileId
     ) return;
+    if (audioEngine) audioEngine.stopVoice();
+    setIsPlayingPreview(false);
     setProfileId(nextProfile);
+    setIsReRecording(false);
     resetCapture();
+  };
+
+  const handleStartReRecord = () => {
+    if (audioEngine) audioEngine.stopVoice();
+    setIsPlayingPreview(false);
+    resetCapture();
+    setIsReRecording(true);
   };
 
   const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -491,15 +513,30 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
 
   const playPreview = async () => {
     if (!audioEngine) return;
+    if (isPlayingPreview) {
+      audioEngine.stopVoice();
+      setIsPlayingPreview(false);
+      return;
+    }
     setErrorMessage('');
     setIsPlayingPreview(true);
     try {
       await audioEngine.unlock();
+      // 1. Try playing the user's actual recorded sample from IndexedDB first
+      const savedSample = sampleAudioRef.current || (await getProfileAudioSample(profileId));
+      if (savedSample && savedSample.size > 44) {
+        const audio = await audioEngine.decodeAudio(await savedSample.arrayBuffer());
+        await audioEngine.playVoice(audio, () => setIsPlayingPreview(false));
+        return;
+      }
+
+      // 2. Fallback: synthesize a voice sample from the registered Gemini voice profile
       const response = await fetch('/api/ai/voice-synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profileId,
+          sandbox: isSandboxMode,
           text:
             profileId === 'maia'
               ? 'Merezco todo lo bueno y recibo cada día con gratitud.'
@@ -518,6 +555,10 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
     }
   };
 
+  const isProfileAlreadyCalibrated = profileId === 'maia' ? isMaiaCalibrated : isFacuCalibrated;
+  const existingProfileMeta = getVoiceProfileMeta(profileId);
+  const showRegisteredVoiceView = isProfileAlreadyCalibrated && !isReRecording && !isCompleted;
+
   const switchDisabled =
     isRecording || isStarting || isProcessing || isVoiceCaptureLocked || Boolean(targetUser);
   const recordingName = profileId === 'maia' ? 'Maia' : 'Facu';
@@ -535,7 +576,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
           onClick={(event) => {
             if (event.target === event.currentTarget) handleClose();
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-0 backdrop-blur-[10px] sm:p-5"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-0 backdrop-blur-[10px] sm:p-5"
         >
           <motion.div
             ref={dialogRef}
@@ -631,13 +672,69 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                       ? 'Reconociendo y calibrando tu voz…'
                       : isCompleted
                         ? 'Tu voz ya está lista para Rampage.'
-                        : captureStage === 'sample'
-                          ? 'Primero, grabaremos una muestra de voz.'
-                          : 'Ahora, verificaremos tu consentimiento.'}
+                        : showRegisteredVoiceView
+                          ? `Ya tenés una voz registrada para ${recordingName}.`
+                          : captureStage === 'sample'
+                            ? 'Primero, grabaremos una muestra de voz.'
+                            : 'Ahora, verificaremos tu consentimiento.'}
               </p>
             </section>
 
-            {!isCompleted && captureStage === 'sample' && (
+            {showRegisteredVoiceView && (
+              <motion.section
+                key="registered-voice-summary"
+                data-testid="registered-voice-card"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                className="swiss-card flex flex-col items-center p-5 text-center sm:p-6"
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--pastel-sage)] px-3 py-1 text-xs font-semibold text-[color:var(--pastel-sage-ink)]">
+                  <Check aria-hidden="true" size={14} strokeWidth={2.2} />
+                  Voz registrada
+                </span>
+                <h3 className="mt-3 text-lg font-semibold text-swiss-ink">
+                  Ya tenés una voz registrada para {recordingName}
+                </h3>
+                <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-swiss-ink-muted">
+                  Tu huella vocal está lista para usarse en cualquier Rampage. Tono detectado:{' '}
+                  <span className="font-medium text-swiss-ink">
+                    {existingProfileMeta?.detectedTone || 'calma, íntima y luminosa'}
+                  </span>
+                  {existingProfileMeta?.fundamentalFrequency
+                    ? ` · ${existingProfileMeta.fundamentalFrequency} Hz`
+                    : ''}
+                  .
+                </p>
+
+                <div className="mt-5 flex w-full flex-col justify-center gap-2.5 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => void playPreview()}
+                    data-testid="listen-registered-voice-btn"
+                    className="swiss-btn-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 text-sm focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                  >
+                    {isPlayingPreview ? (
+                      <Loader2 aria-hidden="true" size={16} className="animate-spin" />
+                    ) : (
+                      <Volume2 aria-hidden="true" size={16} />
+                    )}
+                    {isPlayingPreview ? 'Escuchando grabación…' : 'Escuchar grabación'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartReRecord}
+                    data-testid="rerecord-voice-btn"
+                    className="swiss-btn-secondary inline-flex min-h-11 items-center justify-center gap-2 px-5 text-sm focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                  >
+                    <RotateCcw aria-hidden="true" size={15} />
+                    Volver a grabar
+                  </button>
+                </div>
+              </motion.section>
+            )}
+
+            {!isCompleted && !showRegisteredVoiceView && captureStage === 'sample' && (
               <section className="swiss-card p-4 sm:p-5">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
@@ -689,7 +786,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
               </section>
             )}
 
-            {!isCompleted && captureStage === 'consent' && (
+            {!isCompleted && !showRegisteredVoiceView && captureStage === 'consent' && (
               <section className="swiss-card p-4 sm:p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <ShieldCheck aria-hidden="true" size={18} className="text-swiss-accentText" />
@@ -747,15 +844,22 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                   <button
                     type="button"
                     onClick={() => void playPreview()}
-                    disabled={isPlayingPreview}
-                    className="swiss-btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-sm disabled:opacity-60"
+                    className="swiss-btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-sm"
                   >
                     {isPlayingPreview ? (
                       <Loader2 aria-hidden="true" size={16} className="animate-spin" />
                     ) : (
                       <Volume2 aria-hidden="true" size={16} />
                     )}
-                    {isPlayingPreview ? 'Preparando muestra…' : 'Escuchar mi voz'}
+                    {isPlayingPreview ? 'Escuchando grabación…' : 'Escuchar grabación'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartReRecord}
+                    className="swiss-btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-sm"
+                  >
+                    <RotateCcw aria-hidden="true" size={15} />
+                    Volver a grabar
                   </button>
                   <button
                     type="button"
@@ -774,7 +878,7 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
               </p>
             )}
 
-            {!isCompleted && (
+            {!isCompleted && !showRegisteredVoiceView && (
               <footer className="flex flex-wrap items-center justify-center gap-3">
                 {isRecording ? (
                   <motion.button
@@ -819,6 +923,20 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
                     <Mic aria-hidden="true" size={17} />
                     Grabar consentimiento
                   </motion.button>
+                )}
+
+                {!isRecording && !isStarting && !isProcessing && isReRecording && isProfileAlreadyCalibrated && captureStage === 'sample' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetCapture();
+                      setIsReRecording(false);
+                    }}
+                    className="swiss-pill inline-flex min-h-11 items-center gap-2 px-4 text-sm text-swiss-ink-muted"
+                  >
+                    <ArrowLeft aria-hidden="true" size={15} />
+                    Conservar voz actual
+                  </button>
                 )}
 
                 {!isRecording && !isStarting && !isProcessing && captureStage === 'consent' && (

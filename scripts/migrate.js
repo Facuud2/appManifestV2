@@ -130,6 +130,25 @@ async function run() {
     );
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS audio_cache (
+      hash TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      affirmation_text TEXT NOT NULL,
+      audio_base64 TEXT NOT NULL,
+      voice_used TEXT,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS ai_usage_daily (
+      date_key TEXT PRIMARY KEY,
+      request_count INTEGER DEFAULT 0,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
   await ensureColumn('profiles', 'avatar', 'TEXT');
   await ensureColumn('profiles', 'voice_sample_phrases', 'TEXT');
   await ensureColumn('profiles', 'voice_tone_profile', 'TEXT');

@@ -31,8 +31,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   interactiveWidget: 'resizes-content',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fdf4f7' },
-    { media: '(prefers-color-scheme: dark)', color: '#171014' },
+    { media: '(prefers-color-scheme: light)', color: '#f1f1ef' },
+    { media: '(prefers-color-scheme: dark)', color: '#121014' },
   ],
 };
 
@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="light" suppressHydrationWarning>
+    <html lang="es" className="light" data-scope="facu" suppressHydrationWarning>
       <body className="antialiased text-swiss-ink selection:bg-swiss-control dark:selection:bg-swiss-control">
         <MotionConfig reducedMotion="user">{children}</MotionConfig>
       </body>
