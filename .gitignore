@@ -1,3 +1,9 @@
+# Next.js build output and cache
+.next/
+out/
+build/
+.turbo/
+
 # Logs
 logs
 *.log
@@ -11,6 +17,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.env*.local
+
+# TypeScript cache
+*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +32,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
