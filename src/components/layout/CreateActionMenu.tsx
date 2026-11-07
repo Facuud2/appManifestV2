@@ -6,8 +6,6 @@ import { BookOpen, ChevronRight, Mic, Sparkles, X } from 'lucide-react';
 import {
   BACKDROP_TRANSITION,
   EMIL_EASE_OUT,
-  STAGGER_CONTAINER,
-  STAGGER_ITEM,
 } from '@/lib/iosSprings';
 
 export type CreateAction = 'manifestation' | 'affirmation' | 'rampage';
@@ -160,7 +158,6 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           key={action.id}
           type="button"
           onClick={() => onSelect(action.id)}
-          variants={STAGGER_ITEM}
           whileTap={{ scale: 0.98 }}
           className={`create-action group relative flex w-full items-center gap-3.5 text-left transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-swiss-focus touch-manipulation select-none active:scale-[0.98] ${action.color} ${
             mobile
@@ -293,9 +290,9 @@ export const CreateActionMenu: React.FC<CreateActionMenuProps> = ({
           >
             Crear
           </h2>
-          <motion.div variants={STAGGER_CONTAINER} initial="hidden" animate="show">
+          <div className="flex flex-col gap-1">
             {renderActions(false)}
-          </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

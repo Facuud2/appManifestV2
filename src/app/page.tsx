@@ -206,7 +206,10 @@ export default function HomePage() {
             )}
 
             {activeTab === 'progress' && (
-              <ProgressView onOpenNewProgress={() => handleOpenProgress()} />
+              <ProgressView
+                onOpenNewProgress={() => handleOpenProgress()}
+                onSelectManifestation={(_id) => setActiveTab('manifestations')}
+              />
             )}
 
             {activeTab === 'stories' && (
