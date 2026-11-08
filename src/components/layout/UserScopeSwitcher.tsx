@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAppStore } from '@/store';
 import { UserScope } from '@/types';
 import { Check, ChevronDown, Users } from 'lucide-react';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
+import { runCircularReveal } from '@/lib/circularReveal';
 
 export const UserScopeSwitcher: React.FC = () => {
   const {
@@ -18,14 +19,39 @@ export const UserScopeSwitcher: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isRevealingRef = useRef(false);
 
   const scopes: { id: UserScope; label: string; indicator?: boolean }[] = [
     { id: 'maia', label: 'Maia', indicator: isMaiaCalibrated },
     { id: 'facu', label: 'Facu', indicator: isFacuCalibrated },
-    { id: 'shared', label: 'Ambos' },
+    { id: 'shared', label: 'Juntos' },
   ];
 
   const activeLabel = scopes.find((scope) => scope.id === activeScope)?.label ?? 'Perfil';
+
+  const revealProfile = useCallback(
+    (scope: UserScope) => {
+      setIsOpen(false);
+      if (isRevealingRef.current) return;
+      isRevealingRef.current = true;
+
+      runCircularReveal({
+        origin: triggerRef.current,
+        prepare: () => {
+          // The menu is closing anyway; hide it before the old snapshot so it
+          // does not reappear inside the revealed theme.
+          if (menuRef.current) menuRef.current.style.display = 'none';
+        },
+        update: () => setActiveScope(scope),
+        onFinish: () => {
+          isRevealingRef.current = false;
+          if (menuRef.current) menuRef.current.style.display = '';
+        },
+      });
+    },
+    [setActiveScope]
+  );
 
   useEffect(() => {
     if (isVoiceCaptureLocked) {
@@ -83,6 +109,7 @@ export const UserScopeSwitcher: React.FC = () => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            ref={menuRef}
             role="group"
             aria-label="Perfiles disponibles"
             initial={{ opacity: 0, scale: 0.96, y: -4 }}
@@ -99,8 +126,11 @@ export const UserScopeSwitcher: React.FC = () => {
                 disabled={isVoiceCaptureLocked}
                 aria-pressed={activeScope === scope.id}
                 onClick={() => {
-                  setActiveScope(scope.id);
-                  setIsOpen(false);
+                  if (activeScope === scope.id) {
+                    setIsOpen(false);
+                    return;
+                  }
+                  revealProfile(scope.id);
                 }}
                 className="swiss-row min-h-11 rounded-[10px] px-3 text-[0.9375rem]"
               >

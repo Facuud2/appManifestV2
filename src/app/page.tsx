@@ -57,6 +57,10 @@ export default function HomePage() {
   const toggleRampagePlaybackRef = useRef<(() => void) | null>(null);
   const [isNewManifestationOpen, setIsNewManifestationOpen] = useState(false);
   const [isNewAffirmationOpen, setIsNewAffirmationOpen] = useState(false);
+  const [quickAddSection, setQuickAddSection] = useState<
+    'affirmations' | 'manifestations' | null
+  >(null);
+  const quickAddTriggerRef = useRef<HTMLElement | null>(null);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [createMenuAnchor, setCreateMenuAnchor] = useState<{
     left: number;
@@ -84,6 +88,12 @@ export default function HomePage() {
 
     setActiveTab('dashboard');
     setIsCreateMenuOpen(false);
+    setQuickAddSection(null);
+    quickAddTriggerRef.current = null;
+    setIsRampageOpen(false);
+    setRampageToResume(null);
+    setIsRampagePlaying(false);
+    setCurrentRampageAffirmation('');
     minimumHoldElapsedRef.current = false;
     setMinimumHoldElapsed(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -133,6 +143,43 @@ export default function HomePage() {
     setIsSuccessOpen(true);
   };
 
+  const handleChangeTab = useCallback((tab: NavTab) => {
+    setIsCreateMenuOpen(false);
+    setQuickAddSection(null);
+    quickAddTriggerRef.current = null;
+    setActiveTab(tab);
+  }, []);
+
+  const openQuickAdd = useCallback(
+    (section: 'affirmations' | 'manifestations', trigger: HTMLElement) => {
+      quickAddTriggerRef.current = trigger;
+      // The full editor opened from the composer should return focus here too.
+      createMenuTriggerRef.current = trigger;
+      setIsCreateMenuOpen(false);
+      setIsNewAffirmationOpen(false);
+      setIsNewManifestationOpen(false);
+      setQuickAddSection(section);
+    },
+    [],
+  );
+
+  const closeQuickAdd = useCallback((restoreFocus = true) => {
+    const trigger = quickAddTriggerRef.current;
+    quickAddTriggerRef.current = null;
+    setQuickAddSection(null);
+
+    if (!restoreFocus) return;
+
+    window.requestAnimationFrame(() => {
+      if (trigger && trigger.isConnected) {
+        trigger.focus({ preventScroll: true });
+      } else {
+        // The opener may have unmounted (empty state → first item saved).
+        document.getElementById('main-content')?.focus({ preventScroll: true });
+      }
+    });
+  }, []);
+
   const handleOpenCreateMenu = useCallback((trigger: HTMLElement) => {
     setIsCreateMenuOpen((currentlyOpen) => {
       if (currentlyOpen) return false;
@@ -147,6 +194,44 @@ export default function HomePage() {
       return true;
     });
   }, []);
+
+  const handleMobileCreate = useCallback(
+    (trigger: HTMLElement) => {
+      createMenuTriggerRef.current = trigger;
+
+      if (activeTab === 'affirmations' || activeTab === 'manifestations') {
+        if (quickAddSection === activeTab) {
+          closeQuickAdd();
+        } else {
+          openQuickAdd(activeTab, trigger);
+        }
+        return;
+      }
+
+      if (activeTab === 'progress') {
+        setIsCreateMenuOpen(false);
+        setSelectedProgressManifId(undefined);
+        setIsProgressOpen((open) => !open);
+        return;
+      }
+
+      handleOpenCreateMenu(trigger);
+    },
+    [
+      activeTab,
+      closeQuickAdd,
+      handleOpenCreateMenu,
+      openQuickAdd,
+      quickAddSection,
+    ],
+  );
+
+  const isMobileCreateActive =
+    activeTab === 'progress'
+      ? isProgressOpen
+      : activeTab === 'affirmations' || activeTab === 'manifestations'
+        ? quickAddSection === activeTab
+        : isCreateMenuOpen;
 
   const handleCloseCreateMenu = useCallback(() => {
     setIsCreateMenuOpen(false);
@@ -220,7 +305,7 @@ export default function HomePage() {
 
       <DesktopSidebar
         activeTab={activeTab}
-        onChangeTab={setActiveTab}
+        onChangeTab={handleChangeTab}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
         onOpenRampage={handleOpenNewRampage}
       />
@@ -275,7 +360,7 @@ export default function HomePage() {
                       opacity: 0,
                       filter: prefersReducedMotion ? 'blur(0px)' : 'blur(2px)',
                     }
-                  : { opacity: 1, filter: 'blur(0px)' }
+                  : { opacity: 1, filter: 'none' }
               }
               transition={{
                 duration: prefersReducedMotion
@@ -324,6 +409,9 @@ export default function HomePage() {
                   <AffirmationsView
                     onOpenNewAffirmation={() => setIsNewAffirmationOpen(true)}
                     onOpenRampage={handleOpenNewRampage}
+                    isQuickAddOpen={quickAddSection === 'affirmations'}
+                    onQuickAddOpen={(trigger) => openQuickAdd('affirmations', trigger)}
+                    onQuickAddClose={closeQuickAdd}
                   />
                 )}
 
@@ -332,6 +420,9 @@ export default function HomePage() {
                     onOpenNewManifestation={() => setIsNewManifestationOpen(true)}
                     onOpenNewProgress={handleOpenProgress}
                     onOpenCrownSuccess={handleOpenCrownSuccess}
+                    isQuickAddOpen={quickAddSection === 'manifestations'}
+                    onQuickAddOpen={(trigger) => openQuickAdd('manifestations', trigger)}
+                    onQuickAddClose={closeQuickAdd}
                   />
                 )}
 
@@ -353,10 +444,10 @@ export default function HomePage() {
         {/* Mobile Floating Bottom Bar */}
         <BottomNavigation
           activeTab={activeTab}
-          onChangeTab={setActiveTab}
+          onChangeTab={handleChangeTab}
           onOpenRampage={handleOpenNewRampage}
-          onOpenCreateMenu={handleOpenCreateMenu}
-          isCreateMenuOpen={isCreateMenuOpen}
+          onOpenCreateMenu={handleMobileCreate}
+          isCreateMenuOpen={isMobileCreateActive}
         />
       </div>
 

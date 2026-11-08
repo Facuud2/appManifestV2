@@ -139,11 +139,31 @@
   --radius-control: 0.75rem;
   --radius-card: 1.25rem;
   --radius-modal: 1.75rem;
-  --duration-fast: 160ms;
-  --duration-normal: 220ms;
-  --duration-slow: 320ms;
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-normal: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --distance-large: 30px;
+  --scale-large: 0.96;
+  --scale-medium: 0.97;
+  --scale-small: 0.98;
+  --scale-tiny: 0.99;
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --blur-large: 8px;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -731,6 +751,426 @@ h3, h4 {
 .surface-rose { background-color: var(--pastel-rose-wash); border-color: color-mix(in srgb, var(--pastel-rose-strong) 30%, var(--color-surface-card)); }
 .surface-butter { background-color: var(--pastel-butter-wash); border-color: color-mix(in srgb, var(--pastel-butter-strong) 30%, var(--color-surface-card)); }
 .surface-peri { background-color: var(--pastel-peri-wash); border-color: color-mix(in srgb, var(--pastel-peri-strong) 30%, var(--color-surface-card)); }
+
+/* ==========================================================================
+   Quick-add capture strip
+   Both composers share one liquid-glass material. The section pigment (rose
+   for affirmations, butter for manifestations) only tints the label dot, the
+   edge glow and a soft wash. The action colour, focus ring and + bead stay on
+   the active profile accent (sage for Facu, plum/rose for Maia), so both glass
+   surfaces read as the same material without losing the profile identity.
+   ========================================================================== */
+.quick-add-composer {
+  --qa-radius: 26px;
+  --qa-blur: 18px;
+  --qa-pigment: var(--pastel-rose);
+  --qa-pigment-strong: var(--pastel-rose-strong);
+  --qa-pigment-ink: var(--pastel-rose-ink);
+  --qa-wash: color-mix(in srgb, var(--pastel-rose) 55%, transparent);
+  --qa-aura: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  --qa-glass-top: color-mix(in srgb, var(--glass-bg-strong) 92%, transparent);
+  --qa-glass-bottom: color-mix(in srgb, var(--glass-bg) 88%, transparent);
+  --qa-edge-light: rgba(255, 255, 255, 0.9);
+  --qa-edge-soft: color-mix(in srgb, var(--pastel-rose-strong) 55%, transparent);
+  --qa-sheen: rgba(255, 255, 255, 0.6);
+  --qa-inset: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --qa-drop:
+    0 22px 50px -24px rgba(59, 29, 41, 0.42),
+    0 2px 8px -2px rgba(59, 29, 41, 0.14);
+  --qa-focus-glow: 0 0 0 0 transparent;
+  --composer-pigment: var(--pastel-rose-ink);
+  --composer-warning: color-mix(in srgb, var(--color-warning) 78%, var(--color-ink));
+  --qa-muted: color-mix(in srgb, var(--color-ink-muted) 88%, var(--color-ink));
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--qa-radius);
+  background-color: transparent;
+  box-shadow: var(--qa-focus-glow), var(--qa-drop);
+  color: var(--color-ink);
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.quick-add-composer[data-tone="butter"] {
+  --qa-pigment: var(--pastel-butter);
+  --qa-pigment-strong: var(--pastel-butter-strong);
+  --qa-pigment-ink: var(--pastel-butter-ink);
+  --qa-wash: color-mix(in srgb, var(--pastel-butter) 55%, transparent);
+  --qa-edge-soft: color-mix(in srgb, var(--pastel-butter-strong) 55%, transparent);
+  --composer-pigment: var(--pastel-butter-ink);
+}
+
+.dark .quick-add-composer {
+  --qa-wash: color-mix(in srgb, var(--qa-pigment-strong) 38%, transparent);
+  --qa-glass-top: color-mix(in srgb, var(--glass-bg-strong) 96%, transparent);
+  --qa-glass-bottom: color-mix(in srgb, var(--glass-bg) 92%, transparent);
+  --qa-edge-light: rgba(255, 240, 246, 0.42);
+  --qa-edge-soft: color-mix(in srgb, var(--qa-pigment-strong) 70%, transparent);
+  --qa-sheen: rgba(255, 230, 240, 0.18);
+  --qa-inset: inset 0 1px 0 rgba(255, 240, 246, 0.16);
+  --qa-drop:
+    0 26px 58px -22px rgba(0, 0, 0, 0.72),
+    0 2px 10px -2px rgba(0, 0, 0, 0.45);
+}
+
+.quick-add-composer:focus-within {
+  --qa-focus-glow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 24%, transparent);
+}
+
+@media (min-width: 640px) {
+  .quick-add-composer {
+    --qa-radius: 20px;
+  }
+}
+
+.quick-add-composer > .qa-refract,
+.quick-add-composer > .qa-tint,
+.quick-add-composer > .qa-sheen,
+.quick-add-composer > .qa-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 1 · Frosted lens: blur and lift whatever the strip floats above. */
+.quick-add-composer > .qa-refract {
+  z-index: 0;
+  -webkit-backdrop-filter: blur(var(--qa-blur)) saturate(175%) brightness(1.03);
+  backdrop-filter: blur(var(--qa-blur)) saturate(175%) brightness(1.03);
+}
+
+/* 2 · Body tint: section pigment top-left, profile accent aura bottom-right. */
+.quick-add-composer > .qa-tint {
+  z-index: 1;
+  background:
+    radial-gradient(120% 135% at 8% 0%, var(--qa-wash) 0%, transparent 58%), /* taste-skill-ignore */
+    radial-gradient(110% 120% at 100% 100%, var(--qa-aura) 0%, transparent 62%), /* taste-skill-ignore */
+    linear-gradient(180deg, var(--qa-glass-top) 0%, var(--qa-glass-bottom) 100%); /* taste-skill-ignore */
+  box-shadow:
+    var(--qa-inset),
+    inset 0 -1px 0 color-mix(in srgb, var(--qa-pigment-strong) 30%, transparent),
+    inset 0 -14px 24px -18px color-mix(in srgb, var(--qa-pigment-ink) 18%, transparent);
+}
+
+/* 3 · Specular sheen: one soft sweep when the strip opens. */
+.quick-add-composer > .qa-sheen {
+  z-index: 2;
+  background:
+    radial-gradient(90% 120% at 18% 0%, var(--qa-sheen) 0%, transparent 46%), /* taste-skill-ignore */
+    linear-gradient(105deg, transparent 42%, color-mix(in srgb, var(--qa-sheen) 40%, transparent) 50%, transparent 58%); /* taste-skill-ignore */
+  opacity: 0.5;
+  animation: quick-add-sheen 640ms var(--ease-out) both;
+}
+
+/* 4 · Rim: a gradient hairline, brighter where the light hits. */
+.quick-add-composer > .qa-rim {
+  z-index: 3;
+  padding: 1px;
+  background: linear-gradient( /* taste-skill-ignore */
+    135deg,
+    var(--qa-edge-light) 0%,
+    var(--qa-edge-soft) 26%,
+    transparent 48%,
+    transparent 62%,
+    var(--qa-edge-soft) 82%,
+    var(--qa-edge-light) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); /* taste-skill-ignore */
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); /* taste-skill-ignore */
+}
+
+@keyframes quick-add-sheen {
+  from {
+    opacity: 0;
+    transform: translate3d(-6%, -4%, 0) scale(1.02);
+  }
+  to {
+    opacity: 0.5;
+    transform: none;
+  }
+}
+
+.quick-add-label {
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.quick-add-label-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 9999px;
+  background-color: var(--composer-pigment);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--composer-pigment) 18%, transparent);
+}
+
+.quick-add-field {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 0.25rem 0;
+  color: var(--color-ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.012em;
+  overflow-y: hidden;
+}
+
+.quick-add-field::placeholder {
+  color: var(--color-ink-muted);
+  font-weight: 500;
+  opacity: 1;
+}
+
+.quick-add-field:focus,
+.quick-add-field:focus-visible {
+  /* The strip itself is the focus frame; the field must not draw a second box. */
+  outline: none !important;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.quick-add-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent-border) 70%, transparent);
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--color-accent-subtle) 74%, transparent);
+  color: var(--color-accent-text);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.quick-add-warning {
+  color: var(--composer-warning);
+}
+
+/* Secondary copy sits on the most transparent part of the glass, so it keeps a
+   slightly darker/lighter muted tone than the page-level token. */
+.quick-add-composer .quick-add-hint,
+.quick-add-composer .quick-add-advanced,
+.quick-add-composer .quick-add-options summary {
+  color: var(--qa-muted);
+}
+
+/* Quiet glass actions sitting on the strip. */
+.quick-add-composer .quick-add-done {
+  border: 1px solid color-mix(in srgb, var(--qa-edge-light) 55%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface-card) 34%, transparent);
+  box-shadow: var(--qa-inset);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(140%);
+}
+
+.dark .quick-add-composer .quick-add-done {
+  border-color: color-mix(in srgb, var(--qa-edge-light) 60%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface-card) 58%, transparent);
+}
+
+.quick-add-composer .quick-add-mic {
+  border-color: color-mix(in srgb, var(--qa-edge-light) 50%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface-card) 30%, transparent);
+  box-shadow: var(--qa-inset);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quick-add-composer .quick-add-mic:hover {
+    background-color: color-mix(in srgb, var(--color-surface-card) 46%, transparent);
+  }
+}
+
+/* The submit action is a gel droplet of the profile accent. */
+.quick-add-composer .quick-add-submit,
+.quick-add-composer .quick-add-submit-text {
+  border: 0;
+  border-radius: 9999px;
+  background:
+    radial-gradient(90% 90% at 50% 14%, rgba(255, 255, 255, 0.5) 0%, transparent 56%), /* taste-skill-ignore */
+    radial-gradient(120% 120% at 50% 112%, color-mix(in srgb, var(--color-accent) 74%, #000) 0%, var(--color-accent) 68%); /* taste-skill-ignore */
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px color-mix(in srgb, var(--color-accent) 55%, #000),
+    0 8px 18px -8px color-mix(in srgb, var(--color-accent) 70%, transparent);
+  transition:
+    transform 120ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
+}
+
+.quick-add-composer .quick-add-submit-text {
+  border-radius: 9999px;
+}
+
+.quick-add-composer .quick-add-submit:active,
+.quick-add-composer .quick-add-submit-text:active {
+  transform: scale(0.95);
+}
+
+.quick-add-composer .quick-add-submit:disabled,
+.quick-add-composer .quick-add-submit-text:disabled {
+  filter: saturate(0.55);
+  box-shadow: none;
+}
+
+/* The optional title/anchor panel is glass inside glass. */
+.quick-add-composer .quick-add-options {
+  border: 1px solid color-mix(in srgb, var(--qa-pigment-strong) 24%, transparent);
+  border-radius: 16px;
+  background-color: color-mix(in srgb, var(--color-surface-card) 26%, transparent);
+  box-shadow: var(--qa-inset);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  backdrop-filter: blur(8px) saturate(130%);
+}
+
+.dark .quick-add-composer .quick-add-options {
+  background-color: color-mix(in srgb, var(--color-surface-card) 52%, transparent);
+}
+
+.quick-add-card-flash {
+  animation: quick-add-card-flash 600ms var(--ease-out) both;
+}
+
+.quick-add-card-flash[data-flash-tone="rose"] {
+  --composer-flash-from: var(--pastel-rose-wash);
+}
+
+.quick-add-card-flash[data-flash-tone="butter"] {
+  --composer-flash-from: var(--pastel-butter-wash);
+}
+
+@keyframes quick-add-card-flash {
+  from {
+    background-color: var(--composer-flash-from);
+  }
+  to {
+    background-color: color-mix(in srgb, var(--color-surface-card) 90%, transparent);
+  }
+}
+
+.affirmation-drag-handle {
+  touch-action: none !important;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.affirmation-drag-handle:active,
+html[data-affirmation-dragging="true"] .affirmation-drag-handle,
+html[data-affirmation-dragging="true"] body {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.affirmation-card-dragging {
+  position: relative;
+  z-index: 30;
+  border-color: var(--border-focus) !important;
+  box-shadow: var(--shadow-dropdown) !important;
+  will-change: transform;
+}
+
+/* The central Crear bead in the bottom bar: the same gel as the +. */
+.swiss-create-bead {
+  background:
+    radial-gradient(90% 90% at 50% 16%, rgba(255, 255, 255, 0.55) 0%, transparent 58%), /* taste-skill-ignore */
+    radial-gradient(120% 120% at 50% 115%, color-mix(in srgb, var(--color-accent) 74%, #000) 0%, var(--color-accent) 70%); /* taste-skill-ignore */
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.6),
+    inset 0 -2px 4px color-mix(in srgb, var(--color-accent) 55%, #000),
+    0 8px 16px -8px color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+
+@media (max-width: 639.98px) {
+  /* The dock sits on a scrim so cards and the old bar never peek through. */
+  .quick-add-dock {
+    isolation: isolate;
+  }
+
+  .quick-add-dock::before {
+    content: "";
+    position: absolute;
+    inset: -20px 0 0 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient( /* taste-skill-ignore */
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-base) 82%, transparent) 42%,
+      var(--color-base) 100%
+    );
+  }
+
+  .quick-add-dock .quick-add-composer {
+    box-shadow: var(--qa-focus-glow), var(--qa-drop);
+  }
+
+  /* The dock replaces the bottom bar while the composer is open. */
+  html[data-quick-add-open="true"] [data-app-nav="mobile"] {
+    display: none;
+  }
+
+  /* Keep the last card clear of the dock; the component measures its height. */
+  html[data-quick-add-open="true"] .quick-add-page {
+    padding-bottom: var(--quick-add-dock-space, 10.5rem);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .quick-add-composer {
+    --qa-blur: 0px;
+    --qa-wash: transparent;
+    --qa-aura: transparent;
+    --qa-glass-top: var(--color-surface-elevated);
+    --qa-glass-bottom: var(--color-surface-elevated);
+  }
+
+  .quick-add-composer > .qa-sheen {
+    display: none;
+  }
+
+  .quick-add-composer .quick-add-done,
+  .quick-add-composer .quick-add-mic,
+  .quick-add-composer .quick-add-options {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--color-surface-card);
+  }
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .quick-add-composer > .qa-tint {
+    background: var(--color-surface-elevated);
+  }
+
+  .quick-add-composer > .qa-sheen {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-add-card-flash {
+    animation: none;
+  }
+
+  .quick-add-composer > .qa-sheen {
+    animation: none;
+  }
+}
 
 /* Glass is a material for what floats: chrome, dialogs, the hero dial. */
 .glass-panel {
@@ -2332,4 +2772,33 @@ button:disabled {
   .liquid-glass-player > .lg-sheen {
     display: none;
   }
+}
+
+/* Circular theme/profile reveal (View Transitions).
+   Remove the default cross-fade so the growing clip-path is the only motion and
+   the previous theme stays visible outside the circle. */
+html[data-circular-reveal='active']::view-transition-old(root),
+html[data-circular-reveal='active']::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-circular-reveal='active']::view-transition-old(root) {
+  z-index: 1;
+}
+
+html[data-circular-reveal='active']::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* While the circle sweeps, keep the outgoing content visible in the new palette
+   and hide the regeneration skeleton. The profile switch then reads as a pure
+   theme change; the skeleton fades in once the sweep ends. */
+html[data-circular-reveal='active'] [data-testid='scope-content'] {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+html[data-circular-reveal='active'] [data-testid='scope-regeneration-skeleton'] {
+  display: none !important;
 }

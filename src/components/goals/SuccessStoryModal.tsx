@@ -21,7 +21,8 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
   manifestationTitle = '',
   manifestationId,
 }) => {
-  const { activeScope, manifestations, addSuccessStory, updateManifestationStatus } = useAppStore();
+  const { activeScope, manifestations: allManifestations, addSuccessStory, updateManifestationStatus } = useAppStore();
+  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
 
   const [selectedManifId, setSelectedManifId] = useState(manifestationId || '');
   const [title, setTitle] = useState(manifestationTitle);
@@ -81,7 +82,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
       await addSuccessStory({
         manifestationId: targetManifId,
         userId: activeScope,
-        author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Ambos',
+        author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
         title: title.trim(),
         story: story.trim(),
         gratitudeNote: gratitudeNote.trim(),

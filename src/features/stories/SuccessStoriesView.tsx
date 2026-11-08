@@ -11,7 +11,14 @@ interface SuccessStoriesViewProps {
 }
 
 export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNewStory }) => {
-  const { successStories, manifestations, deleteSuccessStory } = useAppStore();
+  const {
+    activeScope,
+    successStories: allSuccessStories,
+    manifestations: allManifestations,
+    deleteSuccessStory,
+  } = useAppStore();
+  const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
+  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
   const shouldStaggerCards = successStories.length <= 6;
 
   return (

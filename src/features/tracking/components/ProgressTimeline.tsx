@@ -54,7 +54,20 @@ const signToneMap: Record<
 export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
   onOpenNewProgress,
 }) => {
-  const { progressLogs, manifestations, deleteProgressLog } = useAppStore();
+  const {
+    activeScope,
+    progressLogs: allProgressLogs,
+    manifestations: allManifestations,
+    deleteProgressLog,
+  } = useAppStore();
+  const progressLogs = useMemo(
+    () => allProgressLogs.filter((item) => item.userId === activeScope),
+    [allProgressLogs, activeScope]
+  );
+  const manifestations = useMemo(
+    () => allManifestations.filter((item) => item.userId === activeScope),
+    [allManifestations, activeScope]
+  );
   const [activeFilter, setActiveFilter] = useState<FilterTab>('todos');
   const prefersReducedMotion = useReducedMotion();
 

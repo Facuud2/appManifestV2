@@ -15,19 +15,18 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const scope = searchParams.get('scope');
+    const rawScope = searchParams.get('scope');
 
-    let whereClause = '';
-    const args: string[] = [];
-
-    if (scope && !['facu', 'maia', 'shared'].includes(scope)) {
+    if (rawScope && !['facu', 'maia', 'shared'].includes(rawScope)) {
       return NextResponse.json({ success: false, error: 'Invalid profile scope' }, { status: 400 });
     }
 
-    if (scope && scope !== 'shared') {
-      whereClause = 'WHERE user_id = ? OR user_id = ?';
-      args.push(scope, 'shared');
-    }
+    const scope = (rawScope as 'facu' | 'maia' | 'shared' | null) || 'facu';
+    const whereClause = 'WHERE user_id = ?';
+    const args: string[] = [scope];
+    const linkedWhereClause =
+      'WHERE user_id = ? AND (manifestation_id IS NULL OR manifestation_id IN (SELECT id FROM manifestations WHERE user_id = ?))';
+    const linkedArgs: string[] = [scope, scope];
 
     const [
       manifestationsRes,
@@ -38,9 +37,17 @@ export async function GET(req: NextRequest) {
       profilesRes,
     ] = await Promise.all([
       turso.execute({ sql: `SELECT * FROM manifestations ${whereClause} ORDER BY created_at DESC;`, args }),
-      turso.execute({ sql: `SELECT * FROM manifestation_progress ${whereClause} ORDER BY created_at DESC;`, args }),
-      turso.execute({ sql: `SELECT * FROM success_stories ${whereClause} ORDER BY manifested_date DESC;`, args }),
-      turso.execute({ sql: `SELECT * FROM affirmations ${whereClause} ORDER BY repeat_count DESC, created_at DESC;`, args }),
+      turso.execute({ sql: `SELECT * FROM manifestation_progress ${linkedWhereClause} ORDER BY created_at DESC;`, args: linkedArgs }),
+      turso.execute({ sql: `SELECT * FROM success_stories ${linkedWhereClause} ORDER BY manifested_date DESC;`, args: linkedArgs }),
+      turso.execute({
+        sql: `SELECT * FROM affirmations ${whereClause}
+              ORDER BY pinned DESC,
+                       CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END ASC,
+                       sort_order ASC,
+                       repeat_count DESC,
+                       created_at DESC;`,
+        args,
+      }),
       turso.execute({ sql: `SELECT * FROM rampage_sets ${whereClause} ORDER BY created_at DESC;`, args }),
       turso.execute({ sql: `SELECT * FROM profiles ORDER BY id ASC;`, args: [] }),
     ]);
@@ -81,21 +88,25 @@ export async function GET(req: NextRequest) {
       createdAt: r.created_at as string,
     }));
 
-    const affirmations = affirmationsRes.rows.map((r) => ({
+    const affirmations = affirmationsRes.rows.map((r, index) => ({
       id: r.id as string,
       userId: r.user_id as string,
-      author: r.user_id === 'maia' ? 'Maia' : r.user_id === 'facu' ? 'Facu' : 'Ambos',
+      author: r.user_id === 'maia' ? 'Maia' : r.user_id === 'facu' ? 'Facu' : 'Juntos',
       text: r.text as string,
       category: (r.category as string) || undefined,
       repeatCount: Number(r.repeat_count || 0),
       pinned: Boolean(r.pinned),
+      order:
+        r.sort_order !== null && r.sort_order !== undefined
+          ? Number(r.sort_order)
+          : index,
       createdAt: r.created_at as string,
     }));
 
     const rampageSets = rampageSetsRes.rows.map((r) => ({
       id: r.id as string,
       userId: r.user_id as string,
-      author: r.user_id === 'maia' ? 'Maia' : r.user_id === 'facu' ? 'Facu' : 'Ambos',
+      author: r.user_id === 'maia' ? 'Maia' : r.user_id === 'facu' ? 'Facu' : 'Juntos',
       title: r.title as string,
       theme: r.theme as string,
       affirmations: r.affirmations_json ? JSON.parse(r.affirmations_json as string) : [],
@@ -140,6 +151,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    try {
+      await ensureDefaultAffirmations();
+    } catch (seedError) {
+      console.error('[API /api/sync POST] No se pudo verificar el esquema de afirmaciones:', seedError);
+    }
+
     const body = await req.json();
     const { entity, action, data, id } = body;
 
@@ -161,14 +178,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: `Invalid entity: ${entity}` }, { status: 400 });
     }
 
+    if (action === 'reorder' && entity === 'affirmation') {
+      const items = Array.isArray(body.items) ? body.items : [];
+      const reorderScope =
+        typeof body.scope === 'string' && ['facu', 'maia', 'shared'].includes(body.scope)
+          ? body.scope
+          : null;
+      if (items.length > 0) {
+        await turso.batch(
+          items.map((item: { id: string; order: number; pinned?: boolean; userId?: string }) => {
+            const targetUserId = item.userId || reorderScope;
+            if (targetUserId) {
+              return {
+                sql:
+                  typeof item.pinned === 'boolean'
+                    ? `UPDATE affirmations SET sort_order = ?, pinned = ? WHERE id = ? AND user_id = ?;`
+                    : `UPDATE affirmations SET sort_order = ? WHERE id = ? AND user_id = ?;`,
+                args:
+                  typeof item.pinned === 'boolean'
+                    ? [item.order, item.pinned ? 1 : 0, item.id, targetUserId]
+                    : [item.order, item.id, targetUserId],
+              };
+            }
+            return {
+              sql:
+                typeof item.pinned === 'boolean'
+                  ? `UPDATE affirmations SET sort_order = ?, pinned = ? WHERE id = ?;`
+                  : `UPDATE affirmations SET sort_order = ? WHERE id = ?;`,
+              args:
+                typeof item.pinned === 'boolean'
+                  ? [item.order, item.pinned ? 1 : 0, item.id]
+                  : [item.order, item.id],
+            };
+          }),
+          'write'
+        );
+      }
+      return NextResponse.json({ success: true, action: 'reordered', count: items.length });
+    }
+
     if (action === 'delete') {
       const deleteId = id || data?.id;
       if (!deleteId) {
         return NextResponse.json({ success: false, error: 'Missing id for deletion' }, { status: 400 });
       }
+      const deleteScope =
+        typeof body.scope === 'string' && ['facu', 'maia', 'shared'].includes(body.scope)
+          ? body.scope
+          : null;
+      if (entity === 'manifestation') {
+        await turso.execute({
+          sql: deleteScope
+            ? `DELETE FROM manifestation_progress WHERE manifestation_id = ? AND user_id = ?;`
+            : `DELETE FROM manifestation_progress WHERE manifestation_id = ?;`,
+          args: deleteScope ? [deleteId, deleteScope] : [deleteId],
+        });
+      }
       await turso.execute({
-        sql: `DELETE FROM ${tableName} WHERE id = ?;`,
-        args: [deleteId],
+        sql: deleteScope
+          ? `DELETE FROM ${tableName} WHERE id = ? AND user_id = ?;`
+          : `DELETE FROM ${tableName} WHERE id = ?;`,
+        args: deleteScope ? [deleteId, deleteScope] : [deleteId],
       });
       return NextResponse.json({ success: true, action: 'deleted', id: deleteId });
     }
@@ -240,8 +310,8 @@ export async function POST(req: NextRequest) {
         });
       } else if (entity === 'affirmation') {
         await turso.execute({
-          sql: `INSERT OR REPLACE INTO affirmations (id, user_id, text, category, repeat_count, pinned, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?);`,
+          sql: `INSERT OR REPLACE INTO affirmations (id, user_id, text, category, repeat_count, pinned, sort_order, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             data.id,
             data.userId || 'facu',
@@ -249,6 +319,7 @@ export async function POST(req: NextRequest) {
             data.category || null,
             data.repeatCount || 0,
             data.pinned ? 1 : 0,
+            typeof data.order === 'number' ? data.order : null,
             data.createdAt || now,
           ],
         });

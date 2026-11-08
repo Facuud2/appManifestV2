@@ -9,8 +9,15 @@ import type { Transition, TargetAndTransition, Variants } from 'framer-motion';
  * - Stagger 30-60ms
  */
 
-export const EMIL_EASE_OUT = [0.23, 1, 0.32, 1] as const;
+export const EMIL_EASE_OUT = [0.22, 1, 0.36, 1] as const;
+export const TRANSITIONS_SMOOTH_OUT = [0.22, 1, 0.36, 1] as const;
 export const EMIL_EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
+
+export const POSITION_CHANGE_TRANSITION: Transition = {
+  type: 'tween',
+  duration: 0.25,
+  ease: TRANSITIONS_SMOOTH_OUT,
+};
 
 export const APPLE_ELASTIC_SPRING: Transition = {
   type: 'spring',

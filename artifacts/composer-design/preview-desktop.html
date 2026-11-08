@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Composer en ráfaga — Afirmaciones y Manifestaciones</title>
+<style>
+  :root {
+    --color-base: #fdf4f7;
+    --color-surface-card: #fffbfc;
+    --color-surface-elevated: #ffffff;
+    --color-field-surface: rgba(255, 251, 252, 0.9);
+    --color-ink: #2b1f26;
+    --color-ink-muted: #6f5762;
+    --color-ink-light: #806b75;
+    --color-accent: #c8397c;
+    --color-accent-hover: #ab2968;
+    --color-accent-fg: #ffffff;
+    --color-accent-subtle: #ffe3ee;
+    --border-subtle: rgba(74, 42, 57, 0.11);
+    --border-strong: rgba(74, 42, 57, 0.2);
+    --border-card: #f0dde5;
+    --focus-ring: #c8397c;
+    --control-bg: rgba(74, 42, 57, 0.06);
+    --control-hover: rgba(74, 42, 57, 0.1);
+
+    --pastel-sage: #ddf7ec;
+    --pastel-sage-ink: #0d6a4c;
+    --pastel-sage-strong: #9ee4c8;
+    --pastel-rose: #ffe1ec;
+    --pastel-rose-ink: #8c2a4f;
+    --pastel-rose-strong: #f5b3ca;
+    --pastel-butter: #fff4cc;
+    --pastel-butter-ink: #6a5000;
+    --pastel-butter-strong: #ecd27f;
+    --pastel-sage-wash: color-mix(in srgb, var(--pastel-sage) 55%, var(--color-surface-card));
+    --pastel-rose-wash: color-mix(in srgb, var(--pastel-rose) 55%, var(--color-surface-card));
+    --pastel-butter-wash: color-mix(in srgb, var(--pastel-butter) 55%, var(--color-surface-card));
+
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    --radius-card: 20px;
+    --radius-control: 12px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--color-base);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  svg { display: block; }
+
+  .page {
+    width: min(980px, calc(100vw - 48px));
+    margin: 0 auto;
+    padding: 56px 0 96px;
+  }
+
+  .view-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .eyebrow {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--color-ink-muted);
+  }
+  h1 {
+    margin: 6px 0 0;
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.06;
+    letter-spacing: -0.03em;
+  }
+  .sub {
+    margin: 8px 0 0;
+    max-width: 58ch;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+  .head-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 9999px;
+    border: 1px solid var(--border-subtle);
+    background: var(--control-bg);
+    color: var(--color-ink);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 160ms var(--ease-out), transform 100ms var(--ease-out);
+  }
+  .head-action:hover { background: var(--control-hover); }
+  .head-action:active { transform: scale(0.97); }
+  .head-action .check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: var(--pastel-sage);
+    color: var(--pastel-sage-ink);
+  }
+
+  /* ---------- Composer ---------- */
+  .composer {
+    margin-top: 24px;
+    border: 1px solid color-mix(in srgb, var(--pastel-rose-strong) 42%, var(--color-surface-card));
+    border-radius: var(--radius-card);
+    background: var(--pastel-rose-wash);
+    padding: 16px 16px 12px;
+    position: relative;
+    transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+  }
+  .composer:focus-within {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-surface-card));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 16%, transparent);
+  }
+  .composer.butter {
+    border-color: color-mix(in srgb, var(--pastel-butter-strong) 46%, var(--color-surface-card));
+    background: var(--pastel-butter-wash);
+  }
+  .composer.butter:focus-within {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-surface-card));
+  }
+
+  .composer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 20px;
+  }
+  .composer-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--pastel-rose-ink);
+  }
+  .butter .composer-label { color: var(--pastel-butter-ink); }
+  .composer-label .dot {
+    width: 6px; height: 6px; border-radius: 9999px;
+    background: currentColor; opacity: 0.75;
+  }
+  .composer-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+  }
+  .saved-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    background: var(--pastel-sage);
+    color: var(--pastel-sage-ink);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .saved-chip svg { width: 12px; height: 12px; }
+  .count { font-variant-numeric: tabular-nums; }
+
+  .composer-field {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 2px 0 10px;
+    border: 0;
+    outline: 0;
+    resize: none;
+    background: transparent;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.018em;
+    color: var(--color-ink);
+  }
+  .composer-field::placeholder { color: var(--color-ink-light); opacity: 1; }
+  .composer-field.manifestation {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.55;
+    min-height: 52px;
+  }
+
+  .composer-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--pastel-rose-strong) 36%, transparent);
+  }
+  .butter .composer-foot {
+    border-top-color: color-mix(in srgb, var(--pastel-butter-strong) 42%, transparent);
+  }
+  .hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--color-ink-muted);
+    min-width: 0;
+  }
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border: 1px solid var(--border-subtle);
+    border-bottom-color: var(--border-strong);
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--color-surface-elevated) 72%, transparent);
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+  .hint .sep { opacity: 0.45; }
+  .hint .long { display: inline; }
+
+  .composer-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+  }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9999px;
+    border: 0;
+    background: transparent;
+    color: var(--color-ink-muted);
+    transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), transform 100ms var(--ease-out);
+  }
+  .icon-btn:hover { background: var(--control-hover); color: var(--color-ink); }
+  .icon-btn:active { transform: scale(0.94); }
+  .icon-btn.mic {
+    background: color-mix(in srgb, var(--color-surface-elevated) 64%, transparent);
+    border: 1px solid color-mix(in srgb, var(--pastel-rose-strong) 30%, transparent);
+    color: var(--pastel-rose-ink);
+  }
+  .butter .icon-btn.mic {
+    border-color: color-mix(in srgb, var(--pastel-butter-strong) 44%, transparent);
+    color: var(--pastel-butter-ink);
+  }
+  .add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    font-size: 13px;
+    font-weight: 600;
+    transition: background-color 160ms var(--ease-out), transform 100ms var(--ease-out);
+  }
+  .add-btn:hover { background: var(--color-accent-hover); }
+  .add-btn:active { transform: scale(0.97); }
+  .add-btn .enter-icon { opacity: 0.85; }
+  .date {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-light);
+  }
+  .card.is-new {
+    background: var(--pastel-butter-wash);
+    border-color: color-mix(in srgb, var(--pastel-butter-strong) 40%, var(--color-surface-card));
+  }
+  .card.is-new .anchor {
+    background: color-mix(in srgb, var(--color-surface-card) 72%, transparent);
+  }
+
+  .notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin-top: 2px;
+    padding-bottom: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #92400e;
+  }
+  .notice svg { flex: none; margin-top: 1px; }
+  .notice strong { font-weight: 700; }
+
+  .more-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0 8px;
+    color: var(--color-ink-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .more-row svg { width: 14px; height: 14px; }
+  .more-row .optional {
+    font-weight: 500;
+    color: var(--color-ink-light);
+  }
+
+  /* ---------- Cards ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 164px;
+    padding: 18px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-card);
+    transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+  }
+  .card:hover { border-color: var(--border-strong); }
+  .card:active { transform: scale(0.995); }
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border-radius: 9999px;
+    background: var(--control-bg);
+    color: var(--color-ink-muted);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .status .dot { width: 5px; height: 5px; border-radius: 9999px; background: currentColor; opacity: 0.7; }
+  .status.new {
+    background: var(--pastel-sage);
+    color: var(--pastel-sage-ink);
+  }
+  .card-icons { display: flex; align-items: center; gap: 2px; }
+  .card-icons .icon-btn { width: 30px; height: 30px; }
+  .card-icons .icon-btn:hover { color: var(--color-ink); }
+  .card-icons .icon-btn.danger:hover { color: #b83837; }
+  .quote {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.36;
+    letter-spacing: -0.018em;
+  }
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .author { font-size: 12px; color: var(--color-ink-light); }
+  .repeat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--control-bg);
+    color: var(--color-accent-hover);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .repeat:hover { background: var(--control-hover); }
+  .repeat .num { font-variant-numeric: tabular-nums; }
+  .repeat .unit { font-weight: 500; color: var(--color-ink-muted); }
+
+  /* Manifestation card */
+  .manifestation-quote { font-size: 17px; font-weight: 600; line-height: 1.36; margin: 0; }
+  .manifestation-desc { margin: 6px 0 0; font-size: 13px; line-height: 1.55; color: var(--color-ink-muted); }
+  .anchor {
+    margin-top: 12px;
+    padding: 9px 11px;
+    border: 1px solid color-mix(in srgb, var(--pastel-butter-strong) 36%, var(--color-surface-card));
+    border-radius: 12px;
+    background: var(--pastel-butter-wash);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--color-ink-muted);
+  }
+  .anchor strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--pastel-butter-ink);
+  }
+
+  .section-gap { height: 72px; }
+  .mini-note {
+    margin: 40px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-ink-light);
+  }
+
+  @media (max-width: 760px) {
+    .page { width: calc(100vw - 32px); padding-top: 32px; }
+    .view-head { align-items: flex-start; }
+    h1 { font-size: 26px; }
+    .grid { grid-template-columns: 1fr; }
+    .hint .long { display: none; }
+    .composer { padding: 14px 12px 10px; }
+    .composer-field { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+<main class="page" id="afirmaciones">
+
+  <header class="view-head">
+    <div>
+      <p class="eyebrow">Asunción en primera persona</p>
+      <h1>Afirmaciones</h1>
+      <p class="sub">Frases directas, naturales y en presente. Sin metáforas poéticas, listas para repetir o llevar a tu Rampage de voz.</p>
+    </div>
+    <button class="head-action" type="button">
+      <span class="check" aria-hidden="true">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </span>
+      Listo
+    </button>
+  </header>
+
+  <section class="composer" aria-labelledby="affirmation-composer-label">
+    <div class="composer-top">
+      <span class="composer-label" id="affirmation-composer-label"><span class="dot" aria-hidden="true"></span>Nueva afirmación</span>
+      <span class="composer-meta">
+        <span class="saved-chip" aria-live="polite">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          Guardada
+        </span>
+        <span class="count">3 en esta ráfaga</span>
+      </span>
+    </div>
+
+    <label for="affirmation-quick" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Escribí una afirmación nueva</label>
+    <textarea id="affirmation-quick" class="composer-field" rows="1" placeholder="Soy siempre la primera opción" spellcheck="false">Soy siempre la primera opción</textarea>
+
+    <div class="composer-foot">
+      <span class="hint">
+        <kbd>Enter</kbd> guarda y sigue
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="long"><kbd>Shift</kbd><span aria-hidden="true">+</span><kbd>Enter</kbd> baja de línea</span>
+      </span>
+      <span class="composer-actions">
+        <button class="icon-btn mic" type="button" aria-label="Dictar afirmación">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/><path d="M8 22h8"/></svg>
+        </button>
+        <button class="add-btn" type="button">
+          Agregar
+          <svg class="enter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 10 4 15l5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+        </button>
+      </span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status new"><span class="dot" aria-hidden="true"></span>Recién agregada</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Fijar en foco"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn danger" type="button" aria-label="Eliminar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Soy siempre la primera opción”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Facu</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">0</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status"><span class="dot" aria-hidden="true"></span>En foco</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Quitar de foco"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn danger" type="button" aria-label="Eliminar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Mi voz y mi deseo van en la misma dirección”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Maia</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">12</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status"><span class="dot" aria-hidden="true"></span>Decreto</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Fijar en foco"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn danger" type="button" aria-label="Eliminar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Lo que decido, sucede con facilidad”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Ambos</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">4</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status"><span class="dot" aria-hidden="true"></span>Decreto</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Fijar en foco"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn danger" type="button" aria-label="Eliminar afirmación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Me elijo sin pedir permiso”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Facu</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">7</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+  </div>
+
+  <div class="section-gap" aria-hidden="true"></div>
+
+  <header class="view-head" id="manifestaciones">
+    <div>
+      <p class="eyebrow">Tu jardín de intenciones</p>
+      <h1>Manifestaciones</h1>
+      <p class="sub">Deseos sensoriales escritos en tiempo presente, desde la semilla inicial hasta su materialización física.</p>
+    </div>
+    <button class="head-action" type="button">
+      <span class="check" aria-hidden="true">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </span>
+      Listo
+    </button>
+  </header>
+
+  <section class="composer butter" aria-labelledby="manifestation-composer-label">
+    <div class="composer-top">
+      <span class="composer-label" id="manifestation-composer-label"><span class="dot" aria-hidden="true"></span>Nueva manifestación</span>
+      <span class="composer-meta">
+        <span class="saved-chip" aria-live="polite">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          Intención guardada
+        </span>
+        <span class="count">2 en esta ráfaga</span>
+      </span>
+    </div>
+
+    <label for="manifestation-quick" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Escribí tu intención</label>
+    <textarea id="manifestation-quick" class="composer-field manifestation" rows="2" placeholder="Quiero manifestar…" spellcheck="false">Vivo en la casa de madera frente al mar, con luz de tarde en la cocina.</textarea>
+
+    <div class="more-row" role="group" aria-label="Opciones de la manifestación">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      Título y anclaje sensorial
+      <span class="optional">· opcional, se completan solos</span>
+    </div>
+
+    <div class="composer-foot">
+      <span class="hint">
+        <kbd>Enter</kbd> guarda y sigue
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="long"><kbd>Shift</kbd><span aria-hidden="true">+</span><kbd>Enter</kbd> baja de línea</span>
+      </span>
+      <span class="composer-actions">
+        <button class="icon-btn mic" type="button" aria-label="Dictar manifestación">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/><path d="M8 22h8"/></svg>
+        </button>
+        <button class="add-btn" type="button">
+          Agregar
+          <svg class="enter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 10 4 15l5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+        </button>
+      </span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <article class="card is-new">
+      <div>
+        <div class="card-top">
+          <span class="date">7 nov 2026 · Por Facu</span>
+          <span class="card-icons">
+            <button class="icon-btn danger" type="button" aria-label="Eliminar manifestación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <h2 class="manifestation-quote">La casa de madera frente al mar</h2>
+        <p class="manifestation-desc">Vivo en la casa de madera frente al mar, con luz de tarde en la cocina.</p>
+        <div class="anchor"><strong>Anclaje sensorial</strong>“El sonido de la madera al asentarse y el olor a sal en la tarde.”</div>
+      </div>
+      <div class="card-foot">
+        <span class="status"><span class="dot" aria-hidden="true"></span>Semilla</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg><span>Avance</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="date">5 nov 2026 · Por Maia</span>
+          <span class="card-icons">
+            <button class="icon-btn danger" type="button" aria-label="Eliminar manifestación"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <h2 class="manifestation-quote">Mi estudio con luz natural</h2>
+        <p class="manifestation-desc">Trabajo cada mañana en un espacio mío, con la ventana abierta y mis libros a mano.</p>
+        <div class="anchor"><strong>Anclaje sensorial</strong>“La textura del papel y el sol entrando por la ventana.”</div>
+      </div>
+      <div class="card-foot">
+        <span class="status"><span class="dot" aria-hidden="true"></span>Alineación</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg><span>Avance</span></button>
+      </div>
+    </article>
+  </div>
+
+  <p class="mini-note">Prototipo visual estático. El composer de arriba muestra el estado abierto, después de guardar tres afirmaciones en la misma ráfaga.</p>
+
+</main>
+</body>
+</html>

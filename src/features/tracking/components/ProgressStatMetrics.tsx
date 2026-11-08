@@ -4,7 +4,19 @@ import React, { useMemo } from 'react';
 import { useAppStore } from '@/store';
 
 export const ProgressStatMetrics: React.FC = () => {
-  const { progressLogs, manifestations } = useAppStore();
+  const {
+    activeScope,
+    progressLogs: allProgressLogs,
+    manifestations: allManifestations,
+  } = useAppStore();
+  const progressLogs = useMemo(
+    () => allProgressLogs.filter((item) => item.userId === activeScope),
+    [allProgressLogs, activeScope]
+  );
+  const manifestations = useMemo(
+    () => allManifestations.filter((item) => item.userId === activeScope),
+    [allManifestations, activeScope]
+  );
 
   const metrics = useMemo(() => {
     const now = new Date();

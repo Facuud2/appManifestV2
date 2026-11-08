@@ -39,15 +39,27 @@ async function seedDefaults(): Promise<void> {
             );`,
       args: [],
     }),
+    (async () => {
+      const tableInfo = await turso.execute({
+        sql: 'PRAGMA table_info(affirmations);',
+        args: [],
+      });
+      if (!tableInfo.rows.some((row) => row.name === 'sort_order')) {
+        await turso.execute({
+          sql: 'ALTER TABLE affirmations ADD COLUMN sort_order INTEGER;',
+          args: [],
+        });
+      }
+    })(),
   ]);
 
   const [affirmationsCount, rampageSetsCount] = await Promise.all([
     turso.execute({
-      sql: `SELECT COUNT(*) AS count FROM affirmations WHERE id LIKE 'default%';`,
+      sql: `SELECT COUNT(*) AS count FROM affirmations WHERE id LIKE 'default%' AND user_id = 'facu';`,
       args: [],
     }),
     turso.execute({
-      sql: `SELECT COUNT(*) AS count FROM rampage_sets WHERE id LIKE 'default%';`,
+      sql: `SELECT COUNT(*) AS count FROM rampage_sets WHERE id LIKE 'default%' AND user_id = 'facu';`,
       args: [],
     }),
   ]);
@@ -59,7 +71,16 @@ async function seedDefaults(): Promise<void> {
 
   if (hasAffirmations && hasRampageSets) return;
 
-  const statements: InStatement[] = [];
+  const statements: InStatement[] = [
+    {
+      sql: `UPDATE affirmations SET user_id = 'facu' WHERE id LIKE 'default_%' AND user_id != 'facu';`,
+      args: [],
+    },
+    {
+      sql: `UPDATE rampage_sets SET user_id = 'facu' WHERE id LIKE 'default_set_%' AND user_id != 'facu';`,
+      args: [],
+    },
+  ];
 
   if (!hasAffirmations) {
     for (const affirmation of DEFAULT_AFFIRMATIONS) {

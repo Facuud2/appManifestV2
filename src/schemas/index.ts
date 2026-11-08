@@ -73,6 +73,7 @@ export const AffirmationSchema = z.object({
   category: z.string().optional(),
   repeatCount: z.number().int().default(0),
   pinned: z.boolean().default(false),
+  order: z.number().int().optional(),
   createdAt: z.string(),
 });
 

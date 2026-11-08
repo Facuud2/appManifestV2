@@ -1,0 +1,1646 @@
+{
+ "url": "artifacts/composer-design/preview-desktop.html",
+ "at": "2026-11-07T23:50:01.240Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.3,
+    0.43
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 1525,
+     "screens": 1.7,
+     "words": 258,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 29,
+     "sections": 2,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "chars": 12,
+     "lines": 1,
+     "size": 32,
+     "vw": 2.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.06,
+     "top": 79,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "lines": 1,
+     "size": 32,
+     "font": "-apple-system"
+    },
+    "headings": [
+     {
+      "text": "Afirmaciones",
+      "words": 1,
+      "chars": 12,
+      "lines": 1,
+      "size": 32,
+      "vw": 2.2,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.31,
+      "top": 79,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Manifestaciones",
+      "words": 1,
+      "chars": 15,
+      "lines": 1,
+      "size": 32,
+      "vw": 2.2,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.31,
+      "top": 781,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 2,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 1,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "-apple-system",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      18,
+      32
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "-apple-system",
+      "size": 14,
+      "leading": 1.55,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 6.1
+     },
+     "measureChars": 163,
+     "max": {
+      "size": 32,
+      "vw": 2.2,
+      "font": "-apple-system",
+      "text": "Afirmaciones"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.06,
+     "smallText": 17
+    },
+    "eyebrows": [
+     {
+      "text": "Tu jardín de intenciones",
+      "above": "Manifestaciones",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 758
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#fdf4f7",
+     "bodyBgHsl": {
+      "h": 340,
+      "s": 0.69,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [],
+     "textColors": [
+      {
+       "color": "#6f5762",
+       "share": 0.5
+      },
+      {
+       "color": "#2b1f26",
+       "share": 0.22
+      },
+      {
+       "color": "#806b75",
+       "share": 0.16
+      },
+      {
+       "color": "#6a5000",
+       "share": 0.04
+      },
+      {
+       "color": "#ab2968",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#c8397c",
+      "hsl": {
+       "h": 332,
+       "s": 0.57,
+       "l": 0.5
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 4,
+     "inHero": 3,
+     "radius": "pill",
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Listo",
+      "Agregar",
+      "Listo"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 8,
+     "hairlineSamples": [
+      "div.composer-foot 946px",
+      "div.card-foot 445px",
+      "div.card-foot 445px",
+      "div.card-foot 445px",
+      "div.card-foot 445px"
+     ],
+     "outlinedBoxes": 8,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 8,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 344
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 108,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 1525,
+    "margins": {
+     "left": 230,
+     "right": 247
+    },
+    "sections": [
+     {
+      "sel": "section.composer",
+      "tag": "section",
+      "top": 188,
+      "height": 140,
+      "words": 17,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 247,
+      "right": 247,
+      "textLeft": 253,
+      "textRight": 247,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid",
+      "tag": "div",
+      "top": 344,
+      "height": 342,
+      "words": 49,
+      "media": 0,
+      "middle": 52,
+      "heading": null,
+      "left": 249,
+      "right": 249,
+      "textLeft": 249,
+      "textRight": 259,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.composer.butter",
+      "tag": "section",
+      "top": 891,
+      "height": 191,
+      "words": 27,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 247,
+      "right": 247,
+      "textLeft": 253,
+      "textRight": 247,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid",
+      "tag": "div",
+      "top": 1097,
+      "height": 274,
+      "words": 90,
+      "media": 0,
+      "middle": 52,
+      "heading": {
+       "text": "La casa de madera frente al mar",
+       "size": 17,
+       "tag": "h2"
+      },
+      "left": 249,
+      "right": 249,
+      "textLeft": 249,
+      "textRight": 254,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Afirmaciones",
+      "size": 32,
+      "top": 79,
+      "firstScreen": true
+     },
+     {
+      "text": "Manifestaciones",
+      "size": 32,
+      "top": 781,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 230,
+      "n": 4
+     },
+     {
+      "x": 249,
+      "n": 1
+     },
+     {
+      "x": 746,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 6,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.11,
+    "voidBox": {
+     "x": 1200,
+     "y": 180,
+     "w": 240,
+     "h": 600
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#fdf4f7",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 230,
+     "right": 247
+    },
+    "hero": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "chars": 12,
+     "lines": 1,
+     "size": 32,
+     "vw": 2.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.06,
+     "top": 79,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 8,
+     "firstScreen": 5,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 8,
+     "radii": [
+      [
+       20,
+       8
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 1,
+     "tabularShare": 1,
+     "kpiMax": 12
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.44,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      18,
+      32
+     ]
+    },
+    "title": {
+     "text": "Afirmaciones",
+     "size": 32,
+     "top": 79
+    },
+    "colourShare": 0.003
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.62,
+    0.72
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1561,
+     "screens": 1.5,
+     "words": 258,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 29,
+     "sections": 2,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "chars": 12,
+     "lines": 1,
+     "size": 32,
+     "vw": 4.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.06,
+     "top": 79,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "lines": 1,
+     "size": 32,
+     "font": "-apple-system"
+    },
+    "headings": [
+     {
+      "text": "Afirmaciones",
+      "words": 1,
+      "chars": 12,
+      "lines": 1,
+      "size": 32,
+      "vw": 4.2,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.59,
+      "top": 79,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Manifestaciones",
+      "words": 1,
+      "chars": 15,
+      "lines": 1,
+      "size": 32,
+      "vw": 4.2,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.59,
+      "top": 800,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 2,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 1,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "-apple-system",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      18,
+      32
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "-apple-system",
+      "size": 14,
+      "leading": 1.55,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 6.1
+     },
+     "measureChars": 120,
+     "max": {
+      "size": 32,
+      "vw": 4.2,
+      "font": "-apple-system",
+      "text": "Afirmaciones"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.06,
+     "smallText": 17
+    },
+    "eyebrows": [
+     {
+      "text": "Tu jardín de intenciones",
+      "above": "Manifestaciones",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 778
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#fdf4f7",
+     "bodyBgHsl": {
+      "h": 340,
+      "s": 0.69,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [],
+     "textColors": [
+      {
+       "color": "#6f5762",
+       "share": 0.5
+      },
+      {
+       "color": "#2b1f26",
+       "share": 0.22
+      },
+      {
+       "color": "#806b75",
+       "share": 0.16
+      },
+      {
+       "color": "#6a5000",
+       "share": 0.04
+      },
+      {
+       "color": "#ab2968",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#c8397c",
+      "hsl": {
+       "h": 332,
+       "s": 0.57,
+       "l": 0.5
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 4,
+     "inHero": 3,
+     "radius": "pill",
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Listo",
+      "Agregar",
+      "Listo"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 8,
+     "hairlineSamples": [
+      "div.composer-foot 686px",
+      "div.card-foot 315px",
+      "div.card-foot 315px",
+      "div.card-foot 315px",
+      "div.card-foot 315px"
+     ],
+     "outlinedBoxes": 8,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 8,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 344
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 108,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1561,
+    "margins": {
+     "left": 24,
+     "right": 38
+    },
+    "sections": [
+     {
+      "sel": "section.composer",
+      "tag": "section",
+      "top": 188,
+      "height": 140,
+      "words": 17,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 41,
+      "right": 41,
+      "textLeft": 47,
+      "textRight": 41,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid",
+      "tag": "div",
+      "top": 344,
+      "height": 361,
+      "words": 49,
+      "media": 0,
+      "middle": 52,
+      "heading": null,
+      "left": 43,
+      "right": 43,
+      "textLeft": 43,
+      "textRight": 53,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.composer.butter",
+      "tag": "section",
+      "top": 910,
+      "height": 191,
+      "words": 27,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 41,
+      "right": 41,
+      "textLeft": 47,
+      "textRight": 41,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid",
+      "tag": "div",
+      "top": 1116,
+      "height": 291,
+      "words": 90,
+      "media": 0,
+      "middle": 52,
+      "heading": {
+       "text": "La casa de madera frente al mar",
+       "size": 17,
+       "tag": "h2"
+      },
+      "left": 43,
+      "right": 43,
+      "textLeft": 43,
+      "textRight": 53,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Afirmaciones",
+      "size": 32,
+      "top": 79,
+      "firstScreen": true
+     },
+     {
+      "text": "Manifestaciones",
+      "size": 32,
+      "top": 800,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 24,
+      "n": 4
+     },
+     {
+      "x": 43,
+      "n": 1
+     },
+     {
+      "x": 410,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 6,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#fdf4f7",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 24,
+     "right": 38
+    },
+    "hero": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "chars": 12,
+     "lines": 1,
+     "size": 32,
+     "vw": 4.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.06,
+     "top": 79,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 8,
+     "firstScreen": 6,
+     "ragged": [],
+     "voids": [
+      {
+       "gap": 41,
+       "at": 424,
+       "panel": "Recién agregada"
+      }
+     ]
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 9,
+     "radii": [
+      [
+       20,
+       8
+      ],
+      [
+       12,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 1,
+     "tabularShare": 1,
+     "kpiMax": 12
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.44,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      18,
+      32
+     ]
+    },
+    "title": {
+     "text": "Afirmaciones",
+     "size": 32,
+     "top": 79
+    },
+    "colourShare": 0.006
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 3,
+   "filled": [
+    0.77,
+    0.69,
+    0.67
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 2252,
+     "screens": 2.7,
+     "words": 250,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 29,
+     "sections": 2,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "chars": 12,
+     "lines": 1,
+     "size": 26,
+     "vw": 6.7,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.06,
+     "top": 55,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "lines": 1,
+     "size": 26,
+     "font": "-apple-system"
+    },
+    "headings": [
+     {
+      "text": "Afirmaciones",
+      "words": 1,
+      "chars": 12,
+      "lines": 1,
+      "size": 26,
+      "vw": 6.7,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.63,
+      "top": 55,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Manifestaciones",
+      "words": 1,
+      "chars": 15,
+      "lines": 1,
+      "size": 26,
+      "vw": 6.7,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.63,
+      "top": 1164,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 2,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 1,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "-apple-system",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      26
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": {
+      "font": "-apple-system",
+      "size": 14,
+      "leading": 1.55,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 6.1
+     },
+     "measureChars": 60,
+     "max": {
+      "size": 26,
+      "vw": 6.7,
+      "font": "-apple-system",
+      "text": "Afirmaciones"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.06,
+     "smallText": 15
+    },
+    "eyebrows": [
+     {
+      "text": "Tu jardín de intenciones",
+      "above": "Manifestaciones",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 1141
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#fdf4f7",
+     "bodyBgHsl": {
+      "h": 340,
+      "s": 0.69,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#fff7e2",
+       "top": 1501,
+       "hsl": {
+        "h": 43,
+        "s": 1,
+        "l": 0.94
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#6f5762",
+       "share": 0.49
+      },
+      {
+       "color": "#2b1f26",
+       "share": 0.23
+      },
+      {
+       "color": "#806b75",
+       "share": 0.16
+      },
+      {
+       "color": "#6a5000",
+       "share": 0.04
+      },
+      {
+       "color": "#ab2968",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#c8397c",
+      "hsl": {
+       "h": 332,
+       "s": 0.57,
+       "l": 0.5
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 4,
+     "inHero": 2,
+     "radius": "pill",
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Listo",
+      "Agregar"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 8,
+     "hairlineSamples": [
+      "div.composer-foot 332px",
+      "div.card-foot 320px",
+      "div.card-foot 320px",
+      "div.card-foot 320px",
+      "div.card-foot 320px"
+     ],
+     "outlinedBoxes": 8,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 8,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 145,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 2252,
+    "margins": {
+     "left": 16,
+     "right": 16
+    },
+    "sections": [
+     {
+      "sel": "header.view-head",
+      "tag": "header",
+      "top": 32,
+      "height": 145,
+      "words": 25,
+      "media": 0,
+      "middle": 25,
+      "heading": {
+       "text": "Afirmaciones",
+       "size": 26,
+       "tag": "h1"
+      },
+      "left": 16,
+      "right": 16,
+      "textLeft": 16,
+      "textRight": 33,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.composer",
+      "tag": "section",
+      "top": 201,
+      "height": 135,
+      "words": 12,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 29,
+      "right": 29,
+      "textLeft": 35,
+      "textRight": 29,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid",
+      "tag": "div",
+      "top": 352,
+      "height": 717,
+      "words": 49,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 35,
+      "right": 35,
+      "textLeft": 35,
+      "textRight": 45,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "header#manifestaciones.view-head",
+      "tag": "header",
+      "top": 1141,
+      "height": 124,
+      "words": 22,
+      "media": 0,
+      "middle": 29,
+      "heading": {
+       "text": "Manifestaciones",
+       "size": 26,
+       "tag": "h1"
+      },
+      "left": 16,
+      "right": 16,
+      "textLeft": 16,
+      "textRight": 33,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.composer.butter",
+      "tag": "section",
+      "top": 1289,
+      "height": 197,
+      "words": 22,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 29,
+      "right": 15,
+      "textLeft": 35,
+      "textRight": 15,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid",
+      "tag": "div",
+      "top": 1501,
+      "height": 579,
+      "words": 90,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "La casa de madera frente al mar",
+       "size": 17,
+       "tag": "h2"
+      },
+      "left": 35,
+      "right": 35,
+      "textLeft": 35,
+      "textRight": 45,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Afirmaciones",
+      "size": 26,
+      "top": 55,
+      "firstScreen": true
+     },
+     {
+      "text": "Manifestaciones",
+      "size": 26,
+      "top": 1164,
+      "firstScreen": false
+     }
+    ],
+    "edgeText": [
+     {
+      "text": "2 en esta ráfaga",
+      "side": "right",
+      "px": 15
+     }
+    ],
+    "edges": [
+     {
+      "x": 16,
+      "n": 4
+     },
+     {
+      "x": 35,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 6,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#fdf4f7",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 16,
+     "right": 16
+    },
+    "hero": {
+     "text": "Afirmaciones",
+     "words": 1,
+     "chars": 12,
+     "lines": 1,
+     "size": 26,
+     "vw": 6.7,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.06,
+     "top": 55,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 8,
+     "firstScreen": 4,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 9,
+     "radii": [
+      [
+       20,
+       8
+      ],
+      [
+       12,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 1,
+     "tabularShare": 1,
+     "kpiMax": 12
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.43,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      26
+     ]
+    },
+    "title": {
+     "text": "Afirmaciones",
+     "size": 26,
+     "top": 55
+    },
+    "colourShare": 0.01
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "many-h1",
+   "width": 1440,
+   "message": "2 h1 elements.",
+   "fix": "One h1 per page; section titles are h2.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "palette-cream",
+   "width": 390,
+   "message": "Yellow-cream background (section #fff7e2).",
+   "fix": "Use the drawn palette. If you want warmth, take a low-chroma stone or bone, not a yellow cream."
+  },
+  {
+   "level": "WARN",
+   "id": "edge-text",
+   "width": 390,
+   "message": "1 text block(s) sit 12–15px from the phone's edge: \"2 en esta ráfaga\" (15px)",
+   "fix": "The page margin is 16–20px on a phone; the header and the corner labels sit on it too."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/inspect/desktop-fold.jpg",
+   "pages": [
+    "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/inspect/desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/inspect/tablet-fold.jpg",
+   "pages": [
+    "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/inspect/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/inspect/mobile-fold.jpg",
+   "pages": [
+    "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/inspect/mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

@@ -388,13 +388,11 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   );
 
   const profileAffirmations = userSavedAffirmations
-    .filter((affirmation) => activeScope === 'shared' || affirmation.userId === activeScope)
+    .filter((affirmation) => affirmation.userId === activeScope)
     .slice(0, 20)
     .map((affirmation) => affirmation.text);
   const profileManifestations: RampageManifestationContext[] = userManifestations
-    .filter(
-      (manifestation) => activeScope === 'shared' || manifestation.userId === activeScope
-    )
+    .filter((manifestation) => manifestation.userId === activeScope)
     .slice(0, 15)
     .map((manifestation) => ({
       title: manifestation.title,
@@ -403,7 +401,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       category: manifestation.category,
     }));
   const profileRampages: RampageHistoryContext[] = userRampageSets
-    .filter((rampage) => activeScope === 'shared' || rampage.userId === activeScope)
+    .filter((rampage) => rampage.userId === activeScope)
     .slice(0, 5)
     .map((rampage) => ({
       title: rampage.title,
@@ -494,7 +492,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             ? 'Maia'
             : activeRampageScopeRef.current === 'facu'
               ? 'Facu'
-              : 'Ambos',
+              : 'Juntos',
         title: activeRampageRef.current.title,
         affirmations: generated.map((text, index) => ({
           id: `${Date.now()}_${index}`,
@@ -710,6 +708,13 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setCurrentVoiceSpeaker(getSpeakerForText(affirmations[0] || '', 0));
     void preloadSetStaggered(affirmations);
   }, [getSpeakerForText, preloadSetStaggered, resumeRampage, resumeRequestId]);
+
+  useEffect(() => {
+    if (activeRampageScopeRef.current !== activeScope && (hasStarted || isMinimized || isOpen)) {
+      handleStopBackgroundPlayback();
+      activeRampageScopeRef.current = activeScope;
+    }
+  }, [activeScope, hasStarted, isMinimized, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;

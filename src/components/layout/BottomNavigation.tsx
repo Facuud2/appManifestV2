@@ -41,9 +41,28 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     { id: 'progress', label: 'Avances', icon: Footprints },
   ];
 
+  const createActionLabel =
+    activeTab === 'affirmations'
+      ? 'Crear afirmación'
+      : activeTab === 'manifestations'
+        ? 'Crear manifestación'
+        : activeTab === 'progress'
+          ? 'Registrar avance'
+          : 'Crear';
+
+  const createCloseLabel =
+    activeTab === 'affirmations'
+      ? 'Cerrar composer de afirmación'
+      : activeTab === 'manifestations'
+        ? 'Cerrar composer de manifestación'
+        : activeTab === 'progress'
+          ? 'Cerrar registro de avance'
+          : 'Cerrar opciones de creación';
+
   return (
     <nav
       aria-label="Navegación móvil"
+      data-app-nav="mobile"
       className="fixed inset-x-0 bottom-0 z-40 pointer-events-none px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 lg:hidden"
     >
       <div
@@ -59,15 +78,22 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             <button
               key={tab.id}
               type="button"
+              data-quick-add-trigger={tab.isCreate ? 'true' : undefined}
               onClick={(event) =>
                 tab.isCreate
                   ? onOpenCreateMenu(event.currentTarget)
                   : onChangeTab(tab.id)
               }
-              aria-label={tab.isCreate && isCreateMenuOpen ? 'Cerrar opciones de creación' : tab.label}
+              aria-label={
+                tab.isCreate
+                  ? isCreateMenuOpen
+                    ? createCloseLabel
+                    : createActionLabel
+                  : tab.label
+              }
               aria-expanded={tab.isCreate ? isCreateMenuOpen : undefined}
               aria-current={isActive ? 'page' : undefined}
-              title={tab.label}
+              title={tab.isCreate ? (isCreateMenuOpen ? createCloseLabel : createActionLabel) : tab.label}
               className={`relative flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[20px] transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus touch-manipulation select-none active:scale-[0.96] ${
                 tab.isCreate
                   ? 'text-swiss-ink'
@@ -85,7 +111,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 />
               )}
               {tab.isCreate ? (
-                <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-swiss-accent text-swiss-accentFg shadow-card transition-transform active:scale-95">
+                <span className="swiss-create-bead flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-swiss-accentFg transition-transform active:scale-95">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.span
                       key={isCreateMenuOpen ? 'close' : 'create'}

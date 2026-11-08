@@ -164,6 +164,7 @@ async function run() {
   await ensureColumn('affirmations', 'category', 'TEXT');
   await ensureColumn('affirmations', 'repeat_count', 'INTEGER DEFAULT 0');
   await ensureColumn('affirmations', 'pinned', 'INTEGER DEFAULT 0');
+  await ensureColumn('affirmations', 'sort_order', 'INTEGER');
 
   // Insert default profiles if they don't exist
   const now = new Date().toISOString();
@@ -181,7 +182,16 @@ async function run() {
     readFileSync(new URL('../src/lib/affirmationDefaults.json', import.meta.url), 'utf8')
   );
   const baseTimestamp = Date.parse('2026-01-01T00:00:00.000Z');
-  const seedStatements = [];
+  const seedStatements = [
+    {
+      sql: `UPDATE affirmations SET user_id = 'facu' WHERE id LIKE 'default_%' AND user_id != 'facu';`,
+      args: [],
+    },
+    {
+      sql: `UPDATE rampage_sets SET user_id = 'facu' WHERE id LIKE 'default_set_%' AND user_id != 'facu';`,
+      args: [],
+    },
+  ];
 
   defaultGroups.forEach((group, groupIndex) => {
     const createdAt = new Date(

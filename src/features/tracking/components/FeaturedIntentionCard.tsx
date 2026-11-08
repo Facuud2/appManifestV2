@@ -35,7 +35,19 @@ export const FeaturedIntentionCard: React.FC<FeaturedIntentionCardProps> = ({
   onSelectManifestation,
   onOpenNewProgress,
 }) => {
-  const { manifestations, progressLogs } = useAppStore();
+  const {
+    activeScope,
+    manifestations: allManifestations,
+    progressLogs: allProgressLogs,
+  } = useAppStore();
+  const manifestations = useMemo(
+    () => allManifestations.filter((item) => item.userId === activeScope),
+    [allManifestations, activeScope]
+  );
+  const progressLogs = useMemo(
+    () => allProgressLogs.filter((item) => item.userId === activeScope),
+    [allProgressLogs, activeScope]
+  );
 
   const featuredData = useMemo(() => {
     const active =

@@ -131,9 +131,12 @@ export const DEFAULT_AFFIRMATIONS: Affirmation[] = DEFAULT_AFFIRMATION_GROUPS.fl
       category: group.category,
       repeatCount: 0,
       pinned: false,
-      createdAt: getGroupCreatedAt(groupIndex),
+       createdAt: getGroupCreatedAt(groupIndex),
     }))
-);
+).map((item, index) => ({
+  ...item,
+  order: index,
+}));
 
 export const DEFAULT_RAMPAGE_SETS: RampageSet[] = DEFAULT_AFFIRMATION_GROUPS.map(
   (group, groupIndex) => ({
@@ -226,7 +229,7 @@ export function sanitizeAffirmations(items: unknown[], limit: number): Sanitized
 }
 
 /**
- * Set de respaldo con el estilo exacto del usuario, para no romper el flujo si el modelo
+ * Set de respaldo con el estilo exacto del perfil activo, para no romper el flujo si el modelo
  * devuelve frases que el validador tiene que descartar.
  */
 export function getFallbackAffirmations(
@@ -235,9 +238,7 @@ export function getFallbackAffirmations(
   exclude: string[] = []
 ): string[] {
   const excluded = new Set(exclude.map(normalizeForMatching));
-  const pool = DEFAULT_AFFIRMATION_GROUPS.filter(
-    (group) => group.userId === 'shared' || scope === 'shared' || group.userId === scope
-  )
+  const pool = DEFAULT_AFFIRMATION_GROUPS.filter((group) => group.userId === scope)
     .flatMap((group) => group.affirmations)
     .filter((text) => !excluded.has(normalizeForMatching(text)) && !findPoeticTerm(text));
 
@@ -245,23 +246,79 @@ export function getFallbackAffirmations(
 }
 
 /**
- * Si la base todavía no tiene los defaults (o está vacía), los agrega al estado remoto.
- * No revive defaults que el usuario ya borró si al menos uno de ellos sigue presente.
+ * Orden canónico de afirmaciones:
+ * 1. Todas las fijadas (`pinned: true`) siempre van primero en la lista.
+ * 2. Dentro de cada grupo (fijadas y no fijadas), se respeta `order` ascendente.
+ * 3. Como desempate estable, mantiene el índice actual de aparición.
  */
-export function mergeDefaultAffirmations(remote: Affirmation[]): Affirmation[] {
-  const hasAnyDefault = remote.some((item) => item.id.startsWith('default_'));
-  if (remote.length > 0 && hasAnyDefault) return remote;
+export function sortAffirmations(items: Affirmation[]): Affirmation[] {
+  return [...items]
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const pinDiff = Number(Boolean(b.item.pinned)) - Number(Boolean(a.item.pinned));
+      if (pinDiff !== 0) return pinDiff;
 
-  const remoteIds = new Set(remote.map((item) => item.id));
-  return [...remote, ...DEFAULT_AFFIRMATIONS.filter((item) => !remoteIds.has(item.id))];
+      const aHasOrder = typeof a.item.order === 'number' && Number.isFinite(a.item.order);
+      const bHasOrder = typeof b.item.order === 'number' && Number.isFinite(b.item.order);
+      if (aHasOrder && bHasOrder && a.item.order !== b.item.order) {
+        return (a.item.order as number) - (b.item.order as number);
+      }
+      if (aHasOrder !== bHasOrder) {
+        return aHasOrder ? -1 : 1;
+      }
+
+      return a.index - b.index;
+    })
+    .map(({ item }, idx) => ({
+      ...item,
+      order: idx,
+    }));
 }
 
-export function mergeDefaultRampageSets(remote: RampageSet[]): RampageSet[] {
-  const hasAnyDefault = remote.some((item) => item.id.startsWith('default_set_'));
-  if (remote.length > 0 && hasAnyDefault) return remote;
+/**
+ * Filtra y ordena las afirmaciones estrictamente por el perfil activo (`scope`).
+ * Si el perfil tiene defaults propios configurados y la base todavía está vacía, los agrega;
+ * nunca mezcla afirmaciones de otros perfiles.
+ */
+export function mergeDefaultAffirmations(
+  remote: Affirmation[],
+  scope: UserScope = 'facu'
+): Affirmation[] {
+  const remoteForScope = remote.filter((item) => item.userId === scope);
+  const scopeDefaults = DEFAULT_AFFIRMATIONS.filter((item) => item.userId === scope);
+  if (scopeDefaults.length === 0) {
+    return sortAffirmations(remoteForScope);
+  }
 
-  const remoteIds = new Set(remote.map((item) => item.id));
-  return [...remote, ...DEFAULT_RAMPAGE_SETS.filter((item) => !remoteIds.has(item.id))];
+  const hasAnyDefault = remoteForScope.some((item) => item.id.startsWith('default_'));
+  if (remoteForScope.length > 0 && hasAnyDefault) {
+    return sortAffirmations(remoteForScope);
+  }
+
+  const remoteIds = new Set(remoteForScope.map((item) => item.id));
+  return sortAffirmations([
+    ...remoteForScope,
+    ...scopeDefaults.filter((item) => !remoteIds.has(item.id)),
+  ]);
+}
+
+export function mergeDefaultRampageSets(
+  remote: RampageSet[],
+  scope: UserScope = 'facu'
+): RampageSet[] {
+  const remoteForScope = remote.filter((item) => item.userId === scope);
+  const scopeDefaults = DEFAULT_RAMPAGE_SETS.filter((item) => item.userId === scope);
+  if (scopeDefaults.length === 0) {
+    return remoteForScope;
+  }
+
+  const hasAnyDefault = remoteForScope.some((item) => item.id.startsWith('default_set_'));
+  if (remoteForScope.length > 0 && hasAnyDefault) {
+    return remoteForScope;
+  }
+
+  const remoteIds = new Set(remoteForScope.map((item) => item.id));
+  return [...remoteForScope, ...scopeDefaults.filter((item) => !remoteIds.has(item.id))];
 }
 
 /**
@@ -290,7 +347,7 @@ export function shuffleOrganically(items: string[], lastPlayed?: string): string
 
 /**
  * Generador determinista de respaldo y Modo Sandbox IA que respeta 100% el molde
- * literal de la Ley de la Asunción (cero poesía).
+ * literal de la Ley de la Asunción (cero poesía) y es independiente por perfil.
  */
 export function buildDirectAssumptionAffirmations(options: {
   centralTheme: string;
@@ -303,10 +360,91 @@ export function buildDirectAssumptionAffirmations(options: {
   const lower = combined.toLowerCase();
 
   const mentionsMaia = /\bmaia\b/i.test(combined);
+  const mentionsFacu = /\bfacu\b/i.test(combined);
   const mentionsSp = /\bsp\b|persona espec[ií]fica|pareja|ex|amor|relaci[oó]n/i.test(combined);
 
   const customCandidates: string[] = [];
 
+  if (options.scope === 'maia') {
+    if (mentionsSp || mentionsFacu) {
+      const targetName = mentionsFacu ? 'Facu' : 'SP';
+      customCandidates.push(
+        `${targetName} me ama`,
+        `${targetName} me adora`,
+        `Soy la favorita de ${targetName}`,
+        `${targetName} me necesita`,
+        `${targetName} me desea`,
+        `${targetName} vive pensando en mí todo el día`,
+        `Soy la persona favorita de ${targetName}`
+      );
+    }
+
+    if (lower.includes('dinero') || lower.includes('abundancia') || lower.includes('trabajo') || lower.includes('plata')) {
+      customCandidates.push(
+        'Tengo todo el dinero que quiero',
+        'Me pagan muchísimo por lo que hago',
+        'La plata llega a mí todos los días de forma fácil',
+        'Vivo exactamente como quiero vivir'
+      );
+    }
+
+    const maiaCorePedestal = [
+      'Soy Diosa',
+      'Soy amada',
+      'Soy querida',
+      'Soy deseada',
+      'La gente me ama',
+      'Soy muy valiosa',
+      'Mi atención es única',
+      'Soy elegida',
+      'Soy siempre la primera opción',
+      'Soy la favorita del universo',
+      'Soy dueña de mi propia realidad',
+      'Tengo todo lo que deseo y todo lo que deseo me desea más a mí',
+      'Todo me sale siempre bien',
+      'Vivo exactamente como quiero vivir',
+      'Recibo todo lo bueno de forma fácil',
+    ];
+
+    const merged = [...customCandidates, ...maiaCorePedestal];
+    const { accepted } = sanitizeAffirmations(merged, targetCount);
+    return accepted.slice(0, targetCount);
+  }
+
+  if (options.scope === 'shared') {
+    if (lower.includes('dinero') || lower.includes('abundancia') || lower.includes('trabajo') || lower.includes('plata')) {
+      customCandidates.push(
+        'Tenemos todo el dinero que queremos',
+        'La plata llega a nosotros todos los días de forma fácil',
+        'Vivimos exactamente como queremos vivir',
+        'Nos va increíble en todo lo que emprendemos juntos'
+      );
+    }
+
+    const sharedCorePedestal = [
+      'Nos divertimos juntos en todo momento',
+      'Compartimos cientos de actividades juntos',
+      'Pasamos mucho tiempo juntos y la pasamos increíble',
+      'Mantenemos un vínculo libre, genuino y sin reglamentos',
+      'Todo nos sale siempre bien',
+      'Vivimos exactamente como queremos vivir',
+      'Tenemos todo lo que deseamos',
+      'Nuestra vida juntos es increíble todos los días',
+      'Siempre encontramos tiempo para disfrutar juntos',
+      'Todo se acomoda a nuestro favor de forma natural',
+      'Disfrutamos cada plan y cada salida que hacemos juntos',
+      'Tenemos una conexión única y nos elegimos con total libertad',
+      'Cada día juntos es más divertido que el anterior',
+      'Logramos todo lo que nos proponemos juntos',
+      'Nos entendemos a la perfección en todo momento',
+    ];
+
+    const merged = [...customCandidates, ...sharedCorePedestal];
+    const { accepted } = sanitizeAffirmations(merged, targetCount);
+    return accepted.slice(0, targetCount);
+  }
+
+  // Perfil Facu
   if (mentionsSp) {
     customCandidates.push(
       'SP me ama',

@@ -6,6 +6,7 @@ import { UserScopeSwitcher } from './UserScopeSwitcher';
 import { Ellipsis, FlaskConical, Mic, Moon, ShieldCheck, Sun } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
+import { runCircularReveal } from '@/lib/circularReveal';
 
 interface AppHeaderProps {
   onOpenCalibration: () => void;
@@ -26,6 +27,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const preferencesRef = useRef<HTMLDivElement>(null);
+  const preferencesMenuRef = useRef<HTMLDivElement>(null);
   const preferencesTriggerRef = useRef<HTMLButtonElement>(null);
 
   const isCurrentCalibrated =
@@ -39,7 +41,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
       ? 'Hola, Maia'
       : activeScope === 'facu'
         ? 'Hola, Facu'
-        : 'Hola, equipo';
+        : 'Hola, Juntos';
   const isDark = documentThemeIsDark();
 
   useEffect(() => {
@@ -91,9 +93,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
     };
   }, [isPreferencesOpen]);
 
-  const toggleTheme = () => {
+  const toggleTheme = (origin: Element | DOMRect | null, prepare?: () => void) => {
     const currentIsDark = document.documentElement.classList.contains('dark');
-    setThemeMode(currentIsDark ? 'light' : 'dark');
+    runCircularReveal({
+      origin,
+      prepare,
+      update: () => setThemeMode(currentIsDark ? 'light' : 'dark'),
+    });
   };
 
   return (
@@ -115,7 +121,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
           <div className="hidden items-center gap-1.5 lg:flex">
             <button
               type="button"
-              onClick={toggleTheme}
+              onClick={(event) => toggleTheme(event.currentTarget)}
               aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
               title="Cambiar tema"
               className="swiss-pill inline-flex min-h-10 min-w-10 items-center justify-center text-swiss-ink-muted transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
@@ -165,6 +171,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
             <AnimatePresence>
               {isPreferencesOpen && (
                 <motion.div
+                  ref={preferencesMenuRef}
                   id="preferences-menu"
                   initial={{ opacity: 0, scale: 0.96, y: -4 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -175,7 +182,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
                 >
                   <button
                     type="button"
-                    onClick={toggleTheme}
+                    onClick={(event) => {
+                      const origin = event.currentTarget.getBoundingClientRect();
+                      setIsPreferencesOpen(false);
+                      toggleTheme(origin, () => {
+                        if (preferencesMenuRef.current) {
+                          preferencesMenuRef.current.style.display = 'none';
+                        }
+                      });
+                    }}
                     className="swiss-row min-h-11 rounded-xl px-3 text-[0.9375rem] lg:hidden"
                   >
                     {isDark ? (

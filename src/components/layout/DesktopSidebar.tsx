@@ -19,15 +19,19 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onOpenRampage,
 }) => {
   const {
-    manifestations,
-    affirmations,
-    successStories,
+    manifestations: allManifestations,
+    affirmations: allAffirmations,
+    successStories: allSuccessStories,
     activeScope,
     isFacuCalibrated,
     isMaiaCalibrated,
     aiRequestsToday,
     aiDailyLimit,
   } = useAppStore();
+
+  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
+  const affirmations = allAffirmations.filter((item) => item.userId === activeScope);
+  const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
 
   const isCurrentCalibrated =
     activeScope === 'maia'

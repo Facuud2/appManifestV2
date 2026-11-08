@@ -402,8 +402,8 @@ export async function generateRampageWithGemini(
     : '';
   const profileInstruction =
     userScope === 'shared'
-      ? 'El perfil es Juntos (Maia & Facu): podés integrar naturalmente a ambos y su vida en común.'
-      : `El perfil es ${profileLabel}: usá solo su contexto, sin mezclar afirmaciones, manifestaciones ni Rampages del otro perfil.`;
+      ? 'El perfil es Juntos (Maia & Facu): es un perfil independiente con sus propias intenciones, avances y afirmaciones compartidas. No mezcles afirmaciones individuales de Facu ni de Maia.'
+      : `El perfil es ${profileLabel}: usá únicamente el contexto propio de ${profileLabel}, sin mezclar afirmaciones, manifestaciones ni Rampages de otros perfiles.`;
 
   const systemInstruction = buildLawOfAssumptionSystemPrompt(count);
   const prompt = `Perfil actual: ${profileLabel}.

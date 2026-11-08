@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Feather, Plus, Trophy, Footprints, Trash2 } from 'lucide-react';
+import { Check, Feather, Plus, Trophy, Footprints, Trash2 } from 'lucide-react';
 import { useAppStore, ManifestationItem } from '@/store';
+import { ManifestationQuickAdd } from '@/components/journal/ManifestationQuickAdd';
 import {
   EMIL_CARD_TAP,
   EMIL_EASE_OUT,
@@ -15,6 +16,9 @@ interface ManifestationsViewProps {
   onOpenNewManifestation: () => void;
   onOpenNewProgress: (manifId?: string) => void;
   onOpenCrownSuccess: (title: string, manifId?: string) => void;
+  isQuickAddOpen: boolean;
+  onQuickAddOpen: (trigger: HTMLElement) => void;
+  onQuickAddClose: (restoreFocus?: boolean) => void;
 }
 
 const statusTone: Record<ManifestationItem['status'], string> = {
@@ -42,19 +46,51 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   onOpenNewManifestation,
   onOpenNewProgress,
   onOpenCrownSuccess,
+  isQuickAddOpen,
+  onQuickAddOpen,
+  onQuickAddClose,
 }) => {
   const {
-    manifestations,
-    progressLogs,
-    successStories,
+    activeScope,
+    manifestations: allManifestations,
+    progressLogs: allProgressLogs,
+    successStories: allSuccessStories,
     updateManifestationStatus,
     deleteManifestation,
   } = useAppStore();
 
+  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
+  const progressLogs = allProgressLogs.filter((item) => item.userId === activeScope);
+  const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
+
   const shouldStaggerCards = manifestations.length <= 6;
 
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const flashTimerRef = useRef<number | null>(null);
+
+  const handleQuickAddSaved = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const newest = useAppStore.getState().manifestations[0];
+      if (!newest) return;
+
+      setFlashId(newest.id);
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current);
+      }
+      flashTimerRef.current = window.setTimeout(() => setFlashId(null), 650);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <div className="space-y-7 pb-32 sm:pb-12">
+    <div className="quick-add-page space-y-7 pb-32 sm:pb-12">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="section-label">Tu jardín de intenciones</p>
@@ -66,13 +102,42 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
 
         <button
           type="button"
-          onClick={onOpenNewManifestation}
-          className="swiss-btn-primary inline-flex min-h-11 items-center gap-2 self-start px-5 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus sm:self-auto"
+          data-quick-add-trigger="true"
+          onClick={(event) =>
+            isQuickAddOpen
+              ? onQuickAddClose()
+              : onQuickAddOpen(event.currentTarget)
+          }
+          className={
+            isQuickAddOpen
+              ? 'swiss-btn-secondary inline-flex min-h-11 items-center gap-2 self-start px-5 text-[0.8125rem] font-semibold text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus sm:self-auto'
+              : 'swiss-btn-primary inline-flex min-h-11 items-center gap-2 self-start px-5 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus sm:self-auto'
+          }
         >
-          <Plus size={16} aria-hidden="true" />
-          Nueva manifestación
+          {isQuickAddOpen ? (
+            <>
+              <Check size={16} aria-hidden="true" />
+              Listo
+            </>
+          ) : (
+            <>
+              <Plus size={16} aria-hidden="true" />
+              Nueva manifestación
+            </>
+          )}
         </button>
       </header>
+
+      <ManifestationQuickAdd
+        isOpen={isQuickAddOpen}
+        onClose={() => onQuickAddClose()}
+        onDismiss={() => onQuickAddClose(false)}
+        onSaved={handleQuickAddSaved}
+        onOpenAdvanced={() => {
+          onQuickAddClose(false);
+          onOpenNewManifestation();
+        }}
+      />
 
       {manifestations.length === 0 ? (
         <div className="swiss-card flex flex-col items-center px-6 py-14 text-center">
@@ -83,14 +148,16 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
           <p className="mt-2 max-w-sm text-sm leading-6 text-swiss-ink-muted">
             Empezá escribiendo o dictando tus deseos sensorialmente, como hechos reales en presente.
           </p>
-          <button
-            type="button"
-            onClick={onOpenNewManifestation}
-            className="swiss-btn-primary mt-5 inline-flex min-h-11 items-center gap-2 px-5 text-[0.8125rem]"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Crear manifestación
-          </button>
+          {!isQuickAddOpen && (
+            <button
+              type="button"
+              onClick={(event) => onQuickAddOpen(event.currentTarget)}
+              className="swiss-btn-primary mt-5 inline-flex min-h-11 items-center gap-2 px-5 text-[0.8125rem]"
+            >
+              <Plus size={16} aria-hidden="true" />
+              Crear manifestación
+            </button>
+          )}
         </div>
       ) : (
         <motion.div
@@ -114,7 +181,10 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                     scale: 0.97,
                     transition: { duration: 0.18, ease: EMIL_EASE_OUT },
                   }}
-                  className="swiss-card swiss-card-hover flex flex-col justify-between p-5"
+                  data-flash-tone={flashId === item.id ? 'butter' : undefined}
+                  className={`swiss-card swiss-card-hover flex flex-col justify-between p-5 ${
+                    flashId === item.id ? 'quick-add-card-flash' : ''
+                  }`}
                 >
                   <div>
                     <div className="mb-3 flex items-center justify-between gap-2">

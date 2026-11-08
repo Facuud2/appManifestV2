@@ -31,7 +31,8 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
   onClose,
   manifestationId,
 }) => {
-  const { activeScope, manifestations, addProgressLog, updateManifestationStatus } = useAppStore();
+  const { activeScope, manifestations: allManifestations, addProgressLog, updateManifestationStatus } = useAppStore();
+  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
   const [selectedManifId, setSelectedManifId] = useState(manifestationId ?? '');
   const [note, setNote] = useState('');
   const [signType, setSignType] = useState('coincidence');

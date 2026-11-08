@@ -82,7 +82,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
     try {
       await addManifestation({
         userId: activeScope,
-        author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Ambos',
+        author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
         title: title.trim() || generatedTitle || description.trim().slice(0, 72),
         description: description.trim(),
         sensoryAnchor: sensoryAnchor.trim() || undefined,

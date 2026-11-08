@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Composer en ráfaga — móvil</title>
+<style>
+  :root {
+    --color-base: #fdf4f7;
+    --color-surface-card: #fffbfc;
+    --color-surface-elevated: #ffffff;
+    --color-field-surface: rgba(255, 251, 252, 0.9);
+    --color-ink: #2b1f26;
+    --color-ink-muted: #6f5762;
+    --color-ink-light: #806b75;
+    --color-accent: #c8397c;
+    --color-accent-hover: #ab2968;
+    --color-accent-fg: #ffffff;
+    --border-subtle: rgba(74, 42, 57, 0.11);
+    --border-strong: rgba(74, 42, 57, 0.2);
+    --border-card: #f0dde5;
+    --focus-ring: #c8397c;
+    --control-bg: rgba(74, 42, 57, 0.06);
+    --control-hover: rgba(74, 42, 57, 0.1);
+    --pastel-sage: #ddf7ec;
+    --pastel-sage-ink: #0d6a4c;
+    --pastel-rose: #ffe1ec;
+    --pastel-rose-ink: #8c2a4f;
+    --pastel-rose-strong: #f5b3ca;
+    --pastel-rose-wash: color-mix(in srgb, var(--pastel-rose) 55%, var(--color-surface-card));
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    --radius-card: 20px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--color-base);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  svg { display: block; }
+
+  .app {
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 20px 16px calc(172px + var(--safe-bottom));
+  }
+
+  .eyebrow { margin: 0; font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--color-ink-muted); }
+  h1 {
+    margin: 5px 0 0;
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+  }
+  .sub { margin: 7px 0 0; max-width: 34ch; font-size: 13px; line-height: 1.5; color: var(--color-ink-muted); }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 18px; }
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-card);
+  }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+  .status {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 8px; border-radius: 9999px;
+    background: var(--control-bg); color: var(--color-ink-muted);
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .status .dot { width: 5px; height: 5px; border-radius: 9999px; background: currentColor; opacity: 0.7; }
+  .status.new { background: var(--pastel-sage); color: var(--pastel-sage-ink); }
+  .card-icons { display: flex; align-items: center; gap: 0; }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border: 0; border-radius: 9999px;
+    background: transparent; color: var(--color-ink-muted);
+  }
+  .icon-btn:active { background: var(--control-hover); }
+  .quote { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.38; letter-spacing: -0.015em; }
+  .card-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-subtle);
+  }
+  .author { font-size: 12px; color: var(--color-ink-light); }
+  .repeat {
+    display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 10px;
+    border: 0; border-radius: 9999px; background: var(--control-bg);
+    color: var(--color-accent-hover); font-size: 12px; font-weight: 600;
+  }
+  .repeat .num { font-variant-numeric: tabular-nums; }
+  .repeat .unit { font-weight: 500; color: var(--color-ink-muted); }
+
+  /* Docked quick-add bar */
+  .dock {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 10px 16px calc(12px + var(--safe-bottom));
+    border-top: 1px solid color-mix(in srgb, var(--pastel-rose-strong) 42%, var(--color-surface-card));
+    border-radius: 20px 20px 0 0;
+    background: var(--pastel-rose-wash);
+    box-shadow: 0 -8px 24px -18px rgba(59, 29, 41, 0.32);
+  }
+  .dock-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .dock-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--pastel-rose-ink); }
+  .dock-label .dot { width: 5px; height: 5px; border-radius: 9999px; background: currentColor; opacity: 0.7; }
+  .dock-meta { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--color-ink-muted); white-space: nowrap; }
+  .saved-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 7px; border-radius: 9999px;
+    background: var(--pastel-sage); color: var(--pastel-sage-ink);
+    font-size: 10px; font-weight: 700;
+  }
+  .saved-chip svg { width: 11px; height: 11px; }
+  .count { font-variant-numeric: tabular-nums; }
+
+  .dock-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 4px; }
+  .dock-field {
+    flex: 1 1 auto;
+    min-height: 44px;
+    max-height: 108px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--pastel-rose-strong) 48%, var(--color-surface-card));
+    border-radius: 14px;
+    background: var(--color-field-surface);
+    outline: 0;
+    resize: none;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  .dock-field::placeholder { color: var(--color-ink-light); opacity: 1; }
+  .dock-field:focus {
+    border-color: color-mix(in srgb, var(--color-accent) 58%, var(--color-surface-card));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 16%, transparent);
+  }
+  .dock .icon-btn { flex: none; width: 44px; height: 44px; background: color-mix(in srgb, var(--color-surface-elevated) 60%, transparent); border: 1px solid color-mix(in srgb, var(--pastel-rose-strong) 32%, transparent); color: var(--pastel-rose-ink); }
+  .dock .add-btn {
+    flex: none;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    min-width: 44px; height: 44px; padding: 0 12px;
+    border: 0; border-radius: 9999px;
+    background: var(--color-accent); color: var(--color-accent-fg);
+    font-size: 13px; font-weight: 700;
+  }
+  .dock .add-btn:active { background: var(--color-accent-hover); }
+  .dock-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+  .dock-hint { font-size: 11px; line-height: 1.3; color: var(--color-ink-muted); }
+  .dock-hint kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 4px; margin-right: 3px;
+    border: 1px solid var(--border-subtle); border-bottom-color: var(--border-strong);
+    border-radius: 5px; background: color-mix(in srgb, var(--color-surface-elevated) 70%, transparent);
+    font-family: var(--font-body); font-size: 10px; font-weight: 700; color: var(--color-ink-muted);
+  }
+  .dock-done { min-height: 32px; padding: 0 10px; border: 0; border-radius: 9999px; background: transparent; color: var(--color-ink-muted); font-size: 12px; font-weight: 700; }
+  .dock-done:active { background: var(--control-hover); }
+
+  @media (max-width: 360px) {
+    .saved-chip { display: none; }
+    .dock-label { font-size: 11px; }
+    .dock-meta { font-size: 10px; }
+  }
+
+  @media (min-width: 431px) {
+    body { background: #efe6ea; }
+    .app { background: var(--color-base); min-height: 100dvh; box-shadow: 0 0 0 1px rgba(74,42,57,0.06); }
+    .dock { border-left: 1px solid rgba(74,42,57,0.08); border-right: 1px solid rgba(74,42,57,0.08); }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <p class="eyebrow">Asunción en primera persona</p>
+    <h1>Afirmaciones</h1>
+    <p class="sub">Frases directas, naturales y en presente. Sin metáforas poéticas.</p>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status new"><span class="dot" aria-hidden="true"></span>Recién agregada</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Fijar en foco"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Eliminar afirmación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Soy siempre la primera opción”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Facu</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">0</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status"><span class="dot" aria-hidden="true"></span>En foco</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Quitar de foco"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Eliminar afirmación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Mi voz y mi deseo van en la misma dirección”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Maia</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">12</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div>
+        <div class="card-top">
+          <span class="status"><span class="dot" aria-hidden="true"></span>Decreto</span>
+          <span class="card-icons">
+            <button class="icon-btn" type="button" aria-label="Escuchar afirmación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Fijar en foco"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7l2-3.2Z"/></svg></button>
+            <button class="icon-btn" type="button" aria-label="Eliminar afirmación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button>
+          </span>
+        </div>
+        <p class="quote">“Lo que decido, sucede con facilidad”</p>
+      </div>
+      <div class="card-foot">
+        <span class="author">Por Ambos</span>
+        <button class="repeat" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Repetida</span><span class="num">4</span><span class="unit">veces</span></button>
+      </div>
+    </article>
+  </div>
+</main>
+
+<section class="dock" aria-labelledby="dock-label">
+  <div class="dock-top">
+    <span class="dock-label" id="dock-label"><span class="dot" aria-hidden="true"></span>Nueva afirmación</span>
+    <span class="dock-meta">
+      <span class="saved-chip" aria-live="polite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        Guardada
+      </span>
+      <span class="count">3 en esta ráfaga</span>
+    </span>
+  </div>
+
+  <div class="dock-row">
+    <label for="mobile-quick" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Escribí una afirmación nueva</label>
+    <textarea id="mobile-quick" class="dock-field" rows="1" enterkeyhint="done" placeholder="Soy siempre la primera opción" spellcheck="false">Soy siempre la primera opción</textarea>
+    <button class="icon-btn" type="button" aria-label="Dictar afirmación">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/><path d="M8 22h8"/></svg>
+    </button>
+    <button class="add-btn" type="button" aria-label="Agregar afirmación y seguir">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+    </button>
+  </div>
+
+  <div class="dock-foot">
+    <span class="dock-hint"><kbd>Enter</kbd> o <strong>+</strong> guarda y sigue</span>
+    <button class="dock-done" type="button">Listo</button>
+  </div>
+</section>
+</body>
+</html>

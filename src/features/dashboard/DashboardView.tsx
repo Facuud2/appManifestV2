@@ -61,12 +61,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     activeScope,
     isFacuCalibrated,
     isMaiaCalibrated,
-    manifestations,
-    affirmations,
-    rampageSets,
+    manifestations: allManifestations,
+    affirmations: allAffirmations,
+    rampageSets: allRampageSets,
     addAffirmation,
     incrementAffirmationRepeat,
   } = useAppStore();
+
+  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
+  const affirmations = allAffirmations.filter((item) => item.userId === activeScope);
+  const rampageSets = allRampageSets.filter((item) => item.userId === activeScope);
 
   const isCurrentProfileCalibrated =
     activeScope === 'maia'
