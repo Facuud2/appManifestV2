@@ -609,7 +609,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
             ref={spotlightGridRef}
             className="relative mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3"
           >
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} mode="popLayout">
               {pinnedAffirmations.map((pinned, index) => {
                 const isDraggingThis = draggingSpotlightId === pinned.id;
                 const isMenuOpen = openMenuSpotlightId === pinned.id;
@@ -805,9 +805,9 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
           variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
           initial={shouldStaggerCards ? 'hidden' : false}
           animate={shouldStaggerCards ? 'show' : undefined}
-          className="grid grid-cols-1 gap-3.5 md:grid-cols-2"
+          className="relative grid grid-cols-1 gap-3.5 md:grid-cols-2"
         >
-          <AnimatePresence initial={false}>
+          <AnimatePresence initial={false} mode="popLayout">
             {bottomListAffirmations.map((item) => {
               const isSpeaking = speakingId === item.id;
               return (
@@ -830,7 +830,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                     },
                   }}
                   data-flash-tone={flashId === item.id ? 'rose' : undefined}
-                  className={`swiss-card swiss-card-hover flex flex-col justify-between p-5 ${
+                  className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 ${
                     flashId === item.id ? 'quick-add-card-flash' : ''
                   }`}
                 >

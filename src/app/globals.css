@@ -1042,6 +1042,50 @@ h3, h4 {
   background-color: color-mix(in srgb, var(--color-surface-card) 52%, transparent);
 }
 
+/* Gemini-style capture card: a touch rounder than the affirmation strip. */
+.quick-add-composer[data-variant="manifestation"] {
+  --qa-radius: 28px;
+}
+
+@media (min-width: 640px) {
+  .quick-add-composer[data-variant="manifestation"] {
+    --qa-radius: 28px;
+  }
+}
+
+/* Hide the scrollbar on the attachment chip rail while keeping it scrollable. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Spotify tile equaliser: three bars breathing while the demo plays. */
+@keyframes spotify-eq {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.spotify-eq-bar {
+  transform-origin: bottom;
+  animation: spotify-eq 900ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotify-eq-bar {
+    animation: none;
+    transform: none;
+  }
+}
+
 .quick-add-card-flash {
   animation: quick-add-card-flash 600ms var(--ease-out) both;
 }
@@ -1100,7 +1144,20 @@ html[data-affirmation-dragging="true"] body {
 @media (max-width: 639.98px) {
   /* The dock sits on a scrim so cards and the old bar never peek through. */
   .quick-add-dock {
+    /*
+     * `--quick-add-kb-inset` is written by the composer from
+     * `window.visualViewport`: iOS keeps the keyboard over the layout viewport
+     * and pans the visual one, so a plain `bottom: 0` dock ends up hidden
+     * behind it as soon as the list scrolls mid-burst.
+     */
+    bottom: var(--quick-add-kb-inset, 0px);
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
     isolation: isolate;
+  }
+
+  /* The home-indicator inset sits behind the keyboard; drop it while typing. */
+  html[data-quick-add-keyboard="true"] .quick-add-dock {
+    padding-bottom: 0.75rem;
   }
 
   .quick-add-dock::before {
@@ -1554,6 +1611,18 @@ html[data-affirmation-dragging="true"] body {
     border-color: var(--border-strong);
     box-shadow: var(--shadow-dropdown);
   }
+}
+
+/*
+ * Cards animated by Framer Motion (layout reflow, exit, tap scale).
+ * Framer writes `transform` inline on every frame; a CSS transition on
+ * transform interpolates those frames and makes the card drift behind the
+ * grid, so list reflows after a delete read as broken. Paint-only here.
+ */
+.motion-card {
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
 }
 
 .swiss-sidebar {

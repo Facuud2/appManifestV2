@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { turso } from '@/lib/turso';
 import { ensureDefaultAffirmations } from '@/lib/affirmationSeed';
 import { getDailyAiUsage, TIER_1_DAILY_LIMIT } from '@/lib/gemini';
+import {
+  isMediaAttachment,
+  isSongAttachment,
+  parseAttachmentJson,
+  serializeAttachment,
+} from '@/lib/manifestationAttachments';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -62,6 +68,8 @@ export async function GET(req: NextRequest) {
       category: r.category as string,
       status: r.status as string,
       targetDate: (r.target_date as string) || undefined,
+      songAttachment: parseAttachmentJson(r.song_attachment, isSongAttachment),
+      mediaAttachment: parseAttachmentJson(r.media_attachment, isMediaAttachment),
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
     }));
@@ -252,8 +260,8 @@ export async function POST(req: NextRequest) {
 
       if (entity === 'manifestation') {
         await turso.execute({
-          sql: `INSERT INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sql: `INSERT INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, song_attachment, media_attachment, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                   user_id = excluded.user_id,
                   author = excluded.author,
@@ -263,6 +271,8 @@ export async function POST(req: NextRequest) {
                   category = excluded.category,
                   status = excluded.status,
                   target_date = excluded.target_date,
+                  song_attachment = excluded.song_attachment,
+                  media_attachment = excluded.media_attachment,
                   updated_at = excluded.updated_at;`,
           args: [
             data.id,
@@ -274,6 +284,8 @@ export async function POST(req: NextRequest) {
             data.category || 'crecimiento',
             data.status || 'semilla',
             data.targetDate || null,
+            serializeAttachment(data.songAttachment),
+            serializeAttachment(data.mediaAttachment),
             data.createdAt || now,
             data.updatedAt || now,
           ],

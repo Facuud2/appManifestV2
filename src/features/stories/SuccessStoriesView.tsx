@@ -1,10 +1,16 @@
 'use client';
 
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Trophy, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { EMIL_CARD_TAP, EMIL_EASE_OUT, STAGGER_CONTAINER, STAGGER_ITEM } from '@/lib/iosSprings';
+import {
+  EMIL_CARD_TAP,
+  EMIL_EASE_OUT,
+  POSITION_CHANGE_TRANSITION,
+  STAGGER_CONTAINER,
+  STAGGER_ITEM,
+} from '@/lib/iosSprings';
 
 interface SuccessStoriesViewProps {
   onOpenNewStory: () => void;
@@ -18,6 +24,7 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
   } = useAppStore();
   const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
   const shouldStaggerCards = successStories.length <= 6;
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <div className="space-y-7 pb-32 sm:pb-12">
@@ -63,22 +70,22 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
           variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
           initial={shouldStaggerCards ? 'hidden' : false}
           animate={shouldStaggerCards ? 'show' : undefined}
-          className="grid grid-cols-1 gap-3.5 md:grid-cols-2"
+          className="relative grid grid-cols-1 gap-3.5 md:grid-cols-2"
         >
-          <AnimatePresence initial={false}>
+          <AnimatePresence initial={false} mode="popLayout">
             {successStories.map((story) => (
               <motion.article
                 key={story.id}
-                layout
+                layout={prefersReducedMotion ? false : 'position'}
+                transition={{ layout: POSITION_CHANGE_TRANSITION }}
                 variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
                 whileTap={EMIL_CARD_TAP}
                 exit={{
                   opacity: 0,
-                  y: 4,
-                  scale: 0.97,
-                  transition: { duration: 0.18, ease: EMIL_EASE_OUT },
+                  scale: 0.98,
+                  transition: { duration: 0.15, ease: EMIL_EASE_OUT },
                 }}
-                className="swiss-card swiss-card-hover flex flex-col justify-between p-5"
+                className="swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5"
               >
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-2">

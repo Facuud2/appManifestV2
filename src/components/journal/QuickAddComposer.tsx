@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
-import { AlertCircle, Check, Plus } from 'lucide-react';
+import { AlertCircle, ArrowUp, Check, Plus } from 'lucide-react';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
 
@@ -31,6 +31,8 @@ export interface QuickAddComposerProps {
   placeholder: string;
   /** Content pigment: rose for affirmations, butter for manifestations. */
   tone: QuickAddTone;
+  /** `manifestation` moves the actions into the Gemini-style bottom toolbar. */
+  variant?: 'default' | 'manifestation';
   isOpen: boolean;
   onClose: () => void;
   /**
@@ -54,12 +56,25 @@ export interface QuickAddComposerProps {
   maxRows?: number;
   /** Extra controls (manifestation title / sensory anchor) rendered under the field. */
   options?: React.ReactNode;
+  /** Attachment menu / add button rendered at the start of the bottom toolbar. */
+  leadingAction?: React.ReactNode;
+  /** Attachment chips rendered above the textarea. */
+  attachments?: React.ReactNode;
+  /** Disables the pointer dismissal (click outside) while a modal/sheet child is active. */
+  disableDismiss?: boolean;
+  /** Disables the primary submit while media is being processed. */
+  submitDisabled?: boolean;
   /** Quiet escape hatch to the full editor. Desktop footer only. */
   advancedAction?: QuickAddAdvancedAction;
   /** Non-blocking inline language warning, derived from the current draft. */
   getWarning?: (text: string) => string | null;
   onWarningChange?: (warning: string | null) => void;
   dictationSample?: string;
+  /**
+   * Toast shown after "Listo" saves and closes the composer when nothing had
+   * been saved during the current burst (the inline chip is not visible then).
+   */
+  savedToast?: string;
 }
 
 const MAX_LENGTH = 500;
@@ -72,6 +87,7 @@ export const QuickAddComposer = React.forwardRef<
     label,
     placeholder,
     tone,
+    variant = 'default',
     isOpen,
     onClose,
     onDismiss,
@@ -85,14 +101,20 @@ export const QuickAddComposer = React.forwardRef<
     hintMobile,
     maxRows = 3,
     options,
+    leadingAction,
+    attachments,
+    disableDismiss = false,
+    submitDisabled = false,
     advancedAction,
     getWarning,
     onWarningChange,
     dictationSample,
+    savedToast,
   },
   ref,
 ) {
   const prefersReducedMotion = useReducedMotion();
+  const isManifestation = variant === 'manifestation';
   const fieldId = useId();
   const labelId = useId();
   const hintId = useId();
@@ -112,6 +134,25 @@ export const QuickAddComposer = React.forwardRef<
   const [offlineNotice, setOfflineNotice] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastHost, setToastHost] = useState<HTMLElement | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  /* The toast must escape any transformed page wrapper, so it lives on <body>. */
+  useEffect(() => {
+    setToastHost(document.body);
+  }, []);
+
+  const showSavedToast = useCallback((message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      toastTimerRef.current = null;
+      setToastMessage(null);
+    }, 2600);
+  }, []);
 
   /*
    * The mobile dock is fixed, so a filtered ancestor would become its containing
@@ -133,17 +174,23 @@ export const QuickAddComposer = React.forwardRef<
    * immediately reopens the panel. The draft is cleared on close.
    */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || disableDismiss) return;
     const handleDocumentClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
+      // If the clicked target was unmounted during click handling (e.g. portal menu item clicked), ignore
+      if (!target.isConnected) return;
       if (composerRef.current?.contains(target)) return;
-      if ((target as HTMLElement).closest?.('[data-quick-add-trigger]')) return;
+      const el = target instanceof HTMLElement ? target : target.parentElement;
+      if (el?.closest?.('[data-quick-add-trigger]')) return;
+      if (el?.closest?.('[data-quick-add-portal]')) return;
+      if (el?.closest?.('[role="menu"][aria-label*="Adjuntar"]')) return;
+      if (el?.closest?.('[role="dialog"][aria-labelledby="music-search-title"]')) return;
       (onDismiss ?? onClose)();
     };
     document.addEventListener('click', handleDocumentClick);
     return () => document.removeEventListener('click', handleDocumentClick);
-  }, [isOpen, onClose, onDismiss]);
+  }, [isOpen, disableDismiss, onClose, onDismiss]);
 
   const warning = getWarning && draft.trim() ? getWarning(draft) : null;
 
@@ -177,6 +224,63 @@ export const QuickAddComposer = React.forwardRef<
       } else {
         root.dataset.quickAddOpen = previous;
       }
+    };
+  }, [isOpen]);
+
+  /*
+   * Pin the dock to the bottom of what the user can actually see.
+   *
+   * iOS keeps the keyboard on top of the layout viewport and pans the visual
+   * viewport as the page scrolls. A `bottom: 0` fixed dock then slides behind
+   * the keyboard after the first couple of saves and the user keeps typing
+   * into a field they cannot see. Deriving the offset from `visualViewport`
+   * works for both models: when the layout viewport is resized the inset is 0,
+   * and when it is not (or has been panned) the dock follows the visible edge.
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const root = document.documentElement;
+    let frame = 0;
+
+    const sync = () => {
+      frame = 0;
+      const inset =
+        viewport.scale > 1.01
+          ? 0
+          : Math.max(
+              0,
+              Math.round(
+                window.innerHeight - viewport.height - viewport.offsetTop,
+              ),
+            );
+
+      root.style.setProperty('--quick-add-kb-inset', `${inset}px`);
+      if (inset > 40) {
+        root.dataset.quickAddKeyboard = 'true';
+      } else {
+        delete root.dataset.quickAddKeyboard;
+      }
+    };
+
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(sync);
+    };
+
+    sync();
+    viewport.addEventListener('resize', schedule);
+    viewport.addEventListener('scroll', schedule);
+    window.addEventListener('orientationchange', schedule);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      viewport.removeEventListener('resize', schedule);
+      viewport.removeEventListener('scroll', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      root.style.removeProperty('--quick-add-kb-inset');
+      delete root.dataset.quickAddKeyboard;
     };
   }, [isOpen]);
 
@@ -233,9 +337,15 @@ export const QuickAddComposer = React.forwardRef<
 
     resizeField();
     // Reflow the field when the viewport changes (rotation, split screen, the
-    // mobile dock going from 390px to 320px), otherwise the text can clip.
+    // mobile dock going from 390px to 320px, or the keyboard suggestions bar
+    // changing height), otherwise the text can clip.
     window.addEventListener('resize', resizeField);
-    return () => window.removeEventListener('resize', resizeField);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', resizeField);
+    return () => {
+      window.removeEventListener('resize', resizeField);
+      viewport?.removeEventListener('resize', resizeField);
+    };
   }, [draft, isOpen, maxRows]);
 
   /*
@@ -259,13 +369,16 @@ export const QuickAddComposer = React.forwardRef<
       if (savedTimerRef.current !== null) {
         window.clearTimeout(savedTimerRef.current);
       }
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
     };
   }, []);
 
   const submit = useCallback(
     (closeAfter: boolean) => {
       const text = draft.trim();
-      if (!text || submitLockRef.current) return;
+      if (!text || submitLockRef.current || submitDisabled) return;
 
       submitLockRef.current = true;
       window.setTimeout(() => {
@@ -273,6 +386,9 @@ export const QuickAddComposer = React.forwardRef<
       }, 0);
 
       const nextCount = savedCount + 1;
+      // Only the first save of a burst is silent in the UI when the composer
+      // closes, because the inline "guardada" chip disappears with it.
+      const isFirstSave = savedCount === 0;
       setSavedCount(nextCount);
       setJustSaved(true);
       setAnnouncement(`${savedLabel}. ${nextCount} en esta ráfaga.`);
@@ -298,12 +414,34 @@ export const QuickAddComposer = React.forwardRef<
       onSaved?.();
 
       if (closeAfter) {
+        if (isFirstSave && savedToast) {
+          showSavedToast(savedToast);
+        }
         onClose();
       } else {
-        window.requestAnimationFrame(() => fieldRef.current?.focus());
+        // Keep the burst going without re-focusing a field that already has
+        // focus: a programmatic focus mid-typing makes iOS Safari scroll the
+        // viewport and can leave the dock behind the keyboard.
+        window.requestAnimationFrame(() => {
+          const field = fieldRef.current;
+          if (field && document.activeElement !== field) {
+            field.focus({ preventScroll: true });
+          }
+        });
       }
     },
-    [draft, onClose, onSaved, onSubmit, savedCount, savedLabel, updateDraft],
+    [
+      draft,
+      onClose,
+      onSaved,
+      onSubmit,
+      savedCount,
+      savedLabel,
+      savedToast,
+      showSavedToast,
+      submitDisabled,
+      updateDraft,
+    ],
   );
 
   const handleDone = useCallback(() => {
@@ -314,6 +452,16 @@ export const QuickAddComposer = React.forwardRef<
     onClose();
     return false;
   }, [draft, submit, onClose]);
+
+  /*
+   * The Gemini-style arrow saves the manifestation and closes the composer, so
+   * the user lands on the card that just appeared. Enter (form submit) keeps
+   * the burst going instead.
+   */
+  const handleArrowSubmit = useCallback(() => {
+    if (!draft.trim() || submitDisabled) return;
+    submit(true);
+  }, [draft, submit, submitDisabled]);
 
   useImperativeHandle(
     ref,
@@ -372,7 +520,7 @@ export const QuickAddComposer = React.forwardRef<
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="quick-add-dock fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:z-auto sm:px-0 sm:pb-0"
+          className="quick-add-dock fixed inset-x-0 z-50 px-3 sm:static sm:z-auto sm:px-0 sm:pb-0"
         >
           <form
             ref={composerRef}
@@ -385,6 +533,7 @@ export const QuickAddComposer = React.forwardRef<
             aria-labelledby={labelId}
             aria-describedby={describedBy}
             data-tone={tone}
+            data-variant={variant}
             className="quick-add-composer mx-auto w-full px-3.5 py-3 sm:px-5 sm:py-4"
           >
             <span className="qa-refract" aria-hidden="true" />
@@ -432,122 +581,212 @@ export const QuickAddComposer = React.forwardRef<
               </div>
             </div>
 
-            <div className="mt-1.5 flex items-end gap-2">
-              <textarea
-                ref={fieldRef}
-                id={fieldId}
-                value={draft}
-                rows={1}
-                maxLength={MAX_LENGTH}
-                enterKeyHint="send"
-                autoComplete="off"
-                spellCheck
-                placeholder={placeholder}
-                aria-describedby={describedBy}
-                onChange={(event) => updateDraft(event.target.value)}
-                onKeyDown={handleFieldKeyDown}
-                className="quick-add-field min-w-0 flex-1"
-              />
+            {isManifestation ? (
+              <>
+                {attachments ? <div className="mt-2">{attachments}</div> : null}
 
-              <div className="flex shrink-0 items-center gap-1.5 pb-0.5 sm:hidden">
-                <VoiceDictationButton
-                  size="md"
-                  className="quick-add-mic"
-                  label={`Dictar ${label.toLowerCase()}`}
-                  sampleText={dictationSample}
-                  onTranscript={(transcript) =>
-                    updateDraft(draft ? `${draft} ${transcript}` : transcript)
-                  }
-                  previousTextTail={draft}
+                <textarea
+                  ref={fieldRef}
+                  id={fieldId}
+                  value={draft}
+                  rows={1}
+                  maxLength={MAX_LENGTH}
+                  enterKeyHint="send"
+                  autoComplete="off"
+                  spellCheck
+                  placeholder={placeholder}
+                  aria-describedby={describedBy}
+                  onChange={(event) => updateDraft(event.target.value)}
+                  onKeyDown={handleFieldKeyDown}
+                  className="quick-add-field mt-1.5 w-full"
                 />
-                <button
-                  type="submit"
-                  disabled={!draft.trim()}
-                  onPointerDown={(event) => event.preventDefault()}
-                  aria-label={submitAriaLabel}
-                  className="quick-add-submit inline-flex h-11 w-11 items-center justify-center disabled:opacity-45"
-                >
-                  <Plus size={19} strokeWidth={2.4} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
 
-            {warning && (
-              <p
-                id={warningId}
-                className="quick-add-warning mt-2 flex items-start gap-1.5 text-xs leading-5"
-              >
-                <AlertCircle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>{warning}</span>
-              </p>
-            )}
-
-            {options}
-
-            {offlineNotice && (
-              <p role="status" className="mt-2 text-xs leading-5 text-[color:var(--color-ink-muted)]">
-                Guardada en este dispositivo. Se sincroniza cuando vuelva la conexión.
-              </p>
-            )}
-
-            {submitError && (
-              <p role="alert" className="mt-2 text-xs leading-5 text-swiss-red">
-                {submitError}
-              </p>
-            )}
-
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-              <div className="flex w-full items-center justify-between gap-1.5 sm:order-2 sm:w-auto sm:justify-end">
-                {advancedAction && (
-                  <button
-                    type="button"
-                    onClick={advancedAction.onClick}
-                    className="quick-add-advanced inline-flex min-h-11 items-center rounded-full px-3 text-xs font-medium text-[color:var(--color-ink-muted)] transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus sm:order-none sm:min-h-9 sm:px-2 sm:underline-offset-2 sm:hover:underline"
+                {warning && (
+                  <p
+                    id={warningId}
+                    className="quick-add-warning mt-2 flex items-start gap-1.5 text-xs leading-5"
                   >
-                    {advancedAction.label}
-                  </button>
+                    <AlertCircle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>{warning}</span>
+                  </p>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleDone}
-                  aria-label={draft.trim() ? 'Guardar y cerrar' : 'Cerrar composer y conservar lo agregado'}
-                  className="quick-add-done inline-flex min-h-11 items-center rounded-full px-4 text-xs font-semibold text-[color:var(--color-ink)] transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus sm:hidden"
-                >
-                  Listo
-                </button>
+                {options}
 
-                <span className="hidden sm:block">
-                  <VoiceDictationButton
-                    size="md"
-                    className="quick-add-mic"
-                    label={`Dictar ${label.toLowerCase()}`}
-                    sampleText={dictationSample}
-                    onTranscript={(transcript) =>
-                      updateDraft(draft ? `${draft} ${transcript}` : transcript)
-                    }
-                    previousTextTail={draft}
+                {offlineNotice && (
+                  <p role="status" className="mt-2 text-xs leading-5 text-[color:var(--color-ink-muted)]">
+                    Guardada en este dispositivo. Se sincroniza cuando vuelva la conexión.
+                  </p>
+                )}
+
+                {submitError && (
+                  <p role="alert" className="mt-2 text-xs leading-5 text-swiss-red">
+                    {submitError}
+                  </p>
+                )}
+
+                <div className="mt-2.5 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-1">
+                    {leadingAction}
+                    {advancedAction && (
+                      <button
+                        type="button"
+                        onClick={advancedAction.onClick}
+                        className="quick-add-advanced hidden min-h-9 items-center rounded-full px-2 text-xs font-medium text-[color:var(--color-ink-muted)] transition-colors hover:text-swiss-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus sm:inline-flex"
+                      >
+                        {advancedAction.label}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <VoiceDictationButton
+                      size="md"
+                      className="quick-add-mic"
+                      label={`Dictar ${label.toLowerCase()}`}
+                      sampleText={dictationSample}
+                      onTranscript={(transcript) =>
+                        updateDraft(draft ? `${draft} ${transcript}` : transcript)
+                      }
+                      previousTextTail={draft}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleArrowSubmit}
+                      disabled={!draft.trim() || submitDisabled}
+                      onPointerDown={(event) => event.preventDefault()}
+                      aria-label={submitAriaLabel}
+                      className="quick-add-submit inline-flex h-11 w-11 items-center justify-center disabled:opacity-45"
+                    >
+                      <ArrowUp size={20} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                <p id={hintId} className="sr-only">
+                  {hint}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="mt-1.5 flex items-end gap-2">
+                  <textarea
+                    ref={fieldRef}
+                    id={fieldId}
+                    value={draft}
+                    rows={1}
+                    maxLength={MAX_LENGTH}
+                    enterKeyHint="send"
+                    autoComplete="off"
+                    spellCheck
+                    placeholder={placeholder}
+                    aria-describedby={describedBy}
+                    onChange={(event) => updateDraft(event.target.value)}
+                    onKeyDown={handleFieldKeyDown}
+                    className="quick-add-field min-w-0 flex-1"
                   />
-                </span>
 
-                <button
-                  type="submit"
-                  disabled={!draft.trim()}
-                  aria-label={submitAriaLabel}
-                  className="quick-add-submit-text hidden min-h-9 items-center justify-center px-4 text-xs font-semibold text-[color:var(--color-accent-fg)] disabled:opacity-45 disabled:shadow-none sm:inline-flex"
-                >
-                  Agregar
-                </button>
-              </div>
+                  <div className="flex shrink-0 items-center gap-1.5 pb-0.5 sm:hidden">
+                    <VoiceDictationButton
+                      size="md"
+                      className="quick-add-mic"
+                      label={`Dictar ${label.toLowerCase()}`}
+                      sampleText={dictationSample}
+                      onTranscript={(transcript) =>
+                        updateDraft(draft ? `${draft} ${transcript}` : transcript)
+                      }
+                      previousTextTail={draft}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!draft.trim()}
+                      onPointerDown={(event) => event.preventDefault()}
+                      aria-label={submitAriaLabel}
+                      className="quick-add-submit inline-flex h-11 w-11 items-center justify-center disabled:opacity-45"
+                    >
+                      <Plus size={19} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
 
-              <p
-                id={hintId}
-                className="quick-add-hint w-full min-w-0 text-[0.6875rem] leading-4 text-[color:var(--color-ink-muted)] sm:order-1 sm:w-auto sm:text-xs sm:leading-5"
-              >
-                <span className="sm:hidden">{hintMobile ?? hint}</span>
-                <span className="hidden sm:inline">{hint}</span>
-              </p>
-            </div>
+                {warning && (
+                  <p
+                    id={warningId}
+                    className="quick-add-warning mt-2 flex items-start gap-1.5 text-xs leading-5"
+                  >
+                    <AlertCircle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>{warning}</span>
+                  </p>
+                )}
+
+                {options}
+
+                {offlineNotice && (
+                  <p role="status" className="mt-2 text-xs leading-5 text-[color:var(--color-ink-muted)]">
+                    Guardada en este dispositivo. Se sincroniza cuando vuelva la conexión.
+                  </p>
+                )}
+
+                {submitError && (
+                  <p role="alert" className="mt-2 text-xs leading-5 text-swiss-red">
+                    {submitError}
+                  </p>
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                  <div className="flex w-full items-center justify-between gap-1.5 sm:order-2 sm:w-auto sm:justify-end">
+                    {advancedAction && (
+                      <button
+                        type="button"
+                        onClick={advancedAction.onClick}
+                        className="quick-add-advanced inline-flex min-h-11 items-center rounded-full px-3 text-xs font-medium text-[color:var(--color-ink-muted)] transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus sm:order-none sm:min-h-9 sm:px-2 sm:underline-offset-2 sm:hover:underline"
+                      >
+                        {advancedAction.label}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleDone}
+                      aria-label={draft.trim() ? 'Guardar y cerrar' : 'Cerrar composer y conservar lo agregado'}
+                      className="quick-add-done inline-flex min-h-11 items-center rounded-full px-4 text-xs font-semibold text-[color:var(--color-ink)] transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus sm:hidden"
+                    >
+                      Listo
+                    </button>
+
+                    <span className="hidden sm:block">
+                      <VoiceDictationButton
+                        size="md"
+                        className="quick-add-mic"
+                        label={`Dictar ${label.toLowerCase()}`}
+                        sampleText={dictationSample}
+                        onTranscript={(transcript) =>
+                          updateDraft(draft ? `${draft} ${transcript}` : transcript)
+                        }
+                        previousTextTail={draft}
+                      />
+                    </span>
+
+                    <button
+                      type="submit"
+                      disabled={!draft.trim()}
+                      aria-label={submitAriaLabel}
+                      className="quick-add-submit-text hidden min-h-9 items-center justify-center px-4 text-xs font-semibold text-[color:var(--color-accent-fg)] disabled:opacity-45 disabled:shadow-none sm:inline-flex"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+
+                  <p
+                    id={hintId}
+                    className="quick-add-hint w-full min-w-0 text-[0.6875rem] leading-4 text-[color:var(--color-ink-muted)] sm:order-1 sm:w-auto sm:text-xs sm:leading-5"
+                  >
+                    <span className="sm:hidden">{hintMobile ?? hint}</span>
+                    <span className="hidden sm:inline">{hint}</span>
+                  </p>
+                </div>
+              </>
+            )}
 
             <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
               {announcement}
@@ -559,5 +798,44 @@ export const QuickAddComposer = React.forwardRef<
     </AnimatePresence>
   );
 
-  return portalNode ? createPortal(composer, portalNode) : composer;
+  const savedToastNode = (
+    <AnimatePresence>
+      {toastMessage && (
+        <motion.div
+          key="saved-toast"
+          aria-hidden="true"
+          initial={{
+            opacity: 0,
+            y: prefersReducedMotion ? 0 : 10,
+            scale: prefersReducedMotion ? 1 : 0.97,
+          }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{
+            opacity: 0,
+            y: prefersReducedMotion ? 0 : 6,
+            scale: prefersReducedMotion ? 1 : 0.98,
+          }}
+          transition={{ duration: 0.2, ease: EMIL_EASE_OUT }}
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[60] flex justify-center px-4 lg:bottom-6"
+        >
+          <span className="inline-flex items-center gap-2 rounded-full border border-swiss-border bg-swiss-elevated px-4 py-2 text-[0.8125rem] font-semibold text-swiss-ink shadow-dropdown">
+            <Check
+              size={15}
+              strokeWidth={2.8}
+              className="text-[color:var(--color-success)]"
+              aria-hidden="true"
+            />
+            {toastMessage}
+          </span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  return (
+    <>
+      {portalNode ? createPortal(composer, portalNode) : composer}
+      {toastHost ? createPortal(savedToastNode, toastHost) : null}
+    </>
+  );
 });

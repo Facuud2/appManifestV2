@@ -6,6 +6,13 @@ import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { BACKDROP_TRANSITION, MODAL_TRANSITION } from '@/lib/iosSprings';
+import { putMedia } from '@/lib/mediaStorage';
+import { createManifestationId } from '@/lib/manifestationAttachments';
+import { stopActivePreview } from '@/lib/audioPreviewBus';
+import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
+import { AttachmentMenu } from './attachments/AttachmentMenu';
+import { AttachmentChipRow } from './attachments/AttachmentChipRow';
+import { MusicSearchSheet } from './attachments/MusicSearchSheet';
 
 interface ManifestationEditorModalProps {
   isOpen: boolean;
@@ -24,13 +31,30 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
   const [targetDate, setTargetDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [isMusicOpen, setIsMusicOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const draft = useAttachmentDraft();
+
+  const handleClose = () => {
+    if (isMusicOpen) return;
+    setIsMusicOpen(false);
+    draft.reset();
+    onClose();
+  };
+
+  /* If the parent closes the modal, drop any attachment the user had picked. */
+  useEffect(() => {
+    if (isOpen) return;
+    draft.reset();
+    setIsMusicOpen(false);
+    // `reset` is stable; running this only on close keeps the draft intact while open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const root = document.documentElement;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;    const root = document.documentElement;
     const previousRootOverflow = root.style.overflow;
     const previousBodyOverflow = document.body.style.overflow;
     root.style.overflow = 'hidden';
@@ -48,8 +72,9 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
 
   const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
+      if (isMusicOpen) return;
       event.stopPropagation();
-      onClose();
+      handleClose();
       return;
     }
 
@@ -77,10 +102,22 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
     const generatedTitle =
       firstLine.length > 72 ? `${firstLine.slice(0, 69).trimEnd()}…` : firstLine;
 
+    const id = createManifestationId();
+    const songAttachment = draft.song;
+    const draftMedia = draft.media;
+    const mediaAttachment = draft.buildMediaAttachment(id);
+    const blobToPersist = draftMedia?.blob ?? null;
+    const storageKey = mediaAttachment?.storageKey ?? null;
+
     setIsSubmitting(true);
     setSaveError(false);
     try {
+      if (blobToPersist && storageKey) {
+        await putMedia(storageKey, blobToPersist);
+      }
+
       await addManifestation({
+        id,
         userId: activeScope,
         author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
         title: title.trim() || generatedTitle || description.trim().slice(0, 72),
@@ -88,12 +125,15 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
         sensoryAnchor: sensoryAnchor.trim() || undefined,
         status: 'semilla',
         targetDate: targetDate || undefined,
+        songAttachment: songAttachment ?? null,
+        mediaAttachment: mediaAttachment ?? null,
       });
 
       setTitle('');
       setDescription('');
       setSensoryAnchor('');
-      onClose();
+      setTargetDate('');
+      handleClose();
     } catch (err) {
       setSaveError(true);
       console.warn('[ManifestationEditor] Error saving:', err);
@@ -103,14 +143,15 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <>
+      <AnimatePresence>
+        {isOpen && (
         <motion.div
           variants={BACKDROP_TRANSITION}
           initial="hidden"
           animate="visible"
           exit="exit"
-          onClick={onClose}
+          onClick={handleClose}
           className="manifestation-composer-scrim fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6"
         >
           <motion.div
@@ -140,7 +181,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
               </div>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 aria-label="Cerrar formulario de manifestación"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--control-bg)] text-[var(--color-ink-muted)] transition-colors hover:bg-[var(--control-hover)] hover:text-[var(--color-ink)]"
               >
@@ -149,6 +190,17 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
             </header>
 
             <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-3">
+              <AttachmentChipRow
+                song={draft.song}
+                media={
+                  draft.media
+                    ? { attachment: draft.media.attachment, previewUrl: draft.media.previewUrl }
+                    : null
+                }
+                onRemoveSong={draft.removeSong}
+                onRemoveMedia={draft.removeMedia}
+              />
+
               <div className="manifestation-composer-field relative">
                 <label htmlFor="manifestation-description" className="sr-only">
                   Tu intención
@@ -162,6 +214,17 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
                   required
                   className="swiss-composer-field h-[8.5rem] min-h-[8.5rem] w-full resize-none rounded-[12px] px-4 pb-14 pt-4 text-sm leading-6"
                 />
+                <div className="absolute bottom-3 left-3">
+                  <AttachmentMenu
+                    disabled={draft.isProcessing || Boolean(draft.song && draft.media)}
+                    onPhoto={draft.attachPhoto}
+                    onVideo={draft.attachVideo}
+                    onSong={() => {
+                      stopActivePreview();
+                      setIsMusicOpen(true);
+                    }}
+                  />
+                </div>
                 <VoiceDictationButton
                   size="lg"
                   className="manifestation-composer-mic absolute bottom-3 right-3 h-11 w-11 rounded-xl border-0"
@@ -171,6 +234,12 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
                   previousTextTail={description}
                 />
               </div>
+
+              {draft.error ? (
+                <p role="alert" className="text-xs leading-5 text-[var(--color-swiss-red)]">
+                  {draft.error}
+                </p>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-1">
                 <details className="group manifestation-composer-details">
@@ -245,5 +314,12 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
         </motion.div>
       )}
     </AnimatePresence>
+
+    <MusicSearchSheet
+      isOpen={isMusicOpen}
+      onClose={() => setIsMusicOpen(false)}
+      onSelect={draft.selectSong}
+    />
+  </>
   );
 };

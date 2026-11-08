@@ -26,6 +26,52 @@ export interface CalibrationPhrase {
   focus: string;
 }
 
+/**
+ * A song that accompanies a manifestation. Metadata is small enough to live in
+ * Turso; the actual audio is never stored, only a short preview URL when the
+ * free provider can supply one.
+ */
+export interface SongAttachment {
+  id: string;
+  title: string;
+  artist: string;
+  albumCoverUrl: string;
+  spotifyUrl: string;
+  previewAudioUrl: string | null;
+  provider?: 'spotify' | 'itunes' | 'deezer';
+  providerTrackId?: string;
+  previewFetchedAt?: string;
+}
+
+/** A result returned by the free music search route. */
+export interface MusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  albumCoverUrl: string;
+  spotifyUrl: string;
+  previewAudioUrl: string | null;
+  provider: 'spotify' | 'itunes' | 'deezer';
+  providerTrackId?: string;
+}
+
+/**
+ * A photo or video attached to a manifestation. Only the lightweight thumbnail
+ * travels to Turso; the full blob stays in IndexedDB on the device that
+ * created it.
+ */
+export interface MediaAttachment {
+  kind: 'photo' | 'video';
+  thumbDataUrl: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  durationSeconds?: number;
+  byteSize: number;
+  storageKey: string;
+}
+
 export interface Affirmation {
   id: string;
   userId: UserScope;

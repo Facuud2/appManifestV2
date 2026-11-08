@@ -9,7 +9,11 @@ import {
   RampageSet,
   AmbientSoundType,
   VoiceProfileMeta,
+  SongAttachment,
+  MediaAttachment,
 } from '@/types';
+import { deleteMedia } from '@/lib/mediaStorage';
+import { createManifestationId } from '@/lib/manifestationAttachments';
 import {
   detectAutomatedSandbox,
   getVoiceProfileMeta,
@@ -44,6 +48,8 @@ export interface ManifestationItem {
   category?: string;
   status: 'semilla' | 'alineacion' | 'evidencia' | 'materializado';
   targetDate?: string;
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -198,7 +204,9 @@ interface AppState {
   fetchRemoteData: () => Promise<void>;
 
   // Actions
-  addManifestation: (item: Omit<ManifestationItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ManifestationItem>;
+  addManifestation: (
+    item: Omit<ManifestationItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  ) => Promise<ManifestationItem>;
   updateManifestationStatus: (id: string, status: ManifestationItem['status']) => Promise<void>;
   deleteManifestation: (id: string) => Promise<void>;
 
@@ -432,7 +440,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     addManifestation: async (item) => {
       const scope = item.userId || get().activeScope;
-      const id = `manif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const id = (item as { id?: string }).id || createManifestationId();
       const now = new Date().toISOString();
       const newItem: ManifestationItem = {
         ...item,
@@ -501,6 +509,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     deleteManifestation: async (id) => {
       const scope = get().activeScope;
+      const target = get().manifestations.find((m) => m.id === id);
       set((state) => {
         const nextManifestations = state.manifestations.filter((m) => m.id !== id);
         const nextProgressLogs = state.progressLogs.filter((p) => p.manifestationId !== id);
@@ -523,6 +532,10 @@ export const useAppStore = create<AppState>((set, get) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity: 'manifestation', action: 'delete', scope, id }),
       }).catch(console.error);
+
+      if (target?.mediaAttachment?.storageKey) {
+        void deleteMedia(target.mediaAttachment.storageKey);
+      }
     },
 
     addProgressLog: async (log) => {

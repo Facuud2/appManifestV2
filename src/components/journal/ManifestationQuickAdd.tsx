@@ -4,7 +4,17 @@ import React, { useId, useImperativeHandle, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
+import { putMedia } from '@/lib/mediaStorage';
+import {
+  buildMediaStorageKey,
+  createManifestationId,
+} from '@/lib/manifestationAttachments';
+import { stopActivePreview } from '@/lib/audioPreviewBus';
+import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
 import { QuickAddComposer, type QuickAddComposerHandle } from './QuickAddComposer';
+import { AttachmentMenu } from './attachments/AttachmentMenu';
+import { AttachmentChipRow } from './attachments/AttachmentChipRow';
+import { MusicSearchSheet } from './attachments/MusicSearchSheet';
 
 export interface ManifestationQuickAddHandle {
   submitAndClose: () => boolean;
@@ -45,6 +55,9 @@ export const ManifestationQuickAdd = React.forwardRef<
 
   const [title, setTitle] = useState('');
   const [sensoryAnchor, setSensoryAnchor] = useState('');
+  const [isMusicOpen, setIsMusicOpen] = useState(false);
+
+  const draft = useAttachmentDraft();
 
   useImperativeHandle(
     ref,
@@ -60,34 +73,64 @@ export const ManifestationQuickAdd = React.forwardRef<
     if (detailsRef.current) detailsRef.current.open = false;
   };
 
+  const resetAttachments = () => {
+    draft.reset();
+    setIsMusicOpen(false);
+  };
+
   const handleSaved = () => {
     resetOptions();
     onSaved?.();
   };
 
   const handleClose = () => {
+    if (isMusicOpen) return;
     resetOptions();
+    resetAttachments();
     onClose();
   };
 
   const handleDismiss = () => {
+    if (isMusicOpen) return;
     resetOptions();
+    resetAttachments();
     (onDismiss ?? onClose)();
   };
 
-  const handleSubmit = (text: string) => {
+  const handleSubmit = async (text: string) => {
     const description = text.trim() || title.trim();
     if (!description) return;
+
     const generatedTitle = deriveTitle(description);
     const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
 
-    return addManifestation({
+    const id = createManifestationId();
+    const songAttachment = draft.song;
+    const draftMedia = draft.media;
+    const mediaAttachment = draft.buildMediaAttachment(id);
+
+    // Capture the blob before the draft is reset, so the file survives even if
+    // the composer clears its chips immediately.
+    const blobToPersist = draftMedia?.blob ?? null;
+    const storageKey = mediaAttachment?.storageKey ?? null;
+
+    resetOptions();
+    resetAttachments();
+
+    if (blobToPersist && storageKey) {
+      await putMedia(storageKey, blobToPersist);
+    }
+
+    await addManifestation({
+      id,
       userId: activeScope,
       author,
       title: title.trim() || generatedTitle || description.slice(0, 72),
       description,
       sensoryAnchor: sensoryAnchor.trim() || undefined,
       status: 'semilla',
+      songAttachment: songAttachment ?? null,
+      mediaAttachment: mediaAttachment ?? null,
     });
   };
 
@@ -161,30 +204,79 @@ export const ManifestationQuickAdd = React.forwardRef<
     </details>
   );
 
-  return (
-    <QuickAddComposer
-      ref={composerRef}
-      label="Nueva manifestación"
-      placeholder="Quiero manifestar…"
-      tone="butter"
-      isOpen={isOpen}
-      onClose={handleClose}
-      onDismiss={handleDismiss}
-      onSubmit={handleSubmit}
-      onSaved={handleSaved}
-      savedLabel="Intención guardada"
-      savedLabelShort="Guardada"
-      submitAriaLabel="Agregar manifestación y seguir"
-      hint="Enter guarda y sigue · Shift+Enter baja de línea"
-      hintMobile="Enter o + guarda y sigue"
-      maxRows={4}
-      options={options}
-      dictationSample="Quiero manifestar que mi vida se ordena con facilidad"
-      advancedAction={
-        onOpenAdvanced
-          ? { label: 'Editor completo', onClick: onOpenAdvanced }
-          : undefined
-      }
+  const leadingAction = (
+    <AttachmentMenu
+      disabled={draft.isProcessing || Boolean(draft.song && draft.media)}
+      onPhoto={draft.attachPhoto}
+      onVideo={draft.attachVideo}
+      onSong={() => {
+        stopActivePreview();
+        setIsMusicOpen(true);
+      }}
     />
+  );
+
+  const attachments = (
+    <>
+      <AttachmentChipRow
+        song={draft.song}
+        media={
+          draft.media
+            ? { attachment: draft.media.attachment, previewUrl: draft.media.previewUrl }
+            : null
+        }
+        onRemoveSong={draft.removeSong}
+        onRemoveMedia={draft.removeMedia}
+      />
+      {draft.error ? (
+        <p
+          role="alert"
+          className="mt-1.5 px-1 text-xs leading-5 text-[color:var(--color-swiss-red)]"
+        >
+          {draft.error}
+        </p>
+      ) : null}
+    </>
+  );
+
+  return (
+    <>
+      <QuickAddComposer
+        ref={composerRef}
+        label="Nueva manifestación"
+        placeholder="Quiero manifestar…"
+        tone="butter"
+        variant="manifestation"
+        isOpen={isOpen}
+        onClose={handleClose}
+        onDismiss={handleDismiss}
+        onSubmit={handleSubmit}
+        onSaved={handleSaved}
+        savedLabel="Intención guardada"
+        savedLabelShort="Guardada"
+        savedToast="Manifestación guardada"
+        submitAriaLabel="Guardar manifestación"
+        hint="Enter guarda y sigue · Shift+Enter baja de línea"
+        hintMobile="Enter o ↑ guarda y cierra"
+        maxRows={4}
+        options={options}
+        leadingAction={leadingAction}
+        attachments={attachments}
+        disableDismiss={isMusicOpen}
+        submitDisabled={draft.isProcessing}
+        dictationSample="Quiero manifestar que mi vida se ordena con facilidad"
+        advancedAction={
+          onOpenAdvanced
+            ? { label: 'Editor completo', onClick: onOpenAdvanced }
+            : undefined
+        }
+      />
+
+      <MusicSearchSheet
+        isOpen={isMusicOpen}
+        onClose={() => setIsMusicOpen(false)}
+        onSelect={draft.selectSong}
+      />
+    </>
   );
 });

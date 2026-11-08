@@ -1,13 +1,18 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Check, Feather, Plus, Trophy, Footprints, Trash2 } from 'lucide-react';
 import { useAppStore, ManifestationItem } from '@/store';
 import { ManifestationQuickAdd, type ManifestationQuickAddHandle } from '@/components/journal/ManifestationQuickAdd';
+import { SpotifyMiniPlayer } from '@/components/journal/attachments/SpotifyMiniPlayer';
+import { MediaPreview } from '@/components/journal/attachments/MediaPreview';
+import { MediaLightbox } from '@/components/journal/attachments/MediaLightbox';
+import type { MediaAttachment } from '@/types';
 import {
   EMIL_CARD_TAP,
   EMIL_EASE_OUT,
+  POSITION_CHANGE_TRANSITION,
   STAGGER_CONTAINER,
   STAGGER_ITEM,
 } from '@/lib/iosSprings';
@@ -64,8 +69,10 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
 
   const shouldStaggerCards = manifestations.length <= 6;
+  const prefersReducedMotion = useReducedMotion();
 
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [lightboxMedia, setLightboxMedia] = useState<MediaAttachment | null>(null);
   const flashTimerRef = useRef<number | null>(null);
   const quickAddRef = useRef<ManifestationQuickAddHandle>(null);
 
@@ -173,25 +180,25 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
           variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
           initial={shouldStaggerCards ? 'hidden' : false}
           animate={shouldStaggerCards ? 'show' : undefined}
-          className="grid grid-cols-1 gap-3.5 md:grid-cols-2"
+          className="relative grid grid-cols-1 gap-3.5 md:grid-cols-2"
         >
-          <AnimatePresence initial={false}>
+          <AnimatePresence initial={false} mode="popLayout">
             {manifestations.map((item) => {
               const nextStatus = nextStatusMap[item.status] ?? 'semilla';
               return (
                 <motion.article
                   key={item.id}
-                  layout
+                  layout={prefersReducedMotion ? false : 'position'}
+                  transition={{ layout: POSITION_CHANGE_TRANSITION }}
                   variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
                   whileTap={EMIL_CARD_TAP}
                   exit={{
                     opacity: 0,
-                    y: 4,
-                    scale: 0.97,
-                    transition: { duration: 0.18, ease: EMIL_EASE_OUT },
+                    scale: 0.98,
+                    transition: { duration: 0.15, ease: EMIL_EASE_OUT },
                   }}
                   data-flash-tone={flashId === item.id ? 'butter' : undefined}
-                  className={`swiss-card swiss-card-hover flex flex-col justify-between p-5 ${
+                  className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 ${
                     flashId === item.id ? 'quick-add-card-flash' : ''
                   }`}
                 >
@@ -230,6 +237,20 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                         </span>
                         “{item.sensoryAnchor}”
                       </div>
+                    )}
+
+                    {item.mediaAttachment && (
+                      <MediaPreview
+                        media={item.mediaAttachment}
+                        onOpen={() => setLightboxMedia(item.mediaAttachment ?? null)}
+                      />
+                    )}
+
+                    {item.songAttachment && (
+                      <SpotifyMiniPlayer
+                        song={item.songAttachment}
+                        className="mt-3"
+                      />
                     )}
 
                     {(() => {
@@ -303,6 +324,12 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
           </AnimatePresence>
         </motion.div>
       )}
+
+      <MediaLightbox
+        media={lightboxMedia}
+        isOpen={Boolean(lightboxMedia)}
+        onClose={() => setLightboxMedia(null)}
+      />
     </div>
   );
 };

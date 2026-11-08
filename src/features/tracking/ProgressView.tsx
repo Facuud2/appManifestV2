@@ -7,6 +7,7 @@ import { useAppStore } from '@/store';
 import {
   EMIL_CARD_TAP,
   EMIL_EASE_OUT,
+  POSITION_CHANGE_TRANSITION,
   STAGGER_CONTAINER,
   STAGGER_ITEM,
 } from '@/lib/iosSprings';
@@ -143,9 +144,9 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                 variants={shouldStaggerStories ? STAGGER_CONTAINER : undefined}
                 initial={shouldStaggerStories ? 'hidden' : false}
                 animate={shouldStaggerStories ? 'show' : undefined}
-                className="grid grid-cols-1 gap-4 md:grid-cols-2"
+                className="relative grid grid-cols-1 gap-4 md:grid-cols-2"
               >
-                <AnimatePresence initial={false}>
+                <AnimatePresence initial={false} mode="popLayout">
                   {successStories.map((story) => {
                     const linkedManifestation = story.manifestationId
                       ? manifestations.find((m) => m.id === story.manifestationId)
@@ -154,16 +155,16 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                     return (
                       <motion.article
                         key={story.id}
-                        layout
+                        layout={prefersReducedMotion ? false : 'position'}
+                        transition={{ layout: POSITION_CHANGE_TRANSITION }}
                         variants={shouldStaggerStories ? STAGGER_ITEM : undefined}
                         whileTap={EMIL_CARD_TAP}
                         exit={{
                           opacity: 0,
-                          y: 4,
-                          scale: 0.97,
-                          transition: { duration: 0.18, ease: EMIL_EASE_OUT },
+                          scale: 0.98,
+                          transition: { duration: 0.15, ease: EMIL_EASE_OUT },
                         }}
-                        className="swiss-card swiss-card-hover flex flex-col justify-between p-5"
+                        className="swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5"
                       >
                         <div>
                           <div className="mb-3 flex items-center justify-between gap-2">
