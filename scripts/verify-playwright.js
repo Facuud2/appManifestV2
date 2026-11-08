@@ -295,7 +295,7 @@ async function runVerification() {
       // Click "¡Se cumplió!" on that Manifestation card to create a linked Success Story with voice dictation
       await manifCard.getByRole('button', { name: /¡Se cumplió!/i }).click();
       const storyDialog = page.getByRole('dialog');
-      await storyDialog.getByRole('button', { name: /Dictar por voz|Dictar con IA/i }).nth(1).click();
+      await storyDialog.getByRole('button', { name: /Dictar por voz|Dictar con IA/i }).first().click();
       const uniqueStoryBody = `Sucedió tal cual lo asumí: SP me declaró su amor literal.`;
       await page.locator('#success-story-body').fill(uniqueStoryBody);
       await storyDialog.getByRole('button', { name: /Guardar historia/i }).click();

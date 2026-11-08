@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { NavTab } from './BottomNavigation';
-import { Feather, Footprints, LayoutGrid, Mic, Quote, Sparkles, Trophy } from 'lucide-react';
+import { Feather, Footprints, LayoutGrid, Mic, Quote, Sparkles } from 'lucide-react';
 import { useAppStore } from '@/store';
 
 interface DesktopSidebarProps {
@@ -21,6 +21,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const {
     manifestations: allManifestations,
     affirmations: allAffirmations,
+    progressLogs: allProgressLogs,
     successStories: allSuccessStories,
     activeScope,
     isFacuCalibrated,
@@ -31,6 +32,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 
   const manifestations = allManifestations.filter((item) => item.userId === activeScope);
   const affirmations = allAffirmations.filter((item) => item.userId === activeScope);
+  const progressLogs = allProgressLogs.filter((item) => item.userId === activeScope);
   const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
 
   const isCurrentCalibrated =
@@ -54,12 +56,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       icon: Feather,
       badge: manifestations.length,
     },
-    { id: 'progress' as NavTab, label: 'Avances', icon: Footprints },
     {
-      id: 'stories' as NavTab,
-      label: 'Historias',
-      icon: Trophy,
-      badge: successStories.length,
+      id: 'progress' as NavTab,
+      label: 'Avances',
+      icon: Footprints,
+      badge: progressLogs.length + successStories.length,
     },
   ];
 

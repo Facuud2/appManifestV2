@@ -14,11 +14,9 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
   const {
     activeScope,
     successStories: allSuccessStories,
-    manifestations: allManifestations,
     deleteSuccessStory,
   } = useAppStore();
   const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
-  const manifestations = allManifestations.filter((item) => item.userId === activeScope);
   const shouldStaggerCards = successStories.length <= 6;
 
   return (
@@ -107,25 +105,9 @@ export const SuccessStoriesView: React.FC<SuccessStoriesViewProps> = ({ onOpenNe
                   <h2 className="text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
                     {story.title}
                   </h2>
-                  {story.manifestationId && (
-                    <p className="mt-1 text-xs font-medium text-swiss-accentText">
-                      Vinculada a:{' '}
-                      {manifestations.find((m) => m.id === story.manifestationId)?.title ||
-                        'Manifestación cumplida'}
-                    </p>
-                  )}
                   <p className="mt-2 text-sm leading-6 text-swiss-ink-muted whitespace-pre-line">
                     {story.story}
                   </p>
-
-                  {story.gratitudeNote && (
-                    <div className="mt-3.5 rounded-[12px] bg-swiss-control px-3.5 py-3 text-[0.8125rem] leading-5 text-swiss-ink-muted">
-                      <span className="mb-1 block text-xs font-semibold text-swiss-ink-light">
-                        Gratitud
-                      </span>
-                      “{story.gratitudeNote}”
-                    </div>
-                  )}
                 </div>
 
                 <div className="mt-4 flex items-center justify-between border-t border-swiss-border pt-3.5 text-xs text-swiss-ink-light">

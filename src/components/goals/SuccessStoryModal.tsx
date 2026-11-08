@@ -23,11 +23,10 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
 }) => {
   const { activeScope, manifestations: allManifestations, addSuccessStory, updateManifestationStatus } = useAppStore();
   const manifestations = allManifestations.filter((item) => item.userId === activeScope);
+  const linkedManifestation = manifestations.find((item) => item.id === manifestationId);
+  const resolvedTitle = manifestationTitle || linkedManifestation?.title || '';
 
-  const [selectedManifId, setSelectedManifId] = useState(manifestationId || '');
-  const [title, setTitle] = useState(manifestationTitle);
   const [story, setStory] = useState('');
-  const [gratitudeNote, setGratitudeNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -38,9 +37,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
     setSaveError(false);
-    setSelectedManifId(manifestationId || '');
-
-    if (manifestationTitle) setTitle(manifestationTitle);
+    setStory('');
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -73,19 +70,20 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!title.trim() || !story.trim()) return;
+    const finalTitle = resolvedTitle.trim();
+    if (!finalTitle || !story.trim()) return;
 
     setIsSubmitting(true);
     setSaveError(false);
     try {
-      const targetManifId = selectedManifId || manifestationId || undefined;
+      const targetManifId = manifestationId || undefined;
       await addSuccessStory({
         manifestationId: targetManifId,
         userId: activeScope,
         author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
-        title: title.trim(),
+        title: finalTitle,
         story: story.trim(),
-        gratitudeNote: gratitudeNote.trim(),
+        gratitudeNote: '',
         manifestedDate: new Date().toISOString().split('T')[0],
         signsEncountered: [],
         mindsetShift: '',
@@ -95,10 +93,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
         await updateManifestationStatus(targetManifId, 'materializado');
       }
 
-      setTitle('');
       setStory('');
-      setGratitudeNote('');
-      setSelectedManifId('');
 
       try {
         confetti({
@@ -173,51 +168,17 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label htmlFor="success-story-manifestation" className="mb-2 block text-sm font-semibold">
-                  Vincular a una manifestación <span className="font-normal text-[var(--color-ink-muted)]">· opcional</span>
+                <label htmlFor="success-story-title" className="mb-2 block text-sm font-semibold">
+                  ¿Qué se hizo realidad?
                 </label>
-                <select
-                  id="success-story-manifestation"
-                  value={selectedManifId}
-                  onChange={(event) => {
-                    const nextId = event.target.value;
-                    setSelectedManifId(nextId);
-                    if (nextId && !title.trim()) {
-                      const matched = manifestations.find((item) => item.id === nextId);
-                      if (matched) setTitle(matched.title);
-                    }
-                  }}
-                  className="swiss-composer-field min-h-12 w-full px-4 py-3 text-base"
-                >
-                  <option value="">Historia independiente (sin vínculo específico)</option>
-                  {manifestations.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label htmlFor="success-story-title" className="text-sm font-semibold">
-                    ¿Qué se hizo realidad?
-                  </label>
-                  <VoiceDictationButton
-                    size="md"
-                    className="h-11 w-11 rounded-full"
-                    onTranscript={(text) => setTitle((previous) => (previous ? `${previous} ${text}` : text))}
-                    previousTextTail={title}
-                  />
-                </div>
                 <input
                   id="success-story-title"
                   type="text"
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Ej. Recibí el ascenso que esperaba"
-                  required
-                  className="swiss-composer-field min-h-12 w-full px-4 py-3 text-base"
+                  value={resolvedTitle}
+                  disabled
+                  readOnly
+                  aria-readonly="true"
+                  className="swiss-composer-field min-h-12 w-full cursor-not-allowed select-none bg-[var(--control-bg)] px-4 py-3 text-base font-medium text-[var(--color-ink-muted)] opacity-80"
                 />
               </div>
 
@@ -244,30 +205,6 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
                 />
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label htmlFor="success-story-gratitude" className="text-sm font-semibold">
-                    Nota de gratitud <span className="font-normal text-[var(--color-ink-muted)]">· opcional</span>
-                  </label>
-                  <VoiceDictationButton
-                    size="md"
-                    className="h-11 w-11 rounded-full"
-                    onTranscript={(text) =>
-                      setGratitudeNote((previous) => (previous ? `${previous} ${text}` : text))
-                    }
-                    previousTextTail={gratitudeNote}
-                  />
-                </div>
-                <input
-                  id="success-story-gratitude"
-                  type="text"
-                  value={gratitudeNote}
-                  onChange={(event) => setGratitudeNote(event.target.value)}
-                  placeholder="¿Qué agradeces de esta experiencia?"
-                  className="swiss-composer-field min-h-12 w-full px-4 py-3 text-base"
-                />
-              </div>
-
               {saveError && (
                 <p role="alert" className="text-sm font-medium text-[var(--color-swiss-red)]">
                   No se pudo guardar la historia. Inténtalo de nuevo.
@@ -284,7 +221,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !title.trim() || !story.trim()}
+                  disabled={isSubmitting || !resolvedTitle.trim() || !story.trim()}
                   aria-busy={isSubmitting}
                   className="swiss-btn-primary inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold disabled:opacity-60"
                 >

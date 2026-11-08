@@ -22,8 +22,9 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { Affirmation } from '@/types';
+import { Affirmation, AmbientSoundType } from '@/types';
 import { AffirmationQuickAdd } from '@/components/journal/AffirmationQuickAdd';
+import { PinnedRampageModal } from '@/components/journal/PinnedRampageModal';
 import { sortAffirmations } from '@/lib/affirmationEngine';
 import {
   EMIL_CARD_TAP,
@@ -36,6 +37,7 @@ import {
 interface AffirmationsViewProps {
   onOpenNewAffirmation: () => void;
   onOpenRampage: () => void;
+  onStartPinnedRampage?: (affirmations: string[], ambientSound?: AmbientSoundType) => void;
   isQuickAddOpen?: boolean;
   onQuickAddOpen?: (trigger: HTMLElement) => void;
   onQuickAddClose?: (restoreFocus?: boolean) => void;
@@ -76,6 +78,7 @@ const ThreeLinesGripIcon: React.FC<{ className?: string }> = ({ className }) => 
 export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
   onOpenNewAffirmation,
   onOpenRampage,
+  onStartPinnedRampage,
   isQuickAddOpen: controlledIsQuickAddOpen,
   onQuickAddOpen,
   onQuickAddClose,
@@ -98,6 +101,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [internalQuickAddOpen, setInternalQuickAddOpen] = useState(false);
   const isQuickAddOpen = controlledIsQuickAddOpen ?? internalQuickAddOpen;
+  const [isPinnedRampageOpen, setIsPinnedRampageOpen] = useState(false);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [draggingSpotlightId, setDraggingSpotlightId] = useState<string | null>(
     null
@@ -541,6 +545,20 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
         }}
       />
 
+      <PinnedRampageModal
+        isOpen={isPinnedRampageOpen}
+        onClose={() => setIsPinnedRampageOpen(false)}
+        pinnedAffirmations={pinnedAffirmations}
+        onStartPractice={(selectedTexts, ambientSound) => {
+          setIsPinnedRampageOpen(false);
+          if (onStartPinnedRampage) {
+            onStartPinnedRampage(selectedTexts, ambientSound);
+          } else {
+            onOpenRampage();
+          }
+        }}
+      />
+
       {/* Spotlight de Decretos Fijados (Única sección con acceso de 3 rayitas para moverlas) */}
       {pinnedAffirmations.length > 0 && (
         <section
@@ -570,7 +588,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
 
             <button
               type="button"
-              onClick={onOpenRampage}
+              onClick={() => setIsPinnedRampageOpen(true)}
               className="swiss-btn-secondary inline-flex min-h-9 items-center gap-2 self-start px-3.5 text-xs font-semibold text-[color:var(--pastel-peri-ink)] focus-visible:ring-2 focus-visible:ring-swiss-focus sm:self-auto"
             >
               <Headphones size={14} aria-hidden="true" />
@@ -614,91 +632,110 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                         “{pinned.text}”
                       </p>
 
-                      {pinnedAffirmations.length > 1 && (
-                        <div
-                          data-reorder-menu-zone="true"
-                          className="relative -mr-1 -mt-1 inline-flex shrink-0 items-center"
+                      <div className="relative -mr-1 -mt-1 flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void togglePinAffirmation(pinned.id);
+                          }}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          aria-label={`Desfijar de foco: ${pinned.text}`}
+                          title="Desfijar de foco"
+                          data-testid={`spotlight-unpin-${pinned.id}`}
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--pastel-peri)] text-[color:var(--pastel-peri-ink)] transition-colors hover:bg-swiss-control hover:text-swiss-ink active:scale-95 focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+                            isDraggingThis ? 'pointer-events-none' : ''
+                          }`}
                         >
-                          <button
-                            type="button"
-                            onPointerDown={(event) =>
-                              handleSpotlightDragPointerDown(event, pinned)
-                            }
-                            onKeyDown={(event) =>
-                              handleSpotlightKeyDown(event, pinned)
-                            }
-                            aria-label={`Reacomodar decreto fijado (${index + 1} de ${pinnedAffirmations.length}): ${pinned.text}`}
-                            aria-expanded={isMenuOpen}
-                            title="Arrastrar para reacomodar"
-                            data-testid={`spotlight-drag-handle-${pinned.id}`}
-                            className={`drag-handle affirmation-drag-handle inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
-                              isDraggingThis || isMenuOpen
-                                ? 'bg-swiss-control text-swiss-ink'
-                                : 'text-swiss-ink-light hover:bg-swiss-control hover:text-swiss-ink'
-                            }`}
-                          >
-                            <ThreeLinesGripIcon />
-                          </button>
+                          <Pin size={14} aria-hidden="true" />
+                        </button>
 
-                          <AnimatePresence>
-                            {isMenuOpen && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0.97, y: 4 }}
-                                animate={{
-                                  opacity: 1,
-                                  scale: 1,
-                                  y: 0,
-                                  transition: {
-                                    duration: 0.25,
-                                    ease: TRANSITIONS_SMOOTH_OUT,
-                                  },
-                                }}
-                                exit={{
-                                  opacity: 0,
-                                  scale: 0.99,
-                                  y: 0,
-                                  transition: {
-                                    duration: 0.15,
-                                    ease: TRANSITIONS_SMOOTH_OUT,
-                                  },
-                                }}
-                                role="group"
-                                aria-label={`Mover decreto fijado: ${pinned.text}`}
-                                className="swiss-card absolute right-0 top-full z-30 mt-1.5 flex items-center gap-1 rounded-full border border-swiss-borderStrong bg-swiss-card p-1 shadow-elevated"
-                              >
-                                <button
-                                  type="button"
-                                  disabled={!canMoveUp}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void moveAffirmation(pinned.id, 'up');
+                        {pinnedAffirmations.length > 1 && (
+                          <div
+                            data-reorder-menu-zone="true"
+                            className="relative inline-flex shrink-0 items-center"
+                          >
+                            <button
+                              type="button"
+                              onPointerDown={(event) =>
+                                handleSpotlightDragPointerDown(event, pinned)
+                              }
+                              onKeyDown={(event) =>
+                                handleSpotlightKeyDown(event, pinned)
+                              }
+                              aria-label={`Reacomodar decreto fijado (${index + 1} de ${pinnedAffirmations.length}): ${pinned.text}`}
+                              aria-expanded={isMenuOpen}
+                              title="Arrastrar para reacomodar"
+                              data-testid={`spotlight-drag-handle-${pinned.id}`}
+                              className={`drag-handle affirmation-drag-handle inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+                                isDraggingThis || isMenuOpen
+                                  ? 'bg-swiss-control text-swiss-ink'
+                                  : 'text-swiss-ink-light hover:bg-swiss-control hover:text-swiss-ink'
+                              }`}
+                            >
+                              <ThreeLinesGripIcon />
+                            </button>
+
+                            <AnimatePresence>
+                              {isMenuOpen && (
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.97, y: 4 }}
+                                  animate={{
+                                    opacity: 1,
+                                    scale: 1,
+                                    y: 0,
+                                    transition: {
+                                      duration: 0.25,
+                                      ease: TRANSITIONS_SMOOTH_OUT,
+                                    },
                                   }}
-                                  aria-label={`Subir posición: ${pinned.text}`}
-                                  title="Mover antes"
-                                  className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-swiss-ink transition-colors hover:bg-swiss-control disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-swiss-focus"
-                                >
-                                  <ArrowUp size={13} aria-hidden="true" />
-                                  <span>Subir</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={!canMoveDown}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void moveAffirmation(pinned.id, 'down');
+                                  exit={{
+                                    opacity: 0,
+                                    scale: 0.99,
+                                    y: 0,
+                                    transition: {
+                                      duration: 0.15,
+                                      ease: TRANSITIONS_SMOOTH_OUT,
+                                    },
                                   }}
-                                  aria-label={`Bajar posición: ${pinned.text}`}
-                                  title="Mover después"
-                                  className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-swiss-ink transition-colors hover:bg-swiss-control disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                                  role="group"
+                                  aria-label={`Mover decreto fijado: ${pinned.text}`}
+                                  className="swiss-card absolute right-0 top-full z-30 mt-1.5 flex items-center gap-1 rounded-full border border-swiss-borderStrong bg-swiss-card p-1 shadow-elevated"
                                 >
-                                  <ArrowDown size={13} aria-hidden="true" />
-                                  <span>Bajar</span>
-                                </button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      )}
+                                  <button
+                                    type="button"
+                                    disabled={!canMoveUp}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void moveAffirmation(pinned.id, 'up');
+                                    }}
+                                    aria-label={`Subir posición: ${pinned.text}`}
+                                    title="Mover antes"
+                                    className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-swiss-ink transition-colors hover:bg-swiss-control disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                                  >
+                                    <ArrowUp size={13} aria-hidden="true" />
+                                    <span>Subir</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!canMoveDown}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void moveAffirmation(pinned.id, 'down');
+                                    }}
+                                    aria-label={`Bajar posición: ${pinned.text}`}
+                                    title="Mover después"
+                                    className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-swiss-ink transition-colors hover:bg-swiss-control disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                                  >
+                                    <ArrowDown size={13} aria-hidden="true" />
+                                    <span>Bajar</span>
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-2">

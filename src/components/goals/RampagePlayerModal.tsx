@@ -42,18 +42,26 @@ import {
   getCachedAffirmationAudio,
   saveCachedAffirmationAudio,
 } from '@/lib/voiceStorage';
-import { RampageSet, UserScope } from '@/types';
+import { AmbientSoundType, RampageSet, UserScope } from '@/types';
 import { ElasticContainer } from '@/components/ui/ElasticContainer';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { RampageAudioWaveform } from './RampageAudioWaveform';
+
+export interface DirectRampagePayload {
+  title: string;
+  affirmations: string[];
+  ambientSound: AmbientSoundType;
+  requestId: number;
+}
 
 interface RampagePlayerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRestore: () => void;
-  openMode: 'new' | 'restore';
+  openMode: 'new' | 'restore' | 'pinned';
   resumeRampage: RampageSet | null;
   resumeRequestId: number;
+  directRampage?: DirectRampagePayload | null;
   centralTheme?: string;
   onPlaybackChange?: (isPlaying: boolean, currentAffirmation?: string) => void;
   registerTogglePlayback?: (toggleFn: () => void) => void;
@@ -119,6 +127,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   openMode,
   resumeRampage,
   resumeRequestId,
+  directRampage = null,
   centralTheme = '',
   onPlaybackChange,
   registerTogglePlayback,
@@ -603,7 +612,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       return;
     }
 
-    if (openMode === 'restore') {
+    if (openMode === 'restore' || openMode === 'pinned') {
       setIsMinimized(false);
       return;
     }
@@ -708,6 +717,91 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setCurrentVoiceSpeaker(getSpeakerForText(affirmations[0] || '', 0));
     void preloadSetStaggered(affirmations);
   }, [getSpeakerForText, preloadSetStaggered, resumeRampage, resumeRequestId]);
+
+  useEffect(() => {
+    if (!directRampage || directRampage.requestId === 0) return;
+    const affirmations = directRampage.affirmations
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (affirmations.length === 0) return;
+
+    playbackRequestRef.current += 1;
+    batchAbortRef.current?.abort();
+    batchAbortRef.current = null;
+    audioPreparationControllersRef.current.forEach((controller) => controller.abort());
+    audioPreparationControllersRef.current.clear();
+    generatedAudioPromisesRef.current.clear();
+    if (nextAffirmationTimerRef.current !== null) {
+      window.clearTimeout(nextAffirmationTimerRef.current);
+      nextAffirmationTimerRef.current = null;
+    }
+    audioEngine?.stopVoice();
+    audioEngine?.stopAmbience();
+
+    const inferredCount: RampageLoopCount =
+      affirmations.length <= 5 ? 5 : affirmations.length <= 11 ? 11 : 15;
+    const title = directRampage.title || 'Decretos fijados';
+    const chosenAmbient = directRampage.ambientSound || 'astral_rain';
+
+    setAmbientSound(chosenAmbient);
+    activeRampageRef.current = {
+      title,
+      details: '',
+      count: inferredCount,
+    };
+    activeRampageScopeRef.current = activeScope;
+    baseAffirmationsRef.current = affirmations;
+    affirmationQueueRef.current = affirmations;
+    isNewSessionRef.current = false;
+    setAffirmationQueue(affirmations);
+    setCurrentAffirmationIndex(0);
+    setPhrasesHeardCount(0);
+    setCompletedCyclesCount(0);
+    setIsBreathingPause(false);
+    setPlaybackError('');
+    setGenerationError('');
+    setIsLoadingBatch(false);
+    setIsSynthesizing(false);
+    setAudioPreparationWarning('');
+    setHasStarted(true);
+    setIsMinimized(false);
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    resumeAutoPlayRef.current = true;
+    setCurrentVoiceSpeaker(getSpeakerForText(affirmations[0] || '', 0));
+
+    void (async () => {
+      try {
+        const savedSet = await saveRampageSet({
+          userId: activeScope,
+          author:
+            activeScope === 'maia'
+              ? 'Maia'
+              : activeScope === 'facu'
+                ? 'Facu'
+                : 'Juntos',
+          title,
+          affirmations: affirmations.map((text, index) => ({
+            id: `${Date.now()}_${index}`,
+            text,
+            repeatCount: 0,
+          })),
+          ambientSound: chosenAmbient,
+          isFavorite: false,
+        });
+        activeRampageSetRef.current = savedSet;
+        setIsSavedToSanctuary(true);
+      } catch (err) {
+        console.warn('Could not save pinned rampage set to store:', err);
+      }
+    })();
+
+    if (audioEngine && chosenAmbient !== 'none') {
+      audioEngine.setAmbience(chosenAmbient as AmbienceType);
+    }
+
+    void preloadSetStaggered(affirmations);
+  }, [activeScope, directRampage, getSpeakerForText, preloadSetStaggered, saveRampageSet, setAmbientSound]);
 
   useEffect(() => {
     if (activeRampageScopeRef.current !== activeScope && (hasStarted || isMinimized || isOpen)) {
@@ -865,7 +959,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     if (!resumeAutoPlayRef.current || affirmationQueue.length === 0 || !hasStarted) return;
     resumeAutoPlayRef.current = false;
     void playCurrentItem(0);
-  }, [affirmationQueue, hasStarted, resumeRequestId]);
+  }, [affirmationQueue, hasStarted, resumeRequestId, directRampage?.requestId]);
 
   const togglePlayback = async () => {
     if (!audioEngine) return;

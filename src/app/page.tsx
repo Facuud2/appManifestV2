@@ -13,15 +13,14 @@ import { DashboardSkeleton } from '@/features/dashboard/DashboardSkeleton';
 import { ManifestationsView } from '@/features/journal/ManifestationsView';
 import { AffirmationsView } from '@/features/journal/AffirmationsView';
 import { ProgressView } from '@/features/tracking/ProgressView';
-import { SuccessStoriesView } from '@/features/stories/SuccessStoriesView';
 import { VoiceCalibrationModal } from '@/components/voice/VoiceCalibrationModal';
-import { RampagePlayerModal } from '@/components/goals/RampagePlayerModal';
+import { RampagePlayerModal, DirectRampagePayload } from '@/components/goals/RampagePlayerModal';
 import { ManifestationEditorModal } from '@/components/journal/ManifestationEditorModal';
 import { AffirmationEditorModal } from '@/components/journal/AffirmationEditorModal';
 import { ProgressLogModal } from '@/components/goals/ProgressLogModal';
 import { SuccessStoryModal } from '@/components/goals/SuccessStoryModal';
 import { audioEngine } from '@/lib/audioEngine';
-import { RampageSet } from '@/types';
+import { AmbientSoundType, RampageSet } from '@/types';
 
 const SCOPE_REGENERATION_MIN_MS = 320;
 const SCOPE_REGENERATION_MAX_MS = 6000;
@@ -49,8 +48,9 @@ export default function HomePage() {
   // Modals state
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [isRampageOpen, setIsRampageOpen] = useState(false);
-  const [rampageOpenMode, setRampageOpenMode] = useState<'new' | 'restore'>('new');
+  const [rampageOpenMode, setRampageOpenMode] = useState<'new' | 'restore' | 'pinned'>('new');
   const [rampageToResume, setRampageToResume] = useState<RampageSet | null>(null);
+  const [directRampagePayload, setDirectRampagePayload] = useState<DirectRampagePayload | null>(null);
   const [resumeRequestId, setResumeRequestId] = useState(0);
   const [isRampagePlaying, setIsRampagePlaying] = useState(false);
   const [currentRampageAffirmation, setCurrentRampageAffirmation] = useState('');
@@ -239,9 +239,26 @@ export default function HomePage() {
 
   const handleOpenNewRampage = useCallback(() => {
     setRampageToResume(null);
+    setDirectRampagePayload(null);
     setRampageOpenMode('new');
     setIsRampageOpen(true);
   }, []);
+
+  const handleStartPinnedRampage = useCallback(
+    (affirmations: string[], ambientSound: AmbientSoundType = 'astral_rain') => {
+      void audioEngine?.unlock();
+      setRampageToResume(null);
+      setDirectRampagePayload({
+        title: 'Decretos fijados',
+        affirmations,
+        ambientSound,
+        requestId: Date.now(),
+      });
+      setRampageOpenMode('pinned');
+      setIsRampageOpen(true);
+    },
+    []
+  );
 
   const handleContinueRampage = useCallback((rampage: RampageSet) => {
     void audioEngine?.unlock();
@@ -284,6 +301,7 @@ export default function HomePage() {
       setIsNewAffirmationOpen(true);
     } else {
       setRampageToResume(null);
+      setDirectRampagePayload(null);
       setRampageOpenMode('new');
       setIsRampageOpen(true);
     }
@@ -409,6 +427,7 @@ export default function HomePage() {
                   <AffirmationsView
                     onOpenNewAffirmation={() => setIsNewAffirmationOpen(true)}
                     onOpenRampage={handleOpenNewRampage}
+                    onStartPinnedRampage={handleStartPinnedRampage}
                     isQuickAddOpen={quickAddSection === 'affirmations'}
                     onQuickAddOpen={(trigger) => openQuickAdd('affirmations', trigger)}
                     onQuickAddClose={closeQuickAdd}
@@ -426,15 +445,12 @@ export default function HomePage() {
                   />
                 )}
 
-                {activeTab === 'progress' && (
+                {(activeTab === 'progress' || activeTab === 'stories') && (
                   <ProgressView
+                    initialSection={activeTab === 'stories' ? 'stories' : 'progress'}
                     onOpenNewProgress={handleOpenProgress}
                     onSelectManifestation={(_id) => setActiveTab('manifestations')}
                   />
-                )}
-
-                {activeTab === 'stories' && (
-                  <SuccessStoriesView onOpenNewStory={() => handleOpenCrownSuccess('')} />
                 )}
               </motion.div>
             </motion.div>
@@ -471,6 +487,7 @@ export default function HomePage() {
         openMode={rampageOpenMode}
         resumeRampage={rampageToResume}
         resumeRequestId={resumeRequestId}
+        directRampage={directRampagePayload}
         onPlaybackChange={handlePlaybackChange}
         registerTogglePlayback={handleRegisterTogglePlayback}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
