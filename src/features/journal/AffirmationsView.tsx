@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { Affirmation, AmbientSoundType } from '@/types';
-import { AffirmationQuickAdd } from '@/components/journal/AffirmationQuickAdd';
+import { AffirmationQuickAdd, type AffirmationQuickAddHandle } from '@/components/journal/AffirmationQuickAdd';
 import { PinnedRampageModal } from '@/components/journal/PinnedRampageModal';
 import { sortAffirmations } from '@/lib/affirmationEngine';
 import {
@@ -111,6 +111,14 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
   );
 
   const quickAddCtaRef = useRef<HTMLButtonElement>(null);
+  const quickAddRef = useRef<AffirmationQuickAddHandle>(null);
+
+  const handleHeaderDone = () => {
+    const handled = quickAddRef.current?.submitAndClose();
+    if (!handled) {
+      handleCloseQuickAdd();
+    }
+  };
   const spotlightGridRef = useRef<HTMLDivElement>(null);
   const flashTimerRef = useRef<number | null>(null);
   const settleTimerRef = useRef<number | null>(null);
@@ -511,7 +519,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
           data-quick-add-trigger="true"
           onClick={(event) =>
             isQuickAddOpen
-              ? handleCloseQuickAdd()
+              ? handleHeaderDone()
               : handleOpenQuickAdd(event.currentTarget)
           }
           className={
@@ -535,6 +543,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
       </header>
 
       <AffirmationQuickAdd
+        ref={quickAddRef}
         isOpen={isQuickAddOpen}
         onClose={() => handleCloseQuickAdd()}
         onDismiss={() => handleCloseQuickAdd(false)}

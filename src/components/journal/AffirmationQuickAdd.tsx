@@ -1,11 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useImperativeHandle, useRef } from 'react';
 import { useAppStore } from '@/store';
 import { findPoeticTerm } from '@/lib/affirmationEngine';
-import { QuickAddComposer } from './QuickAddComposer';
+import { QuickAddComposer, type QuickAddComposerHandle } from './QuickAddComposer';
 
-interface AffirmationQuickAddProps {
+export interface AffirmationQuickAddHandle {
+  submitAndClose: () => boolean;
+}
+
+export interface AffirmationQuickAddProps {
   isOpen: boolean;
   onClose: () => void;
   onDismiss?: () => void;
@@ -13,17 +17,33 @@ interface AffirmationQuickAddProps {
   onOpenAdvanced?: () => void;
 }
 
-export const AffirmationQuickAdd: React.FC<AffirmationQuickAddProps> = ({
-  isOpen,
-  onClose,
-  onDismiss,
-  onSaved,
-  onOpenAdvanced,
-}) => {
+export const AffirmationQuickAdd = React.forwardRef<
+  AffirmationQuickAddHandle,
+  AffirmationQuickAddProps
+>(function AffirmationQuickAdd(
+  {
+    isOpen,
+    onClose,
+    onDismiss,
+    onSaved,
+    onOpenAdvanced,
+  },
+  ref,
+) {
   const { addAffirmation } = useAppStore();
+  const composerRef = useRef<QuickAddComposerHandle>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      submitAndClose: () => composerRef.current?.submitAndClose() ?? false,
+    }),
+    [],
+  );
 
   return (
     <QuickAddComposer
+      ref={composerRef}
       label="Nueva afirmación"
       placeholder="Soy siempre la primera opción"
       tone="rose"
@@ -51,4 +71,4 @@ export const AffirmationQuickAdd: React.FC<AffirmationQuickAddProps> = ({
       }}
     />
   );
-};
+});

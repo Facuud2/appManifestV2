@@ -58,7 +58,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   const shouldStaggerStories = successStories.length <= 6;
 
   return (
-    <div className="space-y-6 pb-28 sm:space-y-7 sm:pb-12">
+    <div className="w-full min-w-0 max-w-full space-y-6 pb-28 sm:space-y-7 sm:pb-12">
       {/* 1. Editorial Page Header + Profile-Aware Pill Selector */}
       <ProgressHeroBanner
         activeSection={activeSection}

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Feather, Plus, Trophy, Footprints, Trash2 } from 'lucide-react';
 import { useAppStore, ManifestationItem } from '@/store';
-import { ManifestationQuickAdd } from '@/components/journal/ManifestationQuickAdd';
+import { ManifestationQuickAdd, type ManifestationQuickAddHandle } from '@/components/journal/ManifestationQuickAdd';
 import {
   EMIL_CARD_TAP,
   EMIL_EASE_OUT,
@@ -67,6 +67,14 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
 
   const [flashId, setFlashId] = useState<string | null>(null);
   const flashTimerRef = useRef<number | null>(null);
+  const quickAddRef = useRef<ManifestationQuickAddHandle>(null);
+
+  const handleHeaderDone = () => {
+    const handled = quickAddRef.current?.submitAndClose();
+    if (!handled) {
+      onQuickAddClose();
+    }
+  };
 
   const handleQuickAddSaved = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -105,7 +113,7 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
           data-quick-add-trigger="true"
           onClick={(event) =>
             isQuickAddOpen
-              ? onQuickAddClose()
+              ? handleHeaderDone()
               : onQuickAddOpen(event.currentTarget)
           }
           className={
@@ -129,6 +137,7 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
       </header>
 
       <ManifestationQuickAdd
+        ref={quickAddRef}
         isOpen={isQuickAddOpen}
         onClose={() => onQuickAddClose()}
         onDismiss={() => onQuickAddClose(false)}

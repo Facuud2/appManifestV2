@@ -72,7 +72,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
       <div className="swiss-tabbar pointer-events-auto mx-auto grid max-w-xl grid-cols-5 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id && !tab.isCreate;
+          const isActive =
+            (activeTab === tab.id || (tab.id === 'progress' && activeTab === 'stories')) &&
+            !tab.isCreate;
 
           return (
             <button

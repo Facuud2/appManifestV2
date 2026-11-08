@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -11,6 +11,7 @@ import {
   useTransform,
 } from 'framer-motion';
 import {
+  Activity,
   BookmarkCheck,
   Check,
   CloudRain,
@@ -169,6 +170,121 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isSaveDecisionOpen, setIsSaveDecisionOpen] = useState(false);
   const [isSavedToSanctuary, setIsSavedToSanctuary] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [loopModeIndex, setLoopModeIndex] = useState(0);
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
+
+  const LOOP_MODES = useMemo<{ label: string; count: RampageLoopCount }[]>(
+    () => [
+      { label: 'Sin límite', count: 11 },
+      { label: '5 frases', count: 5 },
+      { label: '11 frases', count: 11 },
+      { label: '15 frases', count: 15 },
+    ],
+    []
+  );
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = window.setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isPlaying]);
+
+  const formattedTimer = useMemo(() => {
+    const mins = Math.floor(elapsedSeconds / 60);
+    const secs = elapsedSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }, [elapsedSeconds]);
+
+  const profileTheme = useMemo(() => {
+    if (activeScope === 'facu') {
+      return {
+        name: 'Facu',
+        voiceLabel: 'Voz de Facu',
+        bgGradient:
+          'radial-gradient(ellipse at 50% 25%, #12382c 0%, #0d221b 50%, #06110d 100%)',
+        orbSphere:
+          'radial-gradient(circle at 35% 30%, #c2f5e1 0%, #4dd2a7 28%, #238f6b 58%, #115740 88%, #082d20 100%)',
+        orbShadow:
+          'inset -10px -10px 28px rgba(4, 25, 17, 0.7), inset 7px 7px 16px rgba(255, 255, 255, 0.45), 0 24px 50px -10px rgba(35, 143, 107, 0.45)',
+        orbBloom:
+          'radial-gradient(circle, rgba(77, 210, 167, 0.35) 0%, transparent 70%)',
+        playBtnBg: 'bg-[#d1fae5] text-[#064e3b]',
+        waveColor: 'bg-[#6ee7b7]',
+        accentColor: '#7fd9be',
+      };
+    }
+    if (activeScope === 'shared') {
+      return {
+        name: 'Maia y Facu',
+        voiceLabel: currentVoiceSpeaker === 'maia' ? 'Voz de Maia' : 'Voz de Facu',
+        bgGradient:
+          'radial-gradient(ellipse at 50% 25%, #2c1642 0%, #190e29 50%, #0e0717 100%)',
+        orbSphere:
+          'radial-gradient(circle at 35% 30%, #fed7ea 0%, #c084fc 28%, #7c3aed 58%, #431497 88%, #200754 100%)',
+        orbShadow:
+          'inset -10px -10px 28px rgba(24, 4, 56, 0.7), inset 7px 7px 16px rgba(255, 255, 255, 0.45), 0 24px 50px -10px rgba(147, 51, 234, 0.45)',
+        orbBloom:
+          'radial-gradient(circle, rgba(192, 132, 252, 0.35) 0%, transparent 70%)',
+        playBtnBg: 'bg-[#fae8ff] text-[#4a044e]',
+        waveColor: 'bg-[#f472b6]',
+        accentColor: '#f472b6',
+      };
+    }
+    // Maia (default, exact match to screenshot)
+    return {
+      name: 'Maia',
+      voiceLabel: 'Voz de Maia',
+      bgGradient:
+        'radial-gradient(ellipse at 50% 25%, #381d52 0%, #201032 50%, #130a1f 100%)',
+      orbSphere:
+        'radial-gradient(circle at 35% 30%, #d8b4fe 0%, #aa64fa 28%, #7934dc 58%, #4a199b 88%, #2d0c69 100%)',
+      orbShadow:
+        'inset -10px -10px 28px rgba(18, 5, 42, 0.7), inset 7px 7px 16px rgba(255, 255, 255, 0.45), 0 24px 50px -10px rgba(121, 52, 220, 0.45)',
+      orbBloom:
+        'radial-gradient(circle, rgba(170, 100, 250, 0.35) 0%, transparent 70%)',
+      playBtnBg: 'bg-[#ece2f7] text-[#2c1242]',
+      waveColor: 'bg-[#d8b4fe]',
+      accentColor: '#c084fc',
+    };
+  }, [activeScope, currentVoiceSpeaker]);
+
+  const handleCycleLoopMode = () => {
+    setLoopModeIndex((prev) => {
+      const next = (prev + 1) % LOOP_MODES.length;
+      setSelectedCount(LOOP_MODES[next].count);
+      return next;
+    });
+  };
+
+  const handleToggleSpeaker = () => {
+    if (!isCurrentProfileCalibrated) {
+      onOpenCalibration?.();
+      return;
+    }
+    if (isFacuCalibrated && isMaiaCalibrated) {
+      setCurrentVoiceSpeaker((prev) => (prev === 'maia' ? 'facu' : 'maia'));
+    } else if (onOpenCalibration) {
+      onOpenCalibration();
+    }
+  };
+
+  const handleCycleAmbient = () => {
+    const AMBIENT_OPTIONS: AmbientSoundType[] = ['none', 'white_noise', 'astral_rain'];
+    const currentIndex = AMBIENT_OPTIONS.indexOf(ambientSound);
+    const nextIndex = (currentIndex + 1) % AMBIENT_OPTIONS.length;
+    const nextAmbience = AMBIENT_OPTIONS[nextIndex];
+    setAmbientSound(nextAmbience);
+    if (audioEngine) {
+      if (nextAmbience === 'none') {
+        audioEngine.stopAmbience();
+      } else if (isPlaying) {
+        audioEngine.setAmbience(nextAmbience as AmbienceType);
+      }
+    }
+  };
 
   // Liquid Glass lensing needs SVG filters inside backdrop-filter (Chromium only).
   const [canRefract, setCanRefract] = useState(false);
@@ -633,13 +749,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
 
     setIsMinimized(false);
-    affirmationQueueRef.current = [];
-    baseAffirmationsRef.current = [];
     generatedAudioPromisesRef.current.clear();
-    setAffirmationQueue([]);
-    setCurrentAffirmationIndex(0);
     setPhrasesHeardCount(0);
     setCompletedCyclesCount(0);
+    setElapsedSeconds(0);
     setCachedCount(generatedAudioCacheRef.current.size);
     setIsBreathingPause(false);
     setBreathingPauseMs(0);
@@ -647,24 +760,57 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setGenerationError('');
     setAudioPreparationWarning('');
     setSetupError('');
-    setDraftTitle(centralTheme);
+    setDraftTitle(centralTheme || 'Rampage Nocturno');
     setDraftDetails('');
     setSelectedCount(11);
     setIsSaveDecisionOpen(false);
     setIsSavedToSanctuary(false);
     setIsAwaitingVoiceCalibration(false);
     isNewSessionRef.current = false;
-    activeRampageRef.current = { title: '', details: '', count: 11 };
+    activeRampageRef.current = { title: centralTheme || 'Rampage Nocturno', details: '', count: 11 };
     activeRampageScopeRef.current = activeScopeRef.current;
     activeProfileAffirmationsRef.current = profileAffirmationsRef.current;
     activeProfileManifestationsRef.current = profileManifestationsRef.current;
     activeProfileRampagesRef.current = profileRampagesRef.current;
-    activeRampageSetRef.current = null;
-    setHasStarted(false);
+    activeRampageSetRef.current = resumeRampage || null;
+
+    const userProfileAffs = userSavedAffirmationsRef.current
+      .filter((a) => a.userId === activeScopeRef.current)
+      .map((a) => a.text.trim())
+      .filter(Boolean);
+
+    const fallbackAffs =
+      userProfileAffs.length > 0
+        ? userProfileAffs
+        : [
+            'Estoy a salvo recibiendo todo lo que deseo.',
+            'Soy dueño de mi propia realidad.',
+            'Todo lo que anhelo me busca y me encuentra.',
+            'Mi atención crea mundos y descanso en mi paz.',
+            'Soy amado, deseado y plenamente valorado.',
+            'Tengo todo lo que deseo y todo lo que deseo me desea más a mí.',
+            'El universo responde con fidelidad a lo que asumo.',
+            'Mi estado cumplido es mi única verdad.',
+            'Vivo en la plenitud de lo que ya es un hecho.',
+            'Descanso con la certeza de que todo está resuelto.',
+            'Soy la versión que ya tiene todo lo soñado.',
+          ];
+
+    const initialQueue =
+      resumeRampage && resumeRampage.affirmations.length > 0
+        ? resumeRampage.affirmations.map((a) => a.text.trim()).filter(Boolean)
+        : fallbackAffs;
+
+    affirmationQueueRef.current = initialQueue;
+    baseAffirmationsRef.current = initialQueue;
+    setAffirmationQueue(initialQueue);
+    setCurrentAffirmationIndex(0);
+    setHasStarted(true);
     setIsPlaying(false);
     isPlayingRef.current = false;
-    setCurrentVoiceSpeaker(getSpeakerForText('', 0));
-  }, [centralTheme, getSpeakerForText, isMinimized, isOpen, openMode]);
+    setCurrentVoiceSpeaker(getSpeakerForText(initialQueue[0] || '', 0));
+    void preloadSetStaggered(initialQueue);
+  }, [centralTheme, getSpeakerForText, isMinimized, isOpen, openMode, preloadSetStaggered, resumeRampage]);
 
   useEffect(() => {
     if (!resumeRampage || resumeRequestId === 0) return;
@@ -1208,16 +1354,16 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: EMIL_EASE_OUT }}
             onClick={handleClose}
-            className="rampage-overlay fixed inset-0 z-50 flex w-screen items-center justify-center overflow-y-auto bg-[var(--color-rampage-backdrop)] p-0 sm:p-6"
+            className="rampage-overlay fixed inset-0 z-50 flex w-screen items-center justify-center overflow-y-auto bg-black/60 p-0 sm:p-4 backdrop-blur-md"
           >
             <motion.div
               ref={dialogRef}
-              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{
                 opacity: 0,
-                scale: 0.99,
-                y: 2,
+                scale: 0.98,
+                y: 8,
                 transition: { duration: 0.18, ease: EMIL_EASE_OUT },
               }}
               transition={APPLE_ELASTIC_SPRING}
@@ -1226,657 +1372,271 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
               role="dialog"
               aria-modal="true"
               aria-labelledby="rampage-title"
-              aria-describedby={hasStarted ? 'rampage-affirmation' : 'rampage-setup-description'}
               tabIndex={-1}
-              data-ui="true"
-              data-day-mode={!isNightMode}
-              data-rampage-count={selectedCount}
-              data-completed-cycles={completedCyclesCount}
-              data-breathing-pause={isBreathingPause ? 'true' : 'false'}
-              className="rampage-player flex h-dvh max-h-dvh w-full flex-col overflow-hidden sm:h-[min(94dvh,860px)] sm:max-h-[min(94dvh,860px)] sm:max-w-5xl sm:rounded-[var(--radius-modal)] sm:border sm:border-[var(--color-rampage-line)] sm:shadow-[var(--shadow-rampage-panel)]"
+              className="relative flex h-full max-h-dvh w-full flex-col justify-between overflow-hidden sm:h-[min(92dvh,760px)] sm:max-h-[760px] sm:max-w-[430px] rounded-[32px] sm:rounded-[36px] border border-white/10 sm:border-white/15 shadow-[0_25px_80px_rgba(0,0,0,0.7)] p-6 sm:p-7 select-none"
+              style={{
+                background: profileTheme.bgGradient,
+              }}
             >
-              <header className="safe-area-top flex shrink-0 items-center justify-between gap-4 px-5 pb-4 sm:px-8 sm:pt-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Sparkles
-                    size={20}
-                    className="shrink-0 text-[var(--color-rampage-accent)]"
-                    aria-hidden="true"
-                  />
-                  <div className="min-w-0">
-                    <h2 id="rampage-title" className="text-base font-semibold leading-5">
-                      {hasStarted ? 'Rampage Subliminal Nocturno' : 'Nuevo Rampage'}
-                    </h2>
-                    <p className="mt-1 truncate text-sm text-[var(--color-rampage-muted)]">
-                      {hasStarted
-                        ? `${activeRampageRef.current.title} · ${affirmationQueue.length} afirmaciones · ${activeScope === 'shared' ? 'Maia y Facu' : activeScope === 'maia' ? 'Maia' : 'Facu'}`
-                        : activeScope === 'shared'
-                          ? 'Maia y Facu · Ley de la Asunción'
-                          : activeScope === 'maia'
-                            ? 'Maia · Ley de la Asunción'
-                            : 'Facu · Ley de la Asunción'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {hasStarted && (
-                    <button
-                      type="button"
-                      onClick={handleOpenFinishModal}
-                      aria-label="Guardar o cerrar sesión de Rampage"
-                      className="rampage-control inline-flex h-11 items-center gap-2 px-3.5 text-xs font-semibold"
-                    >
-                      <BookmarkCheck size={16} aria-hidden="true" />
-                      <span className="hidden sm:inline">Guardar o cerrar</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsNightMode((nightMode) => !nightMode)}
-                    aria-label={isNightMode ? 'Activar modo diurno' : 'Activar modo nocturno'}
-                    aria-pressed={isNightMode}
-                    className="rampage-control flex h-11 w-11 items-center justify-center"
+              {/* Header: Moon + RAMPAGE NOCTURNO and Close X button */}
+              <header className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2">
+                  <Moon size={14} className="text-white/70" aria-hidden="true" />
+                  <span
+                    id="rampage-title"
+                    className="text-[11px] font-semibold tracking-[0.16em] uppercase text-white/70"
                   >
-                    {isNightMode ? (
-                      <Sun size={18} aria-hidden="true" />
-                    ) : (
-                      <Moon size={18} aria-hidden="true" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    aria-label={hasStarted ? 'Minimizar y continuar escuchando' : 'Cerrar Rampage'}
-                    className="rampage-control flex h-11 w-11 items-center justify-center"
-                  >
-                    <X size={18} aria-hidden="true" />
-                  </button>
+                    RAMPAGE NOCTURNO
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  aria-label="Cerrar reproductor"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all active:scale-95"
+                >
+                  <X size={15} aria-hidden="true" />
+                </button>
               </header>
 
-              {hasStarted ? (
-                <>
-                  <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4 sm:px-12 sm:py-5">
-                    <div className="m-auto flex w-full flex-col items-center text-center">
-                      <div className="relative mb-4 flex h-48 w-48 items-center justify-center sm:mb-6 sm:h-64 sm:w-64">
-                        <div aria-hidden="true" className="rampage-orb-bloom">
-                          <span className="rampage-orb-bloom-a" />
-                          <span className="rampage-orb-bloom-b" />
-                          <span className="rampage-orb-bloom-c" />
-                        </div>
-                        <motion.div
-                          style={{
-                            transform:
-                              prefersReducedMotion || !isPlaying
-                                ? 'scale(1)'
-                                : outerRingTransform,
-                            opacity: outerRingOpacity,
-                          }}
-                          className="pointer-events-none absolute inset-3 rounded-full border border-[var(--color-rampage-line)]"
-                        />
-                        <motion.div
-                          style={{
-                            transform:
-                              prefersReducedMotion || !isPlaying
-                                ? 'scale(1)'
-                                : middleRingTransform,
-                          }}
-                          className="pointer-events-none absolute inset-8 rounded-full border border-dashed border-[var(--color-rampage-line)]"
-                        />
-                        <motion.div
-                          animate={
-                            isPlaying && !prefersReducedMotion
-                              ? { scale: [1, 1.045, 1] }
-                              : { scale: 1 }
-                          }
-                          transition={{
-                            repeat: isPlaying && !prefersReducedMotion ? Infinity : 0,
-                            duration: 3,
-                            ease: 'easeInOut',
-                          }}
-                          className="rampage-orb-core relative flex h-28 w-28 items-center justify-center rounded-full sm:h-36 sm:w-36"
-                        >
-                          <Sparkles
-                            size={34}
-                            strokeWidth={1.4}
-                            className="text-[var(--color-rampage-orb-highlight)]"
-                            aria-hidden="true"
-                          />
-                        </motion.div>
-                      </div>
-
-                      <p
-                        aria-live="polite"
-                        data-testid="rampage-status-pill"
-                        className="mb-3 inline-flex min-h-8 items-center rounded-full border border-[var(--color-rampage-line)] px-3.5 text-sm text-[var(--color-rampage-muted)]"
-                      >
-                        {statusLabel}
-                      </p>
-
-                      {playbackError ? (
-                        <p role="alert" className="mb-3 max-w-xl text-sm text-[var(--color-danger)]">
-                          {playbackError}
-                        </p>
-                      ) : null}
-                      {audioPreparationWarning ? (
-                        <p
-                          role="status"
-                          className="mb-3 max-w-xl text-sm text-[var(--color-rampage-muted)]"
-                        >
-                          {audioPreparationWarning}
-                        </p>
-                      ) : null}
-                      {generationError ? (
-                        <div className="mb-3 flex max-w-xl flex-wrap items-center justify-center gap-3 text-sm text-[var(--color-danger)]">
-                          <p role="alert">{generationError}</p>
-                          <button
-                            type="button"
-                            onClick={() => void generateSingleRampageSet()}
-                            disabled={isLoadingBatch}
-                            className="rounded-full border border-current px-4 py-2 font-medium transition-opacity hover:opacity-75 disabled:opacity-50"
-                          >
-                            Reintentar
-                          </button>
-                        </div>
-                      ) : null}
-
-                      <div className="flex min-h-[5rem] max-w-2xl items-center justify-center sm:min-h-[6.5rem]">
-                        <AnimatePresence mode="wait" initial={false}>
-                          <motion.h1
-                            key={`${currentAffirmationIndex}_${currentAffirmation}`}
-                            id="rampage-affirmation"
-                            data-testid="rampage-active-affirmation"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            transition={{ duration: 0.25, ease: EMIL_EASE_OUT }}
-                            className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
-                          >
-                            “{currentAffirmation}”
-                          </motion.h1>
-                        </AnimatePresence>
-                      </div>
-
-                      <div
-                        className={`mt-4 flex h-9 items-center justify-center gap-1 ${isPlaying ? 'is-playing' : ''}`}
-                        aria-hidden="true"
-                      >
-                        {waveBars.map((bar) => (
-                          <span
-                            key={bar}
-                            className="rampage-wave-bar w-1"
-                            data-playing={isPlaying && !prefersReducedMotion}
-                          />
-                        ))}
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-[var(--color-rampage-muted)]">
-                        <span className="inline-flex items-center gap-2">
-                          <Mic size={15} aria-hidden="true" />
-                          Voz de {currentVoiceSpeaker === 'maia' ? 'Maia' : 'Facu'}
-                        </span>
-                        <span
-                          className="inline-flex items-center gap-2 tabular-nums"
-                          data-testid="rampage-progress-counter"
-                        >
-                          <Repeat size={15} aria-hidden="true" />
-                          Frase {affirmationQueue.length > 0 ? currentAffirmationIndex + 1 : 0}/
-                          {affirmationQueue.length} · {phrasesHeardCount} escuchadas
-                        </span>
-                        {completedCyclesCount > 0 && (
-                          <span
-                            data-testid="rampage-cycle-badge"
-                            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-rampage-line)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-rampage-accent)]"
-                          >
-                            <Check size={13} aria-hidden="true" />
-                            Barajado orgánico activo · Vuelta {completedCyclesCount + 1}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </main>
-
-                  <footer className="safe-area-bottom flex shrink-0 flex-col items-center gap-4 px-5 pt-3 sm:gap-5 sm:px-8 sm:pt-4">
-                    <div
-                      role="group"
-                      aria-label="Sonido ambiental"
-                      className="flex flex-wrap justify-center gap-2"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setAmbientSound('none')}
-                        aria-pressed={ambientSound === 'none'}
-                        className="rampage-control inline-flex items-center gap-2 px-4 text-sm"
-                      >
-                        <VolumeX size={16} aria-hidden="true" />
-                        Silencio
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAmbientSound('white_noise')}
-                        aria-pressed={ambientSound === 'white_noise'}
-                        className="rampage-control inline-flex items-center gap-2 px-4 text-sm"
-                      >
-                        <Radio size={16} aria-hidden="true" />
-                        Ruido blanco
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAmbientSound('astral_rain')}
-                        aria-pressed={ambientSound === 'astral_rain'}
-                        className="rampage-control inline-flex items-center gap-2 px-4 text-sm"
-                      >
-                        <CloudRain size={16} aria-hidden="true" />
-                        Lluvia
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-center gap-4 pb-2">
-                      <motion.button
-                        type="button"
-                        whileTap={IOS_TAP_SPRING}
-                        onClick={togglePlayback}
-                        disabled={affirmationQueue.length === 0}
-                        data-playing={isPlaying}
-                        aria-label={isPlaying ? 'Pausar Rampage' : 'Reproducir Rampage'}
-                        className="rampage-play flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-[var(--color-rampage-accent)] text-[var(--color-rampage-accent-fg)] hover:opacity-90 disabled:opacity-50"
-                      >
-                        <AnimatePresence mode="wait" initial={false}>
-                          <motion.span
-                            key={isPlaying ? 'pause' : 'play'}
-                            initial={{ opacity: 0, scale: 0.86 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.86 }}
-                            transition={{ duration: 0.16, ease: EMIL_EASE_OUT }}
-                            className="flex"
-                          >
-                            {isPlaying ? (
-                              <Pause size={25} fill="currentColor" aria-hidden="true" />
-                            ) : (
-                              <Play
-                                size={25}
-                                fill="currentColor"
-                                className="translate-x-0.5"
-                                aria-hidden="true"
-                              />
-                            )}
-                          </motion.span>
-                        </AnimatePresence>
-                      </motion.button>
-                      <motion.button
-                        type="button"
-                        whileTap={IOS_TAP_SPRING}
-                        onClick={handleSkipForward}
-                        disabled={affirmationQueue.length === 0}
-                        aria-label="Siguiente afirmación"
-                        className="rampage-control flex h-12 w-12 items-center justify-center disabled:opacity-50"
-                      >
-                        <SkipForward size={19} aria-hidden="true" />
-                      </motion.button>
-                    </div>
-                  </footer>
-                </>
-              ) : isAwaitingVoiceCalibration && !isCurrentProfileCalibrated ? (
-                <main
-                  data-testid="rampage-voice-skeleton-gate"
-                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 sm:px-12 sm:py-6"
-                >
-                  {/* Skeleton anatómico del reproductor de Rampage en el fondo */}
+              {/* Center Content: Orb, Eyebrow, Affirmation, Waveform, Play Button */}
+              <div className="my-auto flex flex-col items-center">
+                {/* 3D Illuminated Celestial Orb */}
+                <div className="relative flex items-center justify-center mb-6 sm:mb-8">
+                  {/* Soft ambient bloom */}
                   <div
+                    className="pointer-events-none absolute h-48 w-48 rounded-full blur-2xl opacity-40 transition-all duration-700"
+                    style={{ background: profileTheme.orbBloom }}
                     aria-hidden="true"
-                    className="pointer-events-none m-auto flex w-full max-w-2xl select-none flex-col items-center text-center opacity-55"
-                  >
-                    <div className="relative mb-5 flex h-44 w-44 items-center justify-center sm:h-56 sm:w-56">
-                      <span className="absolute inset-2 rounded-full border border-[var(--color-rampage-line)]" />
-                      <span className="absolute inset-7 rounded-full border border-dashed border-[var(--color-rampage-line)]" />
-                      <span className="rampage-skel-block-strong block h-24 w-24 rounded-full sm:h-32 sm:w-32" />
-                    </div>
-                    <span className="rampage-skel-block mb-4 block h-8 w-52 rounded-full" />
-                    <div className="flex w-full flex-col items-center gap-3 py-2">
-                      <span className="rampage-skel-block-strong block h-7 w-[min(26rem,88%)] rounded-full sm:h-8" />
-                      <span className="rampage-skel-block block h-7 w-[min(19rem,66%)] rounded-full sm:h-8" />
-                    </div>
-                    <div className="mt-5 flex h-9 items-end justify-center gap-1.5">
-                      {waveBars.map((bar) => (
-                        <span
-                          key={bar}
-                          className="rampage-skel-block-strong block w-1 rounded-full"
-                          style={{ height: `${24 + ((bar * 19) % 58)}%` }}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-6 flex flex-wrap justify-center gap-2">
-                      <span className="rampage-skel-block block h-10 w-24 rounded-full" />
-                      <span className="rampage-skel-block block h-10 w-28 rounded-full" />
-                      <span className="rampage-skel-block block h-10 w-24 rounded-full" />
-                    </div>
-                    <div className="mt-5 flex items-center justify-center gap-4">
-                      <span className="rampage-skel-block-strong block h-16 w-16 rounded-full" />
-                      <span className="rampage-skel-block block h-12 w-12 rounded-full" />
-                    </div>
-                  </div>
+                  />
+                  {/* 3D Sphere */}
+                  <motion.div
+                    animate={
+                      !prefersReducedMotion
+                        ? {
+                            scale: isPlaying ? [1, 1.045, 1] : [1, 1.02, 1],
+                            y: isPlaying ? [0, -3, 0] : [0, -1.5, 0],
+                          }
+                        : { scale: 1, y: 0 }
+                    }
+                    transition={{
+                      repeat: Infinity,
+                      duration: isPlaying ? 3.4 : 4.8,
+                      ease: 'easeInOut',
+                    }}
+                    className="relative h-36 w-36 sm:h-40 sm:w-40 rounded-full transition-all duration-500"
+                    style={{
+                      background: profileTheme.orbSphere,
+                      boxShadow: profileTheme.orbShadow,
+                    }}
+                  />
+                </div>
 
-                  {/* Tarjeta superpuesta en el centro para solicitar calibración de voz */}
-                  <div className="absolute inset-0 z-10 flex items-center justify-center p-5">
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.96, y: 6 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={APPLE_ELASTIC_SPRING}
-                      className="rampage-surface flex w-full max-w-md flex-col items-center rounded-[24px] p-6 text-center shadow-[var(--shadow-rampage-panel)] sm:p-7"
+                {/* Eyebrow Status */}
+                <p className="text-[10px] sm:text-[11px] font-semibold tracking-[0.2em] uppercase text-white/50 text-center mb-3">
+                  {isPlaying
+                    ? 'REPRODUCIENDO CON TU VOZ'
+                    : isSynthesizing
+                      ? 'SINTETIZANDO VOZ…'
+                      : 'LISTO PARA VOS'}
+                </p>
+
+                {/* Affirmation Quote */}
+                <div className="min-h-[5.5rem] flex items-center justify-center px-2">
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.h1
+                      key={`${currentAffirmationIndex}_${currentAffirmation}`}
+                      id="rampage-affirmation"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.22, ease: EMIL_EASE_OUT }}
+                      className="text-2xl sm:text-[25px] font-semibold text-white tracking-tight leading-snug max-w-[20ch] mx-auto text-center"
                     >
-                      <span className="mb-3.5 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--color-rampage-line)] text-[var(--color-rampage-accent)]">
-                        <Mic size={24} aria-hidden="true" />
-                      </span>
-                      <p className="rampage-setup-eyebrow">Huella vocal requerida</p>
-                      <h3 className="mt-1.5 text-xl font-semibold leading-tight text-[var(--color-rampage-ink)]">
-                        Calibrá tu voz para generar este Rampage
-                      </h3>
-                      <p className="mt-2 text-sm leading-6 text-[var(--color-rampage-muted)]">
-                        Antes de sintetizar tus {selectedCount} afirmaciones sobre{' '}
-                        <span className="font-medium text-[var(--color-rampage-ink)]">
-                          “{draftTitle.trim()}”
-                        </span>
-                        , necesitamos registrar tu timbre vocal en este perfil.
-                      </p>
-                      <div className="mt-5 flex w-full flex-col gap-2.5">
+                      “{currentAffirmation}”
+                    </motion.h1>
+                  </AnimatePresence>
+                </div>
+
+                {/* Waveform & Time counter */}
+                <div className="mt-4 flex flex-col items-center">
+                  <RampageAudioWaveform
+                    isPlaying={isPlaying}
+                    barCount={13}
+                    barColorClassName={profileTheme.waveColor}
+                  />
+                  <span className="font-mono text-xs text-white/50 tracking-wider text-center mt-2.5 tabular-nums">
+                    {formattedTimer}
+                  </span>
+                </div>
+
+                {/* Circular Play / Pause Button */}
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={togglePlayback}
+                  aria-label={isPlaying ? 'Pausar Rampage' : 'Reproducir Rampage'}
+                  className={`mt-5 flex h-[66px] w-[66px] items-center justify-center rounded-full ${profileTheme.playBtnBg} shadow-[0_10px_28px_rgba(0,0,0,0.4)] transition-transform`}
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={isPlaying ? 'pause' : 'play'}
+                      initial={{ opacity: 0, scale: 0.86 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.86 }}
+                      transition={{ duration: 0.16, ease: EMIL_EASE_OUT }}
+                      className="flex"
+                    >
+                      {isPlaying ? (
+                        <Pause size={25} fill="currentColor" aria-hidden="true" />
+                      ) : (
+                        <Play size={25} fill="currentColor" className="ml-1" aria-hidden="true" />
+                      )}
+                    </motion.span>
+                  </AnimatePresence>
+                </motion.button>
+              </div>
+
+              {/* Bottom 3 Pill Controls */}
+              <footer className="flex items-center justify-center gap-2 pb-2">
+                {/* Pill 1: Duration / Loop Mode */}
+                <button
+                  type="button"
+                  onClick={handleCycleLoopMode}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-2 text-xs font-medium text-white/80 backdrop-blur-md hover:bg-white/[0.13] active:scale-95 transition-all"
+                  title="Cambiar modo de bucle"
+                >
+                  <Moon size={13} className="text-white/70" aria-hidden="true" />
+                  <span>{LOOP_MODES[loopModeIndex].label}</span>
+                </button>
+
+                {/* Pill 2: Voice Speaker */}
+                <button
+                  type="button"
+                  onClick={handleToggleSpeaker}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-2 text-xs font-medium text-white/80 backdrop-blur-md hover:bg-white/[0.13] active:scale-95 transition-all"
+                  title="Cambiar o calibrar voz"
+                >
+                  <Activity size={13} className="text-white/70" aria-hidden="true" />
+                  <span>{profileTheme.voiceLabel}</span>
+                </button>
+
+                {/* Pill 3: Ambient Sound */}
+                <button
+                  type="button"
+                  onClick={handleCycleAmbient}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-2 text-xs font-medium text-white/80 backdrop-blur-md hover:bg-white/[0.13] active:scale-95 transition-all"
+                  title={`Cambiar sonido ambiente (${ambientSound})`}
+                >
+                  <Sun size={13} className="text-white/70" aria-hidden="true" />
+                  <span>Ambiente</span>
+                </button>
+              </footer>
+
+              {/* Intention Customizer Modal / Drawer */}
+              <AnimatePresence>
+                {isCustomizerOpen && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-30 flex flex-col justify-end bg-black/60 backdrop-blur-sm p-4"
+                  >
+                    <motion.div
+                      initial={{ y: 80, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: 80, opacity: 0 }}
+                      transition={APPLE_ELASTIC_SPRING}
+                      className="rampage-surface rounded-[24px] border border-white/15 p-5 text-white shadow-2xl"
+                    >
+                      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={16} className="text-[var(--color-rampage-accent)]" />
+                          <h3 className="text-sm font-semibold">Personalizar tu Rampage</h3>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => onOpenCalibration?.()}
-                          data-testid="rampage-skeleton-calibrate-btn"
-                          className="rampage-setup-submit inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold text-[var(--color-rampage-accent-fg)]"
+                          onClick={() => setIsCustomizerOpen(false)}
+                          className="rounded-full p-1 text-white/70 hover:bg-white/10"
                         >
-                          <Mic size={17} aria-hidden="true" />
-                          Calibrar voz
+                          <X size={16} />
                         </button>
+                      </div>
+
+                      <div className="mt-4 space-y-3 text-left">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label htmlFor="custom-topic" className="text-xs font-medium text-white/80">
+                              Tema central o intención
+                            </label>
+                            <VoiceDictationButton
+                              size="sm"
+                              className="h-7 w-7 rounded-full"
+                              onTranscript={(text) => {
+                                setDraftTitle((prev) => (prev ? `${prev} ${text}` : text));
+                              }}
+                              previousTextTail={draftTitle}
+                            />
+                          </div>
+                          <input
+                            id="custom-topic"
+                            value={draftTitle}
+                            onChange={(e) => setDraftTitle(e.target.value)}
+                            placeholder="Ej. Soy Dios, recibiendo todo lo que deseo"
+                            className="w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="custom-details" className="text-xs font-medium text-white/80 mb-1 block">
+                            Matices o nombres (opcional)
+                          </label>
+                          <textarea
+                            id="custom-details"
+                            rows={2}
+                            value={draftDetails}
+                            onChange={(e) => setDraftDetails(e.target.value)}
+                            placeholder="Detalles sobre autoconcepto, vínculos o hechos cumplidos"
+                            className="w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-white/70">Longitud:</span>
+                          <div className="flex gap-1">
+                            {([5, 11, 15] as RampageLoopCount[]).map((count) => (
+                              <button
+                                key={count}
+                                type="button"
+                                onClick={() => setSelectedCount(count)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                  selectedCount === count
+                                    ? 'bg-white text-black font-semibold'
+                                    : 'bg-white/10 text-white/70 hover:bg-white/15'
+                                }`}
+                              >
+                                {count} frases
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         <button
                           type="button"
-                          onClick={() => setIsAwaitingVoiceCalibration(false)}
-                          className="rampage-control inline-flex min-h-11 w-full items-center justify-center rounded-full px-5 text-xs font-medium"
+                          onClick={async () => {
+                            setIsCustomizerOpen(false);
+                            await handleStartRampage();
+                          }}
+                          className={`w-full py-2.5 rounded-full ${profileTheme.playBtnBg} text-xs font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all mt-2`}
                         >
-                          Volver a editar intención
+                          Generar con IA y Reproducir
                         </button>
                       </div>
                     </motion.div>
-                  </div>
-                </main>
-              ) : (
-                <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
-                  <div className="relative m-auto w-full max-w-xl px-5 py-5 sm:px-10 sm:py-8">
-                    <div className="flex flex-col items-center text-center">
-                      <div
-                        className="rampage-setup-halo mb-3 h-[4.5rem] w-[4.5rem]"
-                        aria-hidden="true"
-                      >
-                        <div className="rampage-orb-core rampage-setup-orb flex items-center justify-center rounded-full">
-                          <Sparkles
-                            size={20}
-                            strokeWidth={1.5}
-                            className="text-[var(--color-rampage-orb-highlight)]"
-                          />
-                        </div>
-                      </div>
-                      <p className="rampage-setup-eyebrow">Motor Nocturno · Ley de la Asunción</p>
-                      <h1 className="mt-1.5 text-[1.6rem] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-3xl">
-                        ¿Qué hecho cumplido asumís hoy?
-                      </h1>
-                      <p
-                        id="rampage-setup-description"
-                        className="mt-1.5 max-w-md text-sm leading-6 text-[var(--color-rampage-muted)]"
-                      >
-                        Dictá con tu voz o escribí tu intención. Generamos el set en un único
-                        llamado directo y lo reproducimos toda la noche desde caché.
-                      </p>
-                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                    <ElasticContainer className="mt-5">
-                      {/* Paso 1: Calibración de huella vocal (Se omite automáticamente si el perfil ya está calibrado) */}
-                      <AnimatePresence initial={false}>
-                        {showCalibrationStep && (
-                          <motion.div
-                            key="step-1-voice-calibration"
-                            initial={{ opacity: 0, y: -6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={APPLE_ELASTIC_SPRING}
-                            className="rampage-surface mb-4 flex flex-col gap-3 rounded-[16px] p-4 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="flex items-start gap-3">
-                              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-rampage-line)] text-[var(--color-rampage-accent)]">
-                                <Mic size={17} aria-hidden="true" />
-                              </span>
-                              <div>
-                                <p className="text-xs font-semibold text-[var(--color-rampage-accent)]">
-                                  Paso 1 · Huella vocal pendiente
-                                </p>
-                                <p className="mt-0.5 text-xs leading-5 text-[var(--color-rampage-muted)]">
-                                  Grabá unas frases breves para clonar tu timbre o continuá con la
-                                  voz base del santuario.
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                              {onOpenCalibration && (
-                                <button
-                                  type="button"
-                                  onClick={onOpenCalibration}
-                                  className="rampage-control inline-flex min-h-9 items-center gap-1.5 px-3 text-xs font-semibold"
-                                >
-                                  <Mic size={14} aria-hidden="true" />
-                                  Calibrar voz
-                                </button>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <form
-                        className="flex flex-col gap-4"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void handleStartRampage();
-                        }}
-                      >
-                        {/* Selector de 3 Modos de Rampage (Segmented Control estilo iOS) */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium">
-                              Longitud del bucle subliminal
-                            </span>
-                            <span className="text-xs text-[var(--color-rampage-muted)]">
-                              1 llamada JSON · Bucle infinito
-                            </span>
-                          </div>
-
-                          <div
-                            role="radiogroup"
-                            aria-label="Longitud del bucle subliminal"
-                            className="rampage-surface relative grid grid-cols-3 gap-1 rounded-[16px] p-1"
-                          >
-                            {RAMPAGE_MODE_OPTIONS.map((option) => {
-                              const isSelected = selectedCount === option.count;
-                              return (
-                                <button
-                                  key={option.count}
-                                  type="button"
-                                  role="radio"
-                                  aria-checked={isSelected}
-                                  data-testid={`rampage-mode-${option.count}`}
-                                  onClick={() => setSelectedCount(option.count)}
-                                  className={`relative z-10 flex min-h-[3.25rem] flex-col items-center justify-center rounded-[12px] px-2 py-2 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-rampage-accent)] ${
-                                    isSelected
-                                      ? 'font-semibold text-[var(--color-rampage-ink)]'
-                                      : ' font-medium text-[var(--color-rampage-muted)] hover:text-[var(--color-rampage-ink)]'
-                                  }`}
-                                >
-                                  {isSelected && (
-                                    <motion.span
-                                      layoutId="rampageModePill"
-                                      transition={APPLE_ELASTIC_SPRING}
-                                      className="pointer-events-none absolute inset-0 -z-10 rounded-[12px] border border-[var(--color-rampage-line)] bg-[var(--color-rampage-surface-strong)]"
-                                    />
-                                  )}
-                                  <span className="text-xs font-semibold leading-tight sm:text-sm">
-                                    {option.count === 5
-                                      ? 'Corto · 5'
-                                      : option.count === 11
-                                        ? 'Óptimo · 11'
-                                        : 'Profundo · 15'}
-                                  </span>
-                                  <span className="mt-0.5 text-[11px] leading-tight text-[var(--color-rampage-muted)]">
-                                    {option.count} afirmaciones
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <p className="text-xs text-[var(--color-rampage-muted)]">
-                            {
-                              RAMPAGE_MODE_OPTIONS.find((item) => item.count === selectedCount)
-                                ?.description
-                            }
-                          </p>
-                        </div>
-
-                        {/* Tema central con dictado por voz (gemini-3.5-transcript) */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <label htmlFor="rampage-topic" className="text-sm font-medium">
-                              Tema central o intención
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <span
-                                aria-hidden="true"
-                                className="text-[11px] tabular-nums text-[var(--color-rampage-muted)]"
-                              >
-                                {draftTitle.length}/120
-                              </span>
-                              <VoiceDictationButton
-                                size="sm"
-                                className="h-9 w-9 rounded-full"
-                                onTranscript={(text) => {
-                                  setDraftTitle((prev) =>
-                                    prev ? `${prev} ${text}`.slice(0, 120) : text.slice(0, 120)
-                                  );
-                                  setSetupError('');
-                                }}
-                                previousTextTail={draftTitle}
-                              />
-                            </div>
-                          </div>
-                          <input
-                            id="rampage-topic"
-                            required
-                            maxLength={120}
-                            value={draftTitle}
-                            onChange={(event) => {
-                              setDraftTitle(event.target.value);
-                              setSetupError('');
-                            }}
-                            placeholder="Ej. Soy Dios, SP me ama y soy siempre su prioridad"
-                            className="rampage-surface rampage-field w-full rounded-[12px] px-4 py-3 text-base text-[var(--color-rampage-ink)] placeholder:text-[var(--color-rampage-muted)]"
-                          />
-                        </div>
-
-                        {/* Matices con dictado por voz (gemini-3.5-transcript) */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <label htmlFor="rampage-details" className="text-sm font-medium">
-                              Matices, SP o vínculos{' '}
-                              <span className="font-normal text-[var(--color-rampage-muted)]">
-                                (opcional)
-                              </span>
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <span
-                                aria-hidden="true"
-                                className="text-[11px] tabular-nums text-[var(--color-rampage-muted)]"
-                              >
-                                {draftDetails.length}/1000
-                              </span>
-                              <VoiceDictationButton
-                                size="sm"
-                                className="h-9 w-9 rounded-full"
-                                onTranscript={(text) =>
-                                  setDraftDetails((prev) =>
-                                    prev ? `${prev} ${text}`.slice(0, 1000) : text.slice(0, 1000)
-                                  )
-                                }
-                                previousTextTail={draftDetails}
-                              />
-                            </div>
-                          </div>
-                          <textarea
-                            id="rampage-details"
-                            maxLength={1000}
-                            rows={2}
-                            value={draftDetails}
-                            onChange={(event) => setDraftDetails(event.target.value)}
-                            placeholder="Ej. Nombre de SP, autoconcepto de pedestal, vínculo libre o escena cumplida."
-                            className="rampage-surface rampage-field w-full resize-y rounded-[12px] px-4 py-2.5 text-base leading-6 text-[var(--color-rampage-ink)] placeholder:text-[var(--color-rampage-muted)]"
-                          />
-                        </div>
-
-                        {/* Atmósfera de fondo Web Audio API */}
-                        <div className="flex flex-col gap-2">
-                          <span className="text-sm font-medium">Atmósfera nocturna continua</span>
-                          <div
-                            role="group"
-                            aria-label="Atmósfera nocturna continua"
-                            className="grid grid-cols-3 gap-2"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setAmbientSound('none')}
-                              aria-pressed={ambientSound === 'none'}
-                              className="rampage-control inline-flex min-h-10 items-center justify-center gap-2 px-3 text-xs font-medium sm:text-sm"
-                            >
-                              <VolumeX size={15} aria-hidden="true" />
-                              Silencio
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAmbientSound('white_noise')}
-                              aria-pressed={ambientSound === 'white_noise'}
-                              className="rampage-control inline-flex min-h-10 items-center justify-center gap-2 px-3 text-xs font-medium sm:text-sm"
-                            >
-                              <Radio size={15} aria-hidden="true" />
-                              Ruido blanco
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAmbientSound('astral_rain')}
-                              aria-pressed={ambientSound === 'astral_rain'}
-                              className="rampage-control inline-flex min-h-10 items-center justify-center gap-2 px-3 text-xs font-medium sm:text-sm"
-                            >
-                              <CloudRain size={15} aria-hidden="true" />
-                              Lluvia
-                            </button>
-                          </div>
-                        </div>
-
-                        {setupError ? (
-                          <p role="alert" className="text-sm text-[var(--color-danger)]">
-                            {setupError}
-                          </p>
-                        ) : null}
-
-                        <div className="mt-1 flex flex-col gap-2">
-                          <button
-                            type="submit"
-                            data-testid="rampage-start-button"
-                            className="rampage-setup-submit inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-full px-6 text-[0.95rem] font-semibold text-[var(--color-rampage-accent-fg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-rampage-accent)]"
-                          >
-                            <Sparkles size={18} aria-hidden="true" />
-                            Iniciar Rampage ({selectedCount} afirmaciones)
-                          </button>
-                        </div>
-                      </form>
-                    </ElasticContainer>
-                  </div>
-                </main>
-              )}
 
               {/* Paso 3: Modal estilo iOS para Conservar en el Santuario (0 gasto API futuro) o Descartar */}
               <AnimatePresence>

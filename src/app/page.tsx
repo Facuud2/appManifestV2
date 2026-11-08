@@ -20,7 +20,7 @@ import { AffirmationEditorModal } from '@/components/journal/AffirmationEditorMo
 import { ProgressLogModal } from '@/components/goals/ProgressLogModal';
 import { SuccessStoryModal } from '@/components/goals/SuccessStoryModal';
 import { audioEngine } from '@/lib/audioEngine';
-import { AmbientSoundType, RampageSet } from '@/types';
+import { AmbientSoundType, RampageSet, UserScope } from '@/types';
 
 const SCOPE_REGENERATION_MIN_MS = 320;
 const SCOPE_REGENERATION_MAX_MS = 6000;
@@ -33,6 +33,7 @@ export default function HomePage() {
     refreshVoiceCalibrationStatus,
     rampageSets,
     activeScope,
+    setActiveScope,
     isLoading,
     isScopeRegenerating,
     setScopeRegenerating,
@@ -244,6 +245,19 @@ export default function HomePage() {
     setIsRampageOpen(true);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const scopeParam = params.get('scope') as UserScope | null;
+      if (scopeParam && (scopeParam === 'maia' || scopeParam === 'facu' || scopeParam === 'shared')) {
+        setActiveScope(scopeParam);
+      }
+      if (params.get('rampage') === '1') {
+        handleOpenNewRampage();
+      }
+    }
+  }, [handleOpenNewRampage, setActiveScope]);
+
   const handleStartPinnedRampage = useCallback(
     (affirmations: string[], ambientSound: AmbientSoundType = 'astral_rain') => {
       void audioEngine?.unlock();
@@ -313,7 +327,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="flex min-h-dvh flex-col lg:flex-row">
+    <div className="flex min-h-dvh flex-col lg:flex-row overflow-x-hidden max-w-full">
       <a
         href="#main-content"
         className="sr-only fixed left-4 top-4 z-[60] rounded-xl bg-swiss-accent px-4 py-3 font-semibold text-swiss-accentFg focus:not-sr-only focus-visible:ring-2 focus-visible:ring-swiss-focus"
@@ -328,7 +342,7 @@ export default function HomePage() {
         onOpenRampage={handleOpenNewRampage}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden max-w-full">
         <AppHeader
           onOpenCalibration={() => setIsCalibrationOpen(true)}
         />
@@ -336,7 +350,7 @@ export default function HomePage() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto w-full max-w-[1160px] min-w-0 flex-1 px-page py-section"
+          className="mx-auto w-full max-w-[1160px] min-w-0 flex-1 px-page py-section overflow-x-hidden"
         >
           <div className="relative w-full min-w-0">
             {isScopeRegenerating && (

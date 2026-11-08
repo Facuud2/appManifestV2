@@ -292,12 +292,12 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
                           </button>
                         </div>
 
-                        <h3 className="mt-2 text-[0.9375rem] font-semibold leading-snug text-swiss-ink">
+                        <h3 className="mt-2 text-[0.9375rem] font-semibold leading-snug text-swiss-ink break-words">
                           {item.title}
                         </h3>
 
                         {item.hasSeparateDescription && (
-                          <p className="mt-1 text-sm leading-6 text-swiss-ink-muted whitespace-pre-line">
+                          <p className="mt-1 text-sm leading-6 text-swiss-ink-muted whitespace-pre-line break-words">
                             {item.description}
                           </p>
                         )}

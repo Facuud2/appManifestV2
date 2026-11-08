@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useId, useRef, useState } from 'react';
+import React, { useId, useImperativeHandle, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
-import { QuickAddComposer } from './QuickAddComposer';
+import { QuickAddComposer, type QuickAddComposerHandle } from './QuickAddComposer';
 
-interface ManifestationQuickAddProps {
+export interface ManifestationQuickAddHandle {
+  submitAndClose: () => boolean;
+}
+
+export interface ManifestationQuickAddProps {
   isOpen: boolean;
   onClose: () => void;
   onDismiss?: () => void;
@@ -20,14 +24,21 @@ const deriveTitle = (description: string) => {
   return firstLine.length > 72 ? `${firstLine.slice(0, 69).trimEnd()}…` : firstLine;
 };
 
-export const ManifestationQuickAdd: React.FC<ManifestationQuickAddProps> = ({
-  isOpen,
-  onClose,
-  onDismiss,
-  onSaved,
-  onOpenAdvanced,
-}) => {
+export const ManifestationQuickAdd = React.forwardRef<
+  ManifestationQuickAddHandle,
+  ManifestationQuickAddProps
+>(function ManifestationQuickAdd(
+  {
+    isOpen,
+    onClose,
+    onDismiss,
+    onSaved,
+    onOpenAdvanced,
+  },
+  ref,
+) {
   const { activeScope, addManifestation } = useAppStore();
+  const composerRef = useRef<QuickAddComposerHandle>(null);
   const titleId = useId();
   const anchorId = useId();
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -35,15 +46,38 @@ export const ManifestationQuickAdd: React.FC<ManifestationQuickAddProps> = ({
   const [title, setTitle] = useState('');
   const [sensoryAnchor, setSensoryAnchor] = useState('');
 
-  const handleSaved = () => {
+  useImperativeHandle(
+    ref,
+    () => ({
+      submitAndClose: () => composerRef.current?.submitAndClose() ?? false,
+    }),
+    [],
+  );
+
+  const resetOptions = () => {
     setTitle('');
     setSensoryAnchor('');
     if (detailsRef.current) detailsRef.current.open = false;
+  };
+
+  const handleSaved = () => {
+    resetOptions();
     onSaved?.();
   };
 
+  const handleClose = () => {
+    resetOptions();
+    onClose();
+  };
+
+  const handleDismiss = () => {
+    resetOptions();
+    (onDismiss ?? onClose)();
+  };
+
   const handleSubmit = (text: string) => {
-    const description = text.trim();
+    const description = text.trim() || title.trim();
+    if (!description) return;
     const generatedTitle = deriveTitle(description);
     const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
 
@@ -129,12 +163,13 @@ export const ManifestationQuickAdd: React.FC<ManifestationQuickAddProps> = ({
 
   return (
     <QuickAddComposer
+      ref={composerRef}
       label="Nueva manifestación"
       placeholder="Quiero manifestar…"
       tone="butter"
       isOpen={isOpen}
-      onClose={onClose}
-      onDismiss={onDismiss}
+      onClose={handleClose}
+      onDismiss={handleDismiss}
       onSubmit={handleSubmit}
       onSaved={handleSaved}
       savedLabel="Intención guardada"
@@ -152,4 +187,4 @@ export const ManifestationQuickAdd: React.FC<ManifestationQuickAddProps> = ({
       }
     />
   );
-};
+});

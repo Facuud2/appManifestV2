@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
 } from 'react';
@@ -18,6 +19,10 @@ export type QuickAddTone = 'rose' | 'butter';
 export interface QuickAddAdvancedAction {
   label: string;
   onClick: () => void;
+}
+
+export interface QuickAddComposerHandle {
+  submitAndClose: () => boolean;
 }
 
 export interface QuickAddComposerProps {
@@ -59,28 +64,34 @@ export interface QuickAddComposerProps {
 
 const MAX_LENGTH = 500;
 
-export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
-  label,
-  placeholder,
-  tone,
-  isOpen,
-  onClose,
-  onDismiss,
-  onSubmit,
-  onSaved,
-  onDraftChange,
-  savedLabel,
-  savedLabelShort,
-  submitAriaLabel,
-  hint,
-  hintMobile,
-  maxRows = 3,
-  options,
-  advancedAction,
-  getWarning,
-  onWarningChange,
-  dictationSample,
-}) => {
+export const QuickAddComposer = React.forwardRef<
+  QuickAddComposerHandle,
+  QuickAddComposerProps
+>(function QuickAddComposer(
+  {
+    label,
+    placeholder,
+    tone,
+    isOpen,
+    onClose,
+    onDismiss,
+    onSubmit,
+    onSaved,
+    onDraftChange,
+    savedLabel,
+    savedLabelShort,
+    submitAriaLabel,
+    hint,
+    hintMobile,
+    maxRows = 3,
+    options,
+    advancedAction,
+    getWarning,
+    onWarningChange,
+    dictationSample,
+  },
+  ref,
+) {
   const prefersReducedMotion = useReducedMotion();
   const fieldId = useId();
   const labelId = useId();
@@ -94,6 +105,7 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
   const savedTimerRef = useRef<number | null>(null);
 
   const [draft, setDraft] = useState('');
+  const onDraftChangeRef = useRef(onDraftChange);
   const [savedCount, setSavedCount] = useState(0);
   const [justSaved, setJustSaved] = useState(false);
   const [announcement, setAnnouncement] = useState('');
@@ -118,7 +130,7 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
    * Outside press dismisses the composer, the way a bottom sheet behaves.
    * Listening on `click` (not pointerdown) lets React run the opener's own
    * toggle first, so clicking "Listo" or the Crear bead never closes and
-   * immediately reopens the panel. The draft is preserved.
+   * immediately reopens the panel. The draft is cleared on close.
    */
   useEffect(() => {
     if (!isOpen) return;
@@ -134,6 +146,10 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
   }, [isOpen, onClose, onDismiss]);
 
   const warning = getWarning && draft.trim() ? getWarning(draft) : null;
+
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange;
+  }, [onDraftChange]);
 
   useEffect(() => {
     onWarningChange?.(warning);
@@ -222,7 +238,11 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
     return () => window.removeEventListener('resize', resizeField);
   }, [draft, isOpen, maxRows]);
 
-  /* Closing resets the burst counter but keeps the draft. */
+  /*
+   * Closing resets the burst counter and clears the draft, so a composer that
+   * was dismissed (tap outside, Escape, header Listo) always reopens empty
+   * instead of keeping stale text.
+   */
   useEffect(() => {
     if (isOpen) return;
     setSavedCount(0);
@@ -230,6 +250,8 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
     setAnnouncement('');
     setOfflineNotice(false);
     setSubmitError(null);
+    setDraft('');
+    onDraftChangeRef.current?.('');
   }, [isOpen]);
 
   useEffect(() => {
@@ -275,11 +297,30 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
       });
       onSaved?.();
 
-      window.requestAnimationFrame(() => fieldRef.current?.focus());
-
-      if (closeAfter) onClose();
+      if (closeAfter) {
+        onClose();
+      } else {
+        window.requestAnimationFrame(() => fieldRef.current?.focus());
+      }
     },
     [draft, onClose, onSaved, onSubmit, savedCount, savedLabel, updateDraft],
+  );
+
+  const handleDone = useCallback(() => {
+    if (draft.trim()) {
+      submit(true);
+      return true;
+    }
+    onClose();
+    return false;
+  }, [draft, submit, onClose]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      submitAndClose: handleDone,
+    }),
+    [handleDone],
   );
 
   const handleFieldKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -469,8 +510,8 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
 
                 <button
                   type="button"
-                  onClick={onClose}
-                  aria-label="Cerrar composer y conservar lo agregado"
+                  onClick={handleDone}
+                  aria-label={draft.trim() ? 'Guardar y cerrar' : 'Cerrar composer y conservar lo agregado'}
                   className="quick-add-done inline-flex min-h-11 items-center rounded-full px-4 text-xs font-semibold text-[color:var(--color-ink)] transition-colors hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus sm:hidden"
                 >
                   Listo
@@ -519,4 +560,4 @@ export const QuickAddComposer: React.FC<QuickAddComposerProps> = ({
   );
 
   return portalNode ? createPortal(composer, portalNode) : composer;
-};
+});
