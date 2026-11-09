@@ -20,6 +20,7 @@ interface BottomNavigationProps {
   onOpenRampage?: () => void;
   onOpenCreateMenu: (trigger: HTMLElement) => void;
   isCreateMenuOpen: boolean;
+  createGestureProps?: React.DOMAttributes<HTMLButtonElement>;
 }
 
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
@@ -27,6 +28,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onChangeTab,
   onOpenCreateMenu,
   isCreateMenuOpen,
+  createGestureProps,
 }) => {
   const tabs: Array<{
     id: NavTab;
@@ -81,11 +83,22 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               key={tab.id}
               type="button"
               data-quick-add-trigger={tab.isCreate ? 'true' : undefined}
-              onClick={(event) =>
-                tab.isCreate
-                  ? onOpenCreateMenu(event.currentTarget)
-                  : onChangeTab(tab.id)
-              }
+              {...(tab.isCreate && createGestureProps
+                ? {
+                    ...createGestureProps,
+                    onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onOpenCreateMenu(e.currentTarget);
+                      }
+                    },
+                  }
+                : {
+                    onClick: (event: React.MouseEvent<HTMLButtonElement>) =>
+                      tab.isCreate
+                        ? onOpenCreateMenu(event.currentTarget)
+                        : onChangeTab(tab.id),
+                  })}
               aria-label={
                 tab.isCreate
                   ? isCreateMenuOpen

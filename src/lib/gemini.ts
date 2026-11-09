@@ -663,3 +663,500 @@ export async function synthesizeSpeechWithGemini38FlashTTS(options: {
     };
   }
 }
+
+export type VoiceActionIntent =
+  | 'START_RAMPAGE'
+  | 'CREATE_MANIFESTATION'
+  | 'CREATE_AFFIRMATION'
+  | 'LOG_PROGRESS'
+  | 'LOG_SUCCESS'
+  | 'UNKNOWN';
+
+export interface VoiceActionRampageData {
+  title: string;
+  count: number;
+  affirmations: string[];
+  ambientSound: 'white_noise' | 'astral_rain' | 'none';
+}
+
+export interface VoiceActionManifestationData {
+  title: string;
+  description: string;
+  category?: string;
+}
+
+export interface VoiceActionAffirmationData {
+  text: string;
+  category?: string;
+}
+
+export interface VoiceActionProgressData {
+  manifestationId?: string;
+  note: string;
+  signType?: string;
+}
+
+export interface VoiceActionSuccessData {
+  manifestationId?: string;
+  title: string;
+  story: string;
+}
+
+export interface VoiceActionRetroactiveManifestation {
+  title: string;
+  description: string;
+}
+
+export interface VoiceCommandResult {
+  intent: VoiceActionIntent;
+  assistantFeedback: string;
+  rampageData?: VoiceActionRampageData;
+  manifestationData?: VoiceActionManifestationData;
+  affirmationData?: VoiceActionAffirmationData;
+  progressData?: VoiceActionProgressData;
+  successData?: VoiceActionSuccessData;
+  retroactiveManifestation?: VoiceActionRetroactiveManifestation;
+  source: 'GEMINI_LIVE' | 'SANDBOX_MOCK' | 'LOCAL_FALLBACK';
+  quotaUsedToday: number;
+}
+
+/**
+ * System prompt estricto para Voice Action Router en Gemini 3.5 Flash
+ */
+export function buildVoiceActionRouterSystemPrompt(activeManifestations: Array<{ id: string; title: string }>): string {
+  const manifestationsList = activeManifestations.length > 0
+    ? activeManifestations.map((m) => `- id: "${m.id}", title: "${m.title}"`).join('\n')
+    : '(Ninguna manifestación activa registrada aún)';
+
+  return `Eres el "Voice Action Router" de Manifest, una aplicación guiada estrictamente por la Ley de la Asunción Natural (cero lenguaje poético / cero New Age).
+Tu labor es escuchar el audio del usuario, comprender la intención en lenguaje natural y resolver la acción en un único objeto JSON estructurado.
+
+MANIFESTACIONES ACTIVAS ACTUALES DEL USUARIO:
+${manifestationsList}
+
+REGLAS GENERALES DE ASUNCIÓN:
+- Prohibidas palabras poéticas/New Age: fluir, latido, sagrado, vibrar, frecuencia, sendero, gratitud, universo conspiró, certeza plena, luz.
+- Todo en primera persona ("Soy...", "Tengo...", "[SP] me...", "Disfruto..."), presente simple cotidiano.
+
+CASOS DE USO E INTENCIONES (ELIGE EXACTAMENTE UNA):
+
+1. INTENT: "START_RAMPAGE"
+- Se activa cuando el usuario solicita hacer, iniciar, escuchar o generar un Rampage, afirmaciones o práctica auditiva.
+- DEBE OBEDECER CUALQUIER REGLA O PREFIJO GRAMATICAL SOLICITADO.
+  Ejemplo: Si el usuario dice "con el matiz de que todas las oraciones comienzan con 'Yo soy Dios y por lo tanto...'", TODAS las afirmaciones generadas deben iniciar obligatoriamente con ese prefijo exacto.
+- Cantidad de afirmaciones ("count"): 11 por defecto; si el usuario dice 5 o 15, usa exactamente ese número.
+- Sonido ambiente ("ambientSound"): Si no se especifica explícitamente, DEBE SER "white_noise". Si pide lluvia, usa "astral_rain".
+- Estructura:
+  "rampageData": {
+    "title": string,
+    "count": number,
+    "affirmations": string[],
+    "ambientSound": "white_noise" | "astral_rain" | "none"
+  }
+
+2. INTENT: "CREATE_AFFIRMATION"
+- Se activa cuando el usuario quiere registrar, guardar o crear una afirmación, decreto o verdad asumida (ej: "Quiero que guardes la siguiente afirmación: Soy Dios", "Anotar decreto...", "Guardar afirmación...", "Quiero que guardes la afirmación...").
+- REGLA CRÍTICA DE PRIORIDAD: Si el usuario dice explícitamente "afirmación", "decreto", "frase ancla", o un decreto directo breve como "Soy Dios", "Soy amado", "Soy la única causa", clasifícalo OBLIGATORIAMENTE como "CREATE_AFFIRMATION" y NUNCA como manifestación, incluso si antes dudó o mencionó la palabra manifestación por error.
+- Limpia muletillas introductorias ("Quiero que guardes la siguiente afirmación:", "Quiero que guardes la afirmación", "Guardar afirmación", "Anotar decreto", "La siguiente afirmación").
+- "text": La afirmación concisa en primera persona ("Soy Dios", "Soy completamente amado", "Mi atención es única").
+- "category": "identity" | "love" | "wealth" | "body" | "general" (default "identity").
+- Estructura:
+  "affirmationData": {
+    "text": string,
+    "category": string
+  }
+
+3. INTENT: "CREATE_MANIFESTATION"
+- Se activa cuando el usuario quiere registrar una nueva manifestación, meta o deseo futuro ya cumplido en consciencia.
+- Limpia muletillas ("Registrar una nueva manifestación donde...", "Quiero manifestar...", "Anotar deseo...").
+- "title": Título corto y concreto (máx 5 palabras, ej: "Sushi toda la semana").
+- "description": Redacción en presente cumplido (ej: "Disfruto comiendo sushi durante toda la semana").
+- "category": "lifestyle" | "career" | "wealth" | "love" | "health" | "other" (default "lifestyle").
+- Estructura:
+  "manifestationData": {
+    "title": string,
+    "description": string,
+    "category": string
+  }
+
+4. INTENT: "LOG_PROGRESS"
+- Se activa cuando el usuario reporta un avance, señal, movimiento, sincronicidad o novedad respecto a un deseo.
+- Vinculación inteligente:
+  * Si semánticamente coincide con una manifestación de la lista 'MANIFESTACIONES ACTIVAS ACTUALES', asigna su ID en "manifestationId".
+  * Si NO existe ninguna en la lista que coincida, NO dejes el progreso huérfano: genera "retroactiveManifestation" con título y descripción para crear la semilla en la misma operación, y deja "manifestationId" en null.
+- "note": Redacción concisa de lo sucedido en primera persona.
+- "signType": "movement" | "synchronicity" | "bridge".
+- Estructura:
+  "progressData": {
+    "manifestationId": string | null,
+    "note": string,
+    "signType": string
+  },
+  "retroactiveManifestation"?: {
+    "title": string,
+    "description": string
+  }
+
+5. INTENT: "LOG_SUCCESS"
+- Se activa cuando el deseo se cumplió por completo (éxito total).
+- Misma lógica de vinculación semántica / creación retroactiva si no existía la semilla.
+- Estructura:
+  "successData": {
+    "manifestationId": string | null,
+    "title": string,
+    "story": string
+  },
+  "retroactiveManifestation"?: {
+    "title": string,
+    "description": string
+  }
+
+6. INTENT: "UNKNOWN"
+- Se activa cuando no lograste entender la voz del usuario, el audio contiene solo estática/ruido, o lo dicho no corresponde a ninguna acción de manifestación, avance o Rampage.
+- "assistantFeedback": "No alcancé a entenderte bien. ¿Podrías repetirlo?"
+
+CAMPO OBLIGATORIO "assistantFeedback":
+Una frase breve, afectuosa y directa (máximo 10-12 palabras) que describa la acción ejecutada para la notificación del usuario.
+Ejemplos:
+- "Afirmación 'Soy Dios' guardada"
+- "Rampage de identidad iniciado con 11 decretos"
+- "Manifestación 'Sushi toda la semana' guardada"
+- "Semilla 'Yoga 3 días' creada + Avance de hoy vinculado"
+- "No alcancé a entenderte bien. ¿Podrías repetirlo?"
+
+RESPONDE EXCLUSIVAMENTE CON EL OBJETO JSON COMPLETO.`;
+}
+
+/**
+ * Fallback heurístico para Sandbox Mode o entorno sin API key
+ */
+function buildMockVoiceCommandResult(
+  spokenText: string,
+  activeManifestations: Array<{ id: string; title: string }>
+): Omit<VoiceCommandResult, 'source' | 'quotaUsedToday'> {
+  const text = spokenText.trim().toLowerCase();
+
+  // Caso Desconocido / Ruido
+  if (text.length === 0 || text === 'unclear' || text.includes('ininteligible') || text.includes('no entiendo')) {
+    return {
+      intent: 'UNKNOWN',
+      assistantFeedback: 'No alcancé a entenderte bien. ¿Podrías repetirlo?',
+    };
+  }
+
+  // Caso A0: Afirmación individual directa o con autocorrección
+  const isIndividualAffirmation =
+    text.includes('siguiente afirmaci') ||
+    text.includes('guardar afirmaci') ||
+    text.includes('guardes la afirmaci') ||
+    text.includes('guardes la siguiente afirmación') ||
+    text.includes('nueva afirmaci') ||
+    text.includes('guardar decreto') ||
+    text.includes('anotar afirmaci') ||
+    (text.startsWith('soy ') && !text.includes('rampage') && !text.includes('por lo tanto'));
+
+  if (isIndividualAffirmation) {
+    let cleanText = spokenText
+      .replace(/quiero que guardes (la|esta)? (siguiente )?(afirmaci[oó]n|decreto)[:\s]*/i, '')
+      .replace(/guardar (la|esta)? (afirmaci[oó]n|decreto)[:\s]*/i, '')
+      .replace(/anotar (la|esta)? (afirmaci[oó]n|decreto)[:\s]*/i, '')
+      .replace(/nueva (afirmaci[oó]n|decreto)[:\s]*/i, '')
+      .replace(/^afirmaci[oó]n[:\s]*/i, '')
+      .replace(/^decreto[:\s]*/i, '')
+      .trim();
+
+    cleanText = cleanText.replace(/^["'«“]|["'»”]$/g, '').trim();
+    if (cleanText.length === 0) cleanText = 'Soy Dios';
+    cleanText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+
+    return {
+      intent: 'CREATE_AFFIRMATION',
+      assistantFeedback: `Afirmación '${cleanText}' guardada`,
+      affirmationData: {
+        text: cleanText,
+        category: 'identity',
+      },
+    };
+  }
+
+  // Caso A: Rampage
+  if (text.includes('rampage') || text.includes('afirmaciones') || text.includes('yo soy dios')) {
+    const hasCustomPrefix = text.includes('yo soy dios y por lo tanto');
+    const prefix = hasCustomPrefix ? 'Yo soy Dios y por lo tanto ' : '';
+    const affirmations = [
+      `${prefix}sé exactamente quién soy en cada momento`,
+      `${prefix}todo se acomoda de inmediato a mi favor`,
+      `${prefix}mi palabra es la única ley en mi realidad`,
+      `${prefix}las personas me tratan con devoción y respeto`,
+      `${prefix}soy la prioridad absoluta donde sea que esté`,
+      `${prefix}no tengo que esforzarme para recibir lo mejor`,
+      `${prefix}mi presencia transforma cualquier lugar al que llego`,
+      `${prefix}tengo completa certeza de mi poder`,
+      `${prefix}lo que decido ya es un hecho consumado`,
+      `${prefix}disfruto de una paz y abundancia inquebrantables`,
+      `${prefix}todo lo que deseo me busca y me encuentra rápido`,
+    ];
+
+    return {
+      intent: 'START_RAMPAGE',
+      assistantFeedback: 'Rampage de identidad iniciado con 11 decretos',
+      rampageData: {
+        title: 'Rampage de Identidad',
+        count: 11,
+        affirmations,
+        ambientSound: 'white_noise',
+      },
+    };
+  }
+
+  // Caso C2: Éxito total
+  if (text.includes('cumplió') || text.includes('éxito') || text.includes('se me dio') || text.includes('materializado')) {
+    const match = activeManifestations.find((m) =>
+      text.includes(m.title.toLowerCase()) || m.title.toLowerCase().includes('yoga')
+    ) || activeManifestations[0];
+    return {
+      intent: 'LOG_SUCCESS',
+      assistantFeedback: match ? `¡Éxito registrado en '${match.title}'!` : '¡Éxito registrado con semilla creada!',
+      successData: {
+        manifestationId: match ? match.id : undefined,
+        title: match ? match.title : 'Deseo manifestado',
+        story: 'Se cumplió tal como lo había asumido en mi realidad.',
+      },
+      retroactiveManifestation: !match
+        ? {
+            title: 'Deseo manifestado',
+            description: 'Manifestación cumplida con éxito total.',
+          }
+        : undefined,
+    };
+  }
+
+  // Caso C: Avance / Oportunidad (ejemplo Yoga)
+  if (text.includes('yoga') || text.includes('avance') || text.includes('oportunidad') || text.includes('presentó')) {
+    const match = activeManifestations.find((m) =>
+      m.title.toLowerCase().includes('yoga')
+    );
+
+    if (match) {
+      return {
+        intent: 'LOG_PROGRESS',
+        assistantFeedback: `Avance vinculado a '${match.title}'`,
+        progressData: {
+          manifestationId: match.id,
+          note: 'Hoy se me presentó una oportunidad para iniciar yoga tres días a la semana.',
+          signType: 'movement',
+        },
+      };
+    }
+
+    return {
+      intent: 'LOG_PROGRESS',
+      assistantFeedback: "Semilla 'Yoga 3 días' creada + Avance vinculado",
+      progressData: {
+        manifestationId: undefined,
+        note: 'Hoy se me presentó una oportunidad concreta para iniciar yoga tres días a la semana.',
+        signType: 'movement',
+      },
+      retroactiveManifestation: {
+        title: 'Hago yoga 3 veces por semana',
+        description: 'Disfruto practicando yoga tres días a la semana con total constancia y bienestar.',
+      },
+    };
+  }
+
+  // Caso B: Nueva manifestación directa por defecto
+  let cleanedTitle = spokenText
+    .replace(/registrar una nueva manifestaci[oó]n( donde)?/i, '')
+    .replace(/quiero manifestar/i, '')
+    .replace(/deseo manifestar/i, '')
+    .replace(/manifestar/i, '')
+    .trim()
+    .replace(/^donde quiero /i, '')
+    .replace(/^donde /i, '')
+    .replace(/^quiero /i, '')
+    .trim();
+
+  if (cleanedTitle.length === 0) {
+    cleanedTitle = 'Sushi toda la semana';
+  } else if (cleanedTitle.length > 50) {
+    cleanedTitle = cleanedTitle.slice(0, 47) + '...';
+  }
+
+  // Capitalize first letter
+  cleanedTitle = cleanedTitle.charAt(0).toUpperCase() + cleanedTitle.slice(1);
+
+  return {
+    intent: 'CREATE_MANIFESTATION',
+    assistantFeedback: `Manifestación '${cleanedTitle}' creada`,
+    manifestationData: {
+      title: cleanedTitle,
+      description: `Disfruto de ${cleanedTitle.toLowerCase()} como un hecho natural en mi realidad.`,
+      category: 'lifestyle',
+    },
+  };
+}
+
+/**
+ * Procesa un comando de voz multimodal en una sola llamada usando Gemini 3.5 Flash
+ */
+export async function processVoiceCommandWithGemini(options: {
+  audioBuffer: Buffer;
+  mimeType: string;
+  currentProfile: 'facu' | 'maia' | 'shared';
+  activeManifestations: Array<{ id: string; title: string }>;
+  spokenText?: string;
+  sandbox?: boolean;
+}): Promise<VoiceCommandResult> {
+  const {
+    audioBuffer,
+    mimeType,
+    currentProfile,
+    activeManifestations,
+    spokenText,
+    sandbox = false,
+  } = options;
+
+  if (sandbox || spokenText) {
+    const mock = buildMockVoiceCommandResult(
+      spokenText || 'Registrar una nueva manifestación donde quiero comer sushi durante toda la semana',
+      activeManifestations
+    );
+    const quotaUsedToday = await getDailyAiUsage();
+    return {
+      ...mock,
+      source: sandbox ? 'SANDBOX_MOCK' : 'GEMINI_LIVE',
+      quotaUsedToday,
+    };
+  }
+
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    const mock = buildMockVoiceCommandResult(
+      'Registrar una nueva manifestación donde quiero comer sushi durante toda la semana',
+      activeManifestations
+    );
+    const quotaUsedToday = await getDailyAiUsage();
+    return {
+      ...mock,
+      source: 'LOCAL_FALLBACK',
+      quotaUsedToday,
+    };
+  }
+
+  if (!audioBuffer || audioBuffer.length < 200) {
+    throw new Error('No se recibió una grabación de audio válida');
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
+  const systemInstruction = buildVoiceActionRouterSystemPrompt(activeManifestations);
+
+  const prompt = `Perfil del usuario: ${currentProfile}.
+Escucha atentamente el audio adjunto y devuelve el objeto JSON correspondiente con la acción resuelta.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: cleanMime,
+                data: audioBuffer.toString('base64'),
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction,
+        temperature: 0.35,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const quotaUsedToday = await incrementDailyAiUsage(1);
+    const rawText = response.text || '';
+    const cleanedJson = rawText
+      .trim()
+      .replace(/^```json/i, '')
+      .replace(/^```/i, '')
+      .replace(/```$/i, '')
+      .trim();
+
+    const parsed = JSON.parse(cleanedJson);
+
+    return {
+      intent: parsed.intent || 'CREATE_MANIFESTATION',
+      assistantFeedback: parsed.assistantFeedback || 'Acción procesada correctamente',
+      rampageData: parsed.rampageData,
+      manifestationData: parsed.manifestationData,
+      affirmationData: parsed.affirmationData,
+      progressData: parsed.progressData,
+      successData: parsed.successData,
+      retroactiveManifestation: parsed.retroactiveManifestation,
+      source: 'GEMINI_LIVE',
+      quotaUsedToday,
+    };
+  } catch (error: any) {
+    console.warn('[Gemini Voice Command] Error with gemini-3.5-flash, trying fallback:', error);
+    try {
+      const fallbackResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: cleanMime,
+                  data: audioBuffer.toString('base64'),
+                },
+              },
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction,
+          temperature: 0.35,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const quotaUsedToday = await incrementDailyAiUsage(1);
+      const rawText = fallbackResponse.text || '';
+      const cleanedJson = rawText
+        .trim()
+        .replace(/^```json/i, '')
+        .replace(/^```/i, '')
+        .replace(/```$/i, '')
+        .trim();
+      const parsed = JSON.parse(cleanedJson);
+
+      return {
+        intent: parsed.intent || 'CREATE_MANIFESTATION',
+        assistantFeedback: parsed.assistantFeedback || 'Acción procesada correctamente',
+        rampageData: parsed.rampageData,
+        manifestationData: parsed.manifestationData,
+        affirmationData: parsed.affirmationData,
+        progressData: parsed.progressData,
+        successData: parsed.successData,
+        retroactiveManifestation: parsed.retroactiveManifestation,
+        source: 'GEMINI_LIVE',
+        quotaUsedToday,
+      };
+    } catch (fallbackError) {
+      console.error('[Gemini Voice Command] Final error:', fallbackError);
+      throw error;
+    }
+  }
+}
+

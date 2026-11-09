@@ -6,6 +6,8 @@ import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useAppStore, type ManifestationItem } from '@/store';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { BACKDROP_TRANSITION, MODAL_TRANSITION } from '@/lib/iosSprings';
+import { extractUrls } from '@/utils/urlParser';
+import { RichLinkPreview } from '@/components/journal/RichLinkPreview';
 
 interface ProgressLogModalProps {
   isOpen: boolean;
@@ -185,6 +187,16 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
                   previousTextTail={note}
                 />
               </div>
+
+              {(() => {
+                const detected = extractUrls(note);
+                if (detected.length === 0) return null;
+                return (
+                  <div className="mt-1">
+                    <RichLinkPreview url={detected[0].cleanUrl} compact />
+                  </div>
+                );
+              })()}
 
               <div className="progress-composer-link">
                 <label htmlFor="progress-manifestation" className="mb-1.5 block text-xs font-medium">

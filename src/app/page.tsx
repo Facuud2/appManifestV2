@@ -22,6 +22,10 @@ import { SuccessStoryModal } from '@/components/goals/SuccessStoryModal';
 import { BreakUiToggle } from '@/components/dev/BreakUiToggle';
 import { audioEngine } from '@/lib/audioEngine';
 import { AmbientSoundType, RampageSet, UserScope } from '@/types';
+import { VoiceActionOrb } from '@/components/voice/VoiceActionOrb';
+import { VoiceActionToast, type VoiceActionToastState } from '@/components/voice/VoiceActionToast';
+import { useVoiceActionRouter } from '@/hooks/useVoiceActionRouter';
+import type { VoiceCommandResult } from '@/lib/gemini';
 
 const SCOPE_REGENERATION_MIN_MS = 320;
 const SCOPE_REGENERATION_MAX_MS = 6000;
@@ -38,6 +42,16 @@ export default function HomePage() {
     isLoading,
     isScopeRegenerating,
     setScopeRegenerating,
+    manifestations,
+    addManifestation,
+    deleteManifestation,
+    addAffirmation,
+    deleteAffirmation,
+    addProgressLog,
+    deleteProgressLog,
+    addSuccessStory,
+    deleteSuccessStory,
+    isSandboxMode,
   } = useAppStore();
   const prefersReducedMotion = useReducedMotion();
 
@@ -46,6 +60,8 @@ export default function HomePage() {
   const minimumHoldElapsedRef = useRef(true);
   const previousScopeRef = useRef(activeScope);
   const regenerationTimerRef = useRef<number | null>(null);
+
+  const [voiceToast, setVoiceToast] = useState<VoiceActionToastState | null>(null);
 
   // Modals state
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
@@ -150,6 +166,9 @@ export default function HomePage() {
     setQuickAddSection(null);
     quickAddTriggerRef.current = null;
     setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
   }, []);
 
   const openQuickAdd = useCallback(
@@ -327,8 +346,253 @@ export default function HomePage() {
     window.requestAnimationFrame(() => createMenuTriggerRef.current?.focus());
   }, []);
 
+  const handleVoiceCommandResult = useCallback(
+    async (result: VoiceCommandResult) => {
+      if (result.intent === 'START_RAMPAGE') {
+        const title = result.rampageData?.title || 'Rampage de voz';
+        const affirmations = result.rampageData?.affirmations || [];
+        const ambientSound: AmbientSoundType =
+          result.rampageData?.ambientSound === 'astral_rain'
+            ? 'astral_rain'
+            : result.rampageData?.ambientSound === 'none'
+              ? 'none'
+              : 'white_noise';
+
+        void audioEngine?.unlock();
+        setRampageToResume(null);
+        setDirectRampagePayload({
+          title,
+          affirmations,
+          ambientSound,
+          requestId: Date.now(),
+        });
+        setRampageOpenMode('new');
+        setIsRampageOpen(true);
+        return;
+      }
+
+      if (result.intent === 'CREATE_AFFIRMATION') {
+        const text = result.affirmationData?.text?.trim() || 'Soy Dios';
+        const newAffirmation = await addAffirmation(text);
+
+        setVoiceToast({
+          id: `toast_${Date.now()}`,
+          intent: 'CREATE_AFFIRMATION',
+          message: result.assistantFeedback || `Afirmación '${text}' guardada`,
+          onUndo: async () => {
+            await deleteAffirmation(newAffirmation.id);
+          },
+          switchLabel: 'Cambiar a Manifestación ✨',
+          onSwitchType: async () => {
+            await deleteAffirmation(newAffirmation.id);
+            await addManifestation({
+              title: text,
+              description: `Disfruto de ${text.toLowerCase()} con naturalidad en mi realidad.`,
+              category: 'lifestyle',
+              author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
+              sensoryAnchor: '',
+              status: 'semilla',
+              userId: activeScope,
+            });
+          },
+        });
+        return;
+      }
+
+      if (result.intent === 'CREATE_MANIFESTATION') {
+        const title = result.manifestationData?.title || 'Nueva manifestación';
+        const description = result.manifestationData?.description || '';
+        const category = result.manifestationData?.category || 'lifestyle';
+        const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
+
+        const newItem = await addManifestation({
+          title,
+          description,
+          category,
+          author,
+          sensoryAnchor: '',
+          status: 'semilla',
+          userId: activeScope,
+        });
+
+        setVoiceToast({
+          id: `toast_${Date.now()}`,
+          intent: 'CREATE_MANIFESTATION',
+          message: result.assistantFeedback || `Manifestación '${newItem.title}' creada`,
+          manifestationId: newItem.id,
+          onUndo: async () => {
+            await deleteManifestation(newItem.id);
+          },
+        });
+        return;
+      }
+
+      if (result.intent === 'LOG_PROGRESS') {
+        let manifestationId = result.progressData?.manifestationId;
+        let createdSeedId: string | undefined;
+
+        if (result.retroactiveManifestation) {
+          const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
+          const seed = await addManifestation({
+            title: result.retroactiveManifestation.title,
+            description: result.retroactiveManifestation.description,
+            category: 'lifestyle',
+            author,
+            sensoryAnchor: '',
+            status: 'semilla',
+            userId: activeScope,
+          });
+          manifestationId = seed.id;
+          createdSeedId = seed.id;
+        }
+
+        const note = result.progressData?.note || 'Avance registrado';
+        const signType = (result.progressData?.signType || 'movement') as any;
+
+        const newLog = await addProgressLog({
+          manifestationId,
+          note,
+          signType,
+          userId: activeScope,
+        });
+
+        const targetTitle =
+          manifestations.find((m) => m.id === manifestationId)?.title ||
+          result.retroactiveManifestation?.title ||
+          'Manifestación';
+
+        setVoiceToast({
+          id: `toast_${Date.now()}`,
+          intent: 'LOG_PROGRESS',
+          message: result.assistantFeedback || `Avance vinculado a '${targetTitle}'`,
+          manifestationId,
+          progressId: newLog.id,
+          retroactiveManifestationId: createdSeedId,
+          switchLabel: 'Cambiar a ¡Se cumplió! 🏆',
+          onSwitchType: async () => {
+            await deleteProgressLog(newLog.id);
+            await addSuccessStory({
+              manifestationId,
+              author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
+              title: targetTitle,
+              story: note,
+              manifestedDate: new Date().toISOString(),
+              userId: activeScope,
+            });
+          },
+          onUndo: async () => {
+            await deleteProgressLog(newLog.id);
+            if (createdSeedId) {
+              await deleteManifestation(createdSeedId);
+            }
+          },
+        });
+        return;
+      }
+
+      if (result.intent === 'LOG_SUCCESS') {
+        let manifestationId = result.successData?.manifestationId;
+        let createdSeedId: string | undefined;
+
+        if (result.retroactiveManifestation) {
+          const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
+          const seed = await addManifestation({
+            title: result.retroactiveManifestation.title,
+            description: result.retroactiveManifestation.description,
+            category: 'lifestyle',
+            author,
+            sensoryAnchor: '',
+            status: 'materializado',
+            userId: activeScope,
+          });
+          manifestationId = seed.id;
+          createdSeedId = seed.id;
+        }
+
+        const title =
+          result.successData?.title ||
+          manifestations.find((m) => m.id === manifestationId)?.title ||
+          'Deseo cumplido';
+        const story = result.successData?.story || '¡Manifestado con éxito!';
+
+        const newStory = await addSuccessStory({
+          manifestationId,
+          author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
+          title,
+          story,
+          manifestedDate: new Date().toISOString(),
+          userId: activeScope,
+        });
+
+        setVoiceToast({
+          id: `toast_${Date.now()}`,
+          intent: 'LOG_SUCCESS',
+          message: result.assistantFeedback || `¡Éxito registrado en '${title}'!`,
+          manifestationId,
+          storyId: newStory.id,
+          retroactiveManifestationId: createdSeedId,
+          switchLabel: 'Cambiar a Avance 👣',
+          onSwitchType: async () => {
+            await deleteSuccessStory(newStory.id);
+            await addProgressLog({
+              manifestationId,
+              note: story,
+              signType: 'movement',
+              userId: activeScope,
+            });
+          },
+          onUndo: async () => {
+            await deleteSuccessStory(newStory.id);
+            if (createdSeedId) {
+              await deleteManifestation(createdSeedId);
+            }
+          },
+        });
+      }
+    },
+    [
+      activeScope,
+      addManifestation,
+      deleteManifestation,
+      addAffirmation,
+      deleteAffirmation,
+      addProgressLog,
+      deleteProgressLog,
+      addSuccessStory,
+      deleteSuccessStory,
+      manifestations,
+    ]
+  );
+
+  const voiceRouter = useVoiceActionRouter({
+    onOpenManualCreate: () => {
+      const trigger =
+        (document.querySelector('[data-quick-add-trigger="true"]') as HTMLElement) ||
+        createMenuTriggerRef.current ||
+        document.body;
+      handleMobileCreate(trigger);
+    },
+    onCommandResult: handleVoiceCommandResult,
+    onError: ({ message, detail, variant }) => {
+      setVoiceToast({
+        id: `toast_err_${Date.now()}`,
+        message,
+        detail,
+        variant: variant || 'error',
+        onRetry: () => {
+          void voiceRouter.startVoiceCapture();
+        },
+      });
+    },
+    activeScope,
+    activeManifestations: manifestations
+      .filter((m) => m.userId === activeScope)
+      .map((m) => ({ id: m.id, title: m.title })),
+    isSandboxMode,
+  });
+
   return (
-    <div className="flex min-h-dvh flex-col lg:flex-row overflow-x-hidden max-w-full">
+    <div className="flex min-h-dvh flex-col lg:flex-row overflow-x-clip max-w-full">
       <a
         href="#main-content"
         className="sr-only fixed left-4 top-4 z-[60] rounded-xl bg-swiss-accent px-4 py-3 font-semibold text-swiss-accentFg focus:not-sr-only focus-visible:ring-2 focus-visible:ring-swiss-focus"
@@ -343,7 +607,7 @@ export default function HomePage() {
         onOpenRampage={handleOpenNewRampage}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden max-w-full">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-clip max-w-full">
         <AppHeader
           onOpenCalibration={() => setIsCalibrationOpen(true)}
         />
@@ -351,7 +615,7 @@ export default function HomePage() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto w-full max-w-[1160px] min-w-0 flex-1 px-page py-section overflow-x-hidden"
+          className="mx-auto w-full max-w-[1160px] min-w-0 flex-1 px-page pt-section pb-36 overflow-x-clip"
         >
           <div className="relative w-full min-w-0">
             {isScopeRegenerating && (
@@ -479,6 +743,7 @@ export default function HomePage() {
           onOpenRampage={handleOpenNewRampage}
           onOpenCreateMenu={handleMobileCreate}
           isCreateMenuOpen={isMobileCreateActive}
+          createGestureProps={voiceRouter.buttonGestureProps}
         />
       </div>
 
@@ -487,6 +752,22 @@ export default function HomePage() {
         anchor={createMenuAnchor}
         onClose={handleCloseCreateMenu}
         onSelect={handleSelectCreateAction}
+      />
+
+      <VoiceActionOrb
+        isOpen={voiceRouter.isOrbOpen}
+        isHandsFree={voiceRouter.isHandsFree}
+        isProcessing={voiceRouter.isProcessing}
+        analyserNode={voiceRouter.analyserNode}
+        holdProgress={voiceRouter.holdProgress}
+        onCancel={voiceRouter.cancelRecording}
+        onSubmit={voiceRouter.finishAndSubmit}
+        onLockHandsFree={voiceRouter.lockHandsFree}
+      />
+
+      <VoiceActionToast
+        toast={voiceToast}
+        onDismiss={() => setVoiceToast(null)}
       />
 
       {/* Modals */}

@@ -10,6 +10,7 @@ import { putMedia } from '@/lib/mediaStorage';
 import { createManifestationId } from '@/lib/manifestationAttachments';
 import { stopActivePreview } from '@/lib/audioPreviewBus';
 import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
+import { generateCleanTitle } from '@/utils/urlParser';
 import { AttachmentMenu } from './attachments/AttachmentMenu';
 import { AttachmentChipRow } from './attachments/AttachmentChipRow';
 import { MusicSearchSheet } from './attachments/MusicSearchSheet';
@@ -98,9 +99,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
     event.preventDefault();
     if (!description.trim()) return;
 
-    const firstLine = description.trim().split(/[\n.!?]/, 1)[0].trim();
-    const generatedTitle =
-      firstLine.length > 72 ? `${firstLine.slice(0, 69).trimEnd()}…` : firstLine;
+    const generatedTitle = generateCleanTitle(description);
 
     const id = createManifestationId();
     const songAttachment = draft.song;

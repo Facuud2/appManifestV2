@@ -8,6 +8,8 @@ import { ManifestationQuickAdd, type ManifestationQuickAddHandle } from '@/compo
 import { SpotifyMiniPlayer } from '@/components/journal/attachments/SpotifyMiniPlayer';
 import { MediaPreview } from '@/components/journal/attachments/MediaPreview';
 import { MediaLightbox } from '@/components/journal/attachments/MediaLightbox';
+import { RichLinkPreview } from '@/components/journal/RichLinkPreview';
+import { splitTextAndUrls } from '@/utils/urlParser';
 import type { MediaAttachment } from '@/types';
 import {
   EMIL_CARD_TAP,
@@ -244,9 +246,21 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                     <h2 className="break-words [overflow-wrap:anywhere] text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
                       {item.title}
                     </h2>
-                    <p className="mt-2 whitespace-pre-line break-words [overflow-wrap:anywhere] text-sm leading-6 text-swiss-ink-muted">
-                      {item.description}
-                    </p>
+                    {(() => {
+                      const { cleanText, urls: detectedUrls } = splitTextAndUrls(item.description);
+                      return (
+                        <>
+                          {cleanText ? (
+                            <p className="mt-2 whitespace-pre-line break-words [overflow-wrap:anywhere] text-sm leading-6 text-swiss-ink-muted">
+                              {cleanText}
+                            </p>
+                          ) : null}
+                          {detectedUrls.map((u) => (
+                            <RichLinkPreview key={u.cleanUrl} url={u.cleanUrl} />
+                          ))}
+                        </>
+                      );
+                    })()}
 
                     {item.sensoryAnchor && (
                       <div className="surface-butter mt-3.5 rounded-[12px] border px-3.5 py-3 text-[0.8125rem] leading-5 text-swiss-ink-muted break-words [overflow-wrap:anywhere]">

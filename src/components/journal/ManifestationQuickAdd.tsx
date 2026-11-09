@@ -11,6 +11,7 @@ import {
 } from '@/lib/manifestationAttachments';
 import { stopActivePreview } from '@/lib/audioPreviewBus';
 import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
+import { generateCleanTitle } from '@/utils/urlParser';
 import { QuickAddComposer, type QuickAddComposerHandle } from './QuickAddComposer';
 import { AttachmentMenu } from './attachments/AttachmentMenu';
 import { AttachmentChipRow } from './attachments/AttachmentChipRow';
@@ -27,12 +28,6 @@ export interface ManifestationQuickAddProps {
   onSaved?: () => void;
   onOpenAdvanced?: () => void;
 }
-
-/** Shortens the first meaningful line into a card title. */
-const deriveTitle = (description: string) => {
-  const firstLine = description.trim().split(/[\n.!?]/, 1)[0]?.trim() ?? '';
-  return firstLine.length > 72 ? `${firstLine.slice(0, 69).trimEnd()}…` : firstLine;
-};
 
 export const ManifestationQuickAdd = React.forwardRef<
   ManifestationQuickAddHandle,
@@ -101,7 +96,7 @@ export const ManifestationQuickAdd = React.forwardRef<
     const description = text.trim() || title.trim();
     if (!description) return;
 
-    const generatedTitle = deriveTitle(description);
+    const generatedTitle = generateCleanTitle(description);
     const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
 
     const id = createManifestationId();

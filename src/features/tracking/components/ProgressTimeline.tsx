@@ -5,6 +5,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { BookOpen, Footprints, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT, STAGGER_CONTAINER, STAGGER_ITEM } from '@/lib/iosSprings';
+import { splitTextAndUrls, generateCleanTitle, type UrlMetadataHints } from '@/utils/urlParser';
+import { RichLinkPreview } from '@/components/journal/RichLinkPreview';
 
 type FilterTab = 'todos' | 'sincronias' | 'interior';
 
@@ -24,6 +26,7 @@ interface TimelineDisplayItem {
   description: string;
   hasSeparateDescription: boolean;
   manifestationTag?: string;
+  urls: UrlMetadataHints[];
 }
 
 const signToneMap: Record<
@@ -117,10 +120,16 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
           ? log.signType
           : 'coincidence';
 
-      const lines = log.note.split('\n').filter(Boolean);
+      const { cleanText, urls } = splitTextAndUrls(log.note);
+      const cleanTitle = generateCleanTitle(log.note);
+      const lines = cleanText.split('\n').filter(Boolean);
       const hasSeparateDescription = lines.length > 1;
-      const title = hasSeparateDescription ? lines[0] : log.note;
-      const description = hasSeparateDescription ? lines.slice(1).join(' ') : '';
+      const title = cleanTitle || (hasSeparateDescription ? lines[0] : cleanText) || 'Sincronía registrada';
+      const description = hasSeparateDescription
+        ? lines.slice(1).join(' ')
+        : cleanTitle && cleanText !== cleanTitle && !cleanText.startsWith(cleanTitle)
+          ? cleanText
+          : '';
 
       return {
         id: log.id,
@@ -130,8 +139,9 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
         categoryLabel: signToneMap[signKind].label,
         title: title || 'Sincronía registrada',
         description,
-        hasSeparateDescription,
+        hasSeparateDescription: Boolean(description),
         manifestationTag: manif?.title,
+        urls,
       };
     });
   }, [progressLogs, manifestations]);
@@ -301,6 +311,10 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
                             {item.description}
                           </p>
                         )}
+
+                        {item.urls.map((u) => (
+                          <RichLinkPreview key={u.cleanUrl} url={u.cleanUrl} />
+                        ))}
 
                         {item.manifestationTag && (
                           <div

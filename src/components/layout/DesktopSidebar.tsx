@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { NavTab } from './BottomNavigation';
 import { Feather, Footprints, LayoutGrid, Mic, Quote, Sparkles } from 'lucide-react';
 import { useAppStore } from '@/store';
@@ -29,6 +29,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     aiRequestsToday,
     aiDailyLimit,
   } = useAppStore();
+
+  const railRef = useRef<HTMLDivElement>(null);
 
   const manifestations = allManifestations.filter((item) => item.userId === activeScope);
   const affirmations = allAffirmations.filter((item) => item.userId === activeScope);
@@ -67,9 +69,15 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   return (
     <aside
       aria-label="Navegación lateral"
-      className="sticky top-0 z-40 hidden h-dvh w-[5.5rem] shrink-0 lg:block"
+      className="sticky top-0 z-40 hidden h-dvh w-[5.5rem] shrink-0 lg:block overscroll-contain select-none"
     >
-      <div className="swiss-sidebar swiss-sidebar-rail absolute inset-y-2 left-2 z-40 flex flex-col overflow-x-hidden overflow-y-auto rounded-[20px] border border-[color:var(--glass-border)] px-3 pb-4 pt-5">
+      <div
+        ref={railRef}
+        onMouseLeave={() => {
+          if (railRef.current) railRef.current.scrollTop = 0;
+        }}
+        className="swiss-sidebar swiss-sidebar-rail absolute inset-y-2 left-2 z-40 flex flex-col overflow-x-hidden overflow-y-auto overscroll-contain rounded-[20px] border border-[color:var(--glass-border)] px-3 pb-4 pt-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
         <div className="swiss-sidebar-row flex min-h-9 items-center px-2">
           <div
             aria-hidden="true"

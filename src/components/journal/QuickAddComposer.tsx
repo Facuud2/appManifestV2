@@ -13,6 +13,8 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer
 import { AlertCircle, ArrowUp, Check, Plus } from 'lucide-react';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
+import { extractUrls } from '@/utils/urlParser';
+import { RichLinkPreview } from './RichLinkPreview';
 
 export type QuickAddTone = 'rose' | 'butter';
 
@@ -127,6 +129,8 @@ export const QuickAddComposer = React.forwardRef<
   const savedTimerRef = useRef<number | null>(null);
 
   const [draft, setDraft] = useState('');
+  const detectedUrls = extractUrls(draft);
+  const detectedFirstUrl = detectedUrls.length > 0 ? detectedUrls[0].cleanUrl : null;
   const onDraftChangeRef = useRef(onDraftChange);
   const [savedCount, setSavedCount] = useState(0);
   const [justSaved, setJustSaved] = useState(false);
@@ -601,6 +605,12 @@ export const QuickAddComposer = React.forwardRef<
                   className="quick-add-field mt-1.5 w-full"
                 />
 
+                {detectedFirstUrl && (
+                  <div className="mt-2">
+                    <RichLinkPreview url={detectedFirstUrl} compact />
+                  </div>
+                )}
+
                 {warning && (
                   <p
                     id={warningId}
@@ -708,6 +718,12 @@ export const QuickAddComposer = React.forwardRef<
                     </button>
                   </div>
                 </div>
+
+                {detectedFirstUrl && (
+                  <div className="mt-2">
+                    <RichLinkPreview url={detectedFirstUrl} compact />
+                  </div>
+                )}
 
                 {warning && (
                   <p
