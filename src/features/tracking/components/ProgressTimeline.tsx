@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { BookOpen, Footprints, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, ChevronRight, Footprints, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT, STAGGER_CONTAINER, STAGGER_ITEM } from '@/lib/iosSprings';
 import { splitTextAndUrls, generateCleanTitle, type UrlMetadataHints } from '@/utils/urlParser';
@@ -12,6 +12,7 @@ type FilterTab = 'todos' | 'sincronias' | 'interior';
 
 interface ProgressTimelineProps {
   onOpenNewProgress: (manifId?: string) => void;
+  onSelectManifestation?: (id: string) => void;
 }
 
 type SignKind = 'coincidence' | 'angel_number' | 'dream' | 'intuitive';
@@ -26,6 +27,7 @@ interface TimelineDisplayItem {
   description: string;
   hasSeparateDescription: boolean;
   manifestationTag?: string;
+  manifestationId?: string;
   urls: UrlMetadataHints[];
 }
 
@@ -56,6 +58,7 @@ const signToneMap: Record<
 
 export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
   onOpenNewProgress,
+  onSelectManifestation,
 }) => {
   const {
     activeScope,
@@ -141,6 +144,7 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
         description,
         hasSeparateDescription: Boolean(description),
         manifestationTag: manif?.title,
+        manifestationId: manif?.id || log.manifestationId,
         urls,
       };
     });
@@ -317,19 +321,43 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
                         ))}
 
                         {item.manifestationTag && (
-                          <div
-                            title={item.manifestationTag}
-                            className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-swiss-border bg-swiss-control px-2.5 py-1 text-xs text-swiss-ink-muted"
-                          >
-                            <BookOpen
-                              size={13}
-                              className="shrink-0 text-swiss-accentText"
-                              aria-hidden="true"
-                            />
-                            <span className="min-w-0 truncate font-medium text-swiss-ink">
-                              {item.manifestationTag}
-                            </span>
-                          </div>
+                          item.manifestationId && onSelectManifestation ? (
+                            <button
+                              type="button"
+                              onClick={() => onSelectManifestation(item.manifestationId!)}
+                              title={`Ir a la manifestación: ${item.manifestationTag}`}
+                              aria-label={`Ver manifestación: ${item.manifestationTag}`}
+                              className="group/pill mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-swiss-border bg-swiss-control px-2.5 py-1 text-xs text-swiss-ink-muted transition-all duration-150 hover:border-swiss-accentBorder hover:bg-swiss-card hover:text-swiss-ink active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus cursor-pointer text-left"
+                            >
+                              <BookOpen
+                                size={13}
+                                className="shrink-0 text-swiss-accentText transition-transform duration-150 group-hover/pill:scale-110"
+                                aria-hidden="true"
+                              />
+                              <span className="min-w-0 truncate font-medium text-swiss-ink group-hover/pill:text-swiss-accentText">
+                                {item.manifestationTag}
+                              </span>
+                              <ChevronRight
+                                size={12}
+                                className="shrink-0 text-swiss-ink-light transition-transform duration-150 group-hover/pill:translate-x-0.5 group-hover/pill:text-swiss-accentText"
+                                aria-hidden="true"
+                              />
+                            </button>
+                          ) : (
+                            <div
+                              title={item.manifestationTag}
+                              className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-swiss-border bg-swiss-control px-2.5 py-1 text-xs text-swiss-ink-muted"
+                            >
+                              <BookOpen
+                                size={13}
+                                className="shrink-0 text-swiss-accentText"
+                                aria-hidden="true"
+                              />
+                              <span className="min-w-0 truncate font-medium text-swiss-ink">
+                                {item.manifestationTag}
+                              </span>
+                            </div>
+                          )
                         )}
                       </div>
                     </motion.article>

@@ -26,6 +26,8 @@ interface ManifestationsViewProps {
   isQuickAddOpen: boolean;
   onQuickAddOpen: (trigger: HTMLElement) => void;
   onQuickAddClose: (restoreFocus?: boolean) => void;
+  targetManifestationId?: string | null;
+  onClearTargetManifestation?: () => void;
 }
 
 const statusTone: Record<ManifestationItem['status'], string> = {
@@ -71,6 +73,8 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   isQuickAddOpen,
   onQuickAddOpen,
   onQuickAddClose,
+  targetManifestationId,
+  onClearTargetManifestation,
 }) => {
   const {
     activeScope,
@@ -126,6 +130,49 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!targetManifestationId) return;
+
+    const targetIndex = manifestations.findIndex((m) => m.id === targetManifestationId);
+    if (targetIndex !== -1 && targetIndex >= visibleCount) {
+      setVisibleCount(targetIndex + 8);
+    }
+  }, [targetManifestationId, manifestations, visibleCount]);
+
+  useEffect(() => {
+    if (!targetManifestationId) return;
+
+    let timeoutId: number;
+    let rafId: number;
+
+    rafId = window.requestAnimationFrame(() => {
+      timeoutId = window.setTimeout(() => {
+        const el = document.getElementById(`manifestation-${targetManifestationId}`);
+        if (el) {
+          el.scrollIntoView({
+            behavior: prefersReducedMotion ? 'auto' : 'smooth',
+            block: 'center',
+          });
+          setFlashId(targetManifestationId);
+          if (flashTimerRef.current !== null) {
+            window.clearTimeout(flashTimerRef.current);
+          }
+          flashTimerRef.current = window.setTimeout(() => {
+            setFlashId(null);
+            onClearTargetManifestation?.();
+          }, 1500);
+        } else {
+          onClearTargetManifestation?.();
+        }
+      }, 100);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [targetManifestationId, onClearTargetManifestation, prefersReducedMotion]);
 
   return (
     <div className="quick-add-page w-full min-w-0 max-w-full space-y-7 pb-32 sm:pb-12">
@@ -212,6 +259,7 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                 return (
                   <motion.article
                     key={item.id}
+                    id={`manifestation-${item.id}`}
                     layout={prefersReducedMotion ? false : 'position'}
                     transition={{ layout: POSITION_CHANGE_TRANSITION }}
                     variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
@@ -222,8 +270,8 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                       transition: { duration: 0.15, ease: EMIL_EASE_OUT },
                     }}
                     data-flash-tone={flashId === item.id ? 'butter' : undefined}
-                    className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 min-w-0 max-w-full overflow-hidden ${
-                      flashId === item.id ? 'quick-add-card-flash' : ''
+                    className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 min-w-0 max-w-full overflow-hidden transition-[box-shadow,border-color] ${
+                      flashId === item.id ? 'quick-add-card-flash ring-2 ring-swiss-accent' : ''
                     }`}
                   >
                   <div>

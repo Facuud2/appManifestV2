@@ -23,7 +23,7 @@ import { BreakUiToggle } from '@/components/dev/BreakUiToggle';
 import { audioEngine } from '@/lib/audioEngine';
 import { AmbientSoundType, RampageSet, UserScope } from '@/types';
 import { VoiceActionOrb } from '@/components/voice/VoiceActionOrb';
-import { VoiceActionToast, type VoiceActionToastState } from '@/components/voice/VoiceActionToast';
+import type { VoiceActionToastState } from '@/components/voice/VoiceActionToast';
 import { useVoiceActionRouter } from '@/hooks/useVoiceActionRouter';
 import type { VoiceCommandResult } from '@/lib/gemini';
 
@@ -93,6 +93,7 @@ export default function HomePage() {
   const [successStoryTarget, setSuccessStoryTarget] = useState<{ title: string; id?: string }>({
     title: '',
   });
+  const [targetManifestationId, setTargetManifestationId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRemoteData();
@@ -165,9 +166,20 @@ export default function HomePage() {
     setIsCreateMenuOpen(false);
     setQuickAddSection(null);
     quickAddTriggerRef.current = null;
+    setTargetManifestationId(null);
     setActiveTab(tab);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, []);
+
+  const handleSelectManifestation = useCallback((id?: string) => {
+    setIsCreateMenuOpen(false);
+    setQuickAddSection(null);
+    quickAddTriggerRef.current = null;
+    setActiveTab('manifestations');
+    if (id) {
+      setTargetManifestationId(id);
     }
   }, []);
 
@@ -721,6 +733,8 @@ export default function HomePage() {
                     isQuickAddOpen={quickAddSection === 'manifestations'}
                     onQuickAddOpen={(trigger) => openQuickAdd('manifestations', trigger)}
                     onQuickAddClose={closeQuickAdd}
+                    targetManifestationId={targetManifestationId}
+                    onClearTargetManifestation={() => setTargetManifestationId(null)}
                   />
                 )}
 
@@ -728,7 +742,7 @@ export default function HomePage() {
                   <ProgressView
                     initialSection={activeTab === 'stories' ? 'stories' : 'progress'}
                     onOpenNewProgress={handleOpenProgress}
-                    onSelectManifestation={(_id) => setActiveTab('manifestations')}
+                    onSelectManifestation={handleSelectManifestation}
                   />
                 )}
               </motion.div>
@@ -763,11 +777,8 @@ export default function HomePage() {
         onCancel={voiceRouter.cancelRecording}
         onSubmit={voiceRouter.finishAndSubmit}
         onLockHandsFree={voiceRouter.lockHandsFree}
-      />
-
-      <VoiceActionToast
-        toast={voiceToast}
-        onDismiss={() => setVoiceToast(null)}
+        activeResponse={voiceToast}
+        onDismissResponse={() => setVoiceToast(null)}
       />
 
       {/* Modals */}

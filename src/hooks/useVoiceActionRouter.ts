@@ -74,15 +74,26 @@ export function useVoiceActionRouter({
       longPressTimerRef.current = null;
     }
 
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (_) {}
+    if (mediaRecorderRef.current) {
+      const rec = mediaRecorderRef.current;
+      rec.ondataavailable = null;
+      rec.onstop = null;
+      rec.onerror = null;
+      if (rec.state !== 'inactive') {
+        try {
+          rec.stop();
+        } catch (_) {}
+      }
     }
     mediaRecorderRef.current = null;
 
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+          track.enabled = false;
+        } catch (_) {}
+      });
       mediaStreamRef.current = null;
     }
 
@@ -117,8 +128,7 @@ export function useVoiceActionRouter({
 
         const isAutomated =
           isSandboxMode ||
-          (typeof navigator !== 'undefined' && Boolean(navigator.webdriver)) ||
-          audioBlob.size <= 400;
+          (typeof navigator !== 'undefined' && Boolean(navigator.webdriver));
 
         // If not automated and recording is virtually empty
         if (!isAutomated && audioBlob.size < 400) {
@@ -131,7 +141,8 @@ export function useVoiceActionRouter({
         }
 
         const formData = new FormData();
-        const fileExt = audioBlob.type.includes('mp4') ? 'm4a' : 'webm';
+        const isM4A = audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a') || audioBlob.type.includes('aac');
+        const fileExt = isM4A ? 'm4a' : 'webm';
         formData.append('audio', audioBlob, `voice-command.${fileExt}`);
         formData.append('currentProfile', activeScope);
         formData.append(
@@ -215,8 +226,15 @@ export function useVoiceActionRouter({
       return;
     }
 
+    // Flush any pending chunks in WebKit before stopping
+    if (recorder.state === 'recording') {
+      try {
+        recorder.requestData();
+      } catch (_) {}
+    }
+
     recorder.onstop = () => {
-      const mime = recorder.mimeType || 'audio/webm';
+      const mime = recorder.mimeType || (audioChunksRef.current[0]?.type || 'audio/webm');
       const completeBlob = new Blob(audioChunksRef.current, { type: mime });
       void sendAudioToServer(completeBlob);
     };
@@ -224,7 +242,7 @@ export function useVoiceActionRouter({
     try {
       recorder.stop();
     } catch {
-      const mime = recorder.mimeType || 'audio/webm';
+      const mime = recorder.mimeType || (audioChunksRef.current[0]?.type || 'audio/webm');
       const completeBlob = new Blob(audioChunksRef.current, { type: mime });
       void sendAudioToServer(completeBlob);
     }
@@ -270,6 +288,9 @@ export function useVoiceActionRouter({
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          void ctx.resume();
+        }
         audioContextRef.current = ctx;
         const source = ctx.createMediaStreamSource(stream);
         const analyser = ctx.createAnalyser();
@@ -285,7 +306,7 @@ export function useVoiceActionRouter({
         let noiseSum = 0;
 
         vadIntervalRef.current = window.setInterval(() => {
-          if (!isHandsFreeRef.current || isProcessingRef.current) return;
+          if (isProcessingRef.current) return;
           analyser.getByteFrequencyData(vadBuffer as any);
           let sum = 0;
           for (let i = 0; i < vadBuffer.length; i++) sum += vadBuffer[i];
@@ -310,29 +331,37 @@ export function useVoiceActionRouter({
             }
           } else if (hasSpokenRef.current) {
             if (silenceTimerRef.current === null) {
-              // Exactly 2.5 seconds of verified silence after speech -> auto-submit
+              // 2.0 seconds of verified natural silence after speech -> auto-submit
               silenceTimerRef.current = window.setTimeout(() => {
                 finishAndSubmit();
-              }, 2500);
+              }, 2000);
             }
           }
         }, 100);
       }
 
-      // Initialize MediaRecorder (32kbps)
+      // Initialize MediaRecorder with iOS Safari compatibility
       let mimeType = '';
       if (typeof MediaRecorder !== 'undefined') {
         if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
           mimeType = 'audio/webm;codecs=opus';
         } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
           mimeType = 'audio/mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/aac')) {
+          mimeType = 'audio/aac';
         }
       }
 
-      const recorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 }
-      );
+      const recorderOptions: MediaRecorderOptions = {};
+      if (mimeType) {
+        recorderOptions.mimeType = mimeType;
+      }
+      // Only set explicit bitrate on WebM; Safari iOS AAC encoder fails with custom 32000 bitrate
+      if (mimeType.includes('webm')) {
+        recorderOptions.audioBitsPerSecond = 32000;
+      }
+
+      const recorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
 
@@ -342,48 +371,40 @@ export function useVoiceActionRouter({
         }
       };
 
-      recorder.start(100);
+      // In iOS Safari, passing a timeslice to start() causes empty chunks bug in WebKit
+      if (mimeType.includes('webm')) {
+        recorder.start(250);
+      } else {
+        recorder.start();
+      }
     } catch (micErr) {
       console.warn('[VoiceActionRouter] Mic access rejected or unavailable:', micErr);
     }
   }, [finishAndSubmit]);
 
-  const lockHandsFree = useCallback(() => {
-    setIsHandsFree(true);
-    isHandsFreeRef.current = true;
-  }, []);
+  const lockHandsFree = useCallback(() => {}, []);
 
-  // Pointer event handlers for the '+' button
+  // Pointer event handlers for the '+' button: dejar pulsado abre automáticamente la funcionalidad
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       pointerStartYRef.current = e.clientY;
       isLongPressActiveRef.current = false;
 
-      // Start 350ms long-press timer
+      // Start 300ms long-press timer: dejar pulsado abre la funcionalidad de voz Siri
       longPressTimerRef.current = window.setTimeout(() => {
+        isLongPressActiveRef.current = true;
         void startVoiceCapture();
-      }, 350);
+      }, 300);
     },
     [startVoiceCapture]
   );
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isLongPressActiveRef.current || pointerStartYRef.current === null) return;
-    const deltaY = e.clientY - pointerStartYRef.current;
-    // Slide up by 45px locks hands-free
-    if (deltaY < -45 && !isHandsFreeRef.current) {
-      setIsHandsFree(true);
-      isHandsFreeRef.current = true;
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try {
-          navigator.vibrate(30);
-        } catch (_) {}
-      }
-    }
+  const handlePointerMove = useCallback(() => {
+    // Modo whatsapp eliminado: no hay bloqueo por deslizamiento
   }, []);
 
   const handlePointerUp = useCallback(() => {
-    // 1. If released before 350ms, it is a short tap -> open manual create menu
+    // 1. Si se soltó antes de 300ms, es un toque corto -> abre menú manual de creación
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
@@ -394,34 +415,18 @@ export function useVoiceActionRouter({
       return;
     }
 
-    // 2. If long press was active
-    if (isHandsFreeRef.current) {
-      // User is now in hands-free mode; do not submit on touch release
-      return;
-    }
-
-    const elapsed = holdStartRef.current ? Date.now() - holdStartRef.current : 0;
-    if (elapsed >= 1500) {
-      // Held for >= 1.5s -> Auto submit
-      finishAndSubmit();
-    } else {
-      // Released too quickly (< 1.5s) -> Keep in hands-free mode so user can finish talking
-      setIsHandsFree(true);
-      isHandsFreeRef.current = true;
-    }
-  }, [onOpenManualCreate, finishAndSubmit]);
+    // 2. Si fue pulsación larga, startVoiceCapture ya abrió el orbe y está escuchando.
+    // Queda escuchando de forma natural hasta que termine de hablar o pulse fuera para cerrar.
+  }, [onOpenManualCreate]);
 
   const handlePointerCancel = useCallback(() => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-    if (!isHandsFreeRef.current) {
-      cancelRecording();
-    }
-  }, [cancelRecording]);
+  }, []);
 
-  // Global PC Spacebar hold handler
+  // Global PC Spacebar hold handler: mantener espacio abre automáticamente la funcionalidad
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== ' ' || e.repeat) return;
@@ -441,7 +446,7 @@ export function useVoiceActionRouter({
 
       spacePressTimerRef.current = window.setTimeout(() => {
         void startVoiceCapture();
-      }, 350);
+      }, 300);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -451,18 +456,6 @@ export function useVoiceActionRouter({
       if (spacePressTimerRef.current !== null) {
         window.clearTimeout(spacePressTimerRef.current);
         spacePressTimerRef.current = null;
-      }
-
-      if (!isLongPressActiveRef.current) return;
-
-      if (!isHandsFreeRef.current) {
-        const elapsed = holdStartRef.current ? Date.now() - holdStartRef.current : 0;
-        if (elapsed >= 1500) {
-          finishAndSubmit();
-        } else {
-          setIsHandsFree(true);
-          isHandsFreeRef.current = true;
-        }
       }
     };
 

@@ -977,7 +977,7 @@ function buildMockVoiceCommandResult(
     .trim();
 
   if (cleanedTitle.length === 0) {
-    cleanedTitle = 'Sushi toda la semana';
+    cleanedTitle = 'Nueva manifestación';
   } else if (cleanedTitle.length > 50) {
     cleanedTitle = cleanedTitle.slice(0, 47) + '...';
   }
@@ -1017,8 +1017,17 @@ export async function processVoiceCommandWithGemini(options: {
   } = options;
 
   if (sandbox || spokenText) {
+    const rawSpoken = (spokenText || '').trim();
+    if (!rawSpoken && !sandbox) {
+      return {
+        intent: 'UNKNOWN',
+        assistantFeedback: 'No alcancé a entender el comando. ¿Podrías repetirlo?',
+        source: 'LOCAL_FALLBACK',
+        quotaUsedToday: await getDailyAiUsage(),
+      };
+    }
     const mock = buildMockVoiceCommandResult(
-      spokenText || 'Registrar una nueva manifestación donde quiero comer sushi durante toda la semana',
+      rawSpoken || (sandbox ? 'Registrar una nueva manifestación donde quiero comer sushi durante toda la semana' : ''),
       activeManifestations
     );
     const quotaUsedToday = await getDailyAiUsage();
@@ -1031,13 +1040,10 @@ export async function processVoiceCommandWithGemini(options: {
 
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    const mock = buildMockVoiceCommandResult(
-      'Registrar una nueva manifestación donde quiero comer sushi durante toda la semana',
-      activeManifestations
-    );
     const quotaUsedToday = await getDailyAiUsage();
     return {
-      ...mock,
+      intent: 'UNKNOWN',
+      assistantFeedback: 'Servicio de IA temporalmente sin clave de acceso.',
       source: 'LOCAL_FALLBACK',
       quotaUsedToday,
     };
@@ -1048,7 +1054,11 @@ export async function processVoiceCommandWithGemini(options: {
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
+  let cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
+  // Normalizar formatos de Safari / iOS (audio/mp4 -> audio/m4a para Gemini)
+  if (cleanMime === 'audio/mp4' || cleanMime === 'video/mp4') {
+    cleanMime = 'audio/m4a';
+  }
   const systemInstruction = buildVoiceActionRouterSystemPrompt(activeManifestations);
 
   const prompt = `Perfil del usuario: ${currentProfile}.

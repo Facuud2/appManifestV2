@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ChevronRight, Feather, Sparkles, Trash2, Trophy } from 'lucide-react';
+import { BookOpen, ChevronRight, Feather, Sparkles, Trash2, Trophy } from 'lucide-react';
 import { useAppStore } from '@/store';
 import {
   EMIL_CARD_TAP,
@@ -92,7 +92,10 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           >
             {/* Left Column: Registro Personal & Timeline */}
             <div className="min-w-0 lg:col-span-7 xl:col-span-8">
-              <ProgressTimeline onOpenNewProgress={onOpenNewProgress} />
+              <ProgressTimeline
+                onOpenNewProgress={onOpenNewProgress}
+                onSelectManifestation={onSelectManifestation}
+              />
             </div>
 
             {/* Right Column: Intención en foco */}
@@ -193,12 +196,39 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                             {story.title}
                           </h3>
 
-                          {linkedManifestation?.category && (
-                            <p className="mt-1 text-xs font-medium text-swiss-accentText">
-                              Intención vinculada ·{' '}
-                              {linkedManifestation.category.charAt(0).toUpperCase() +
-                                linkedManifestation.category.slice(1)}
-                            </p>
+                          {linkedManifestation && (
+                            <div className="mt-2">
+                              {onSelectManifestation ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectManifestation(linkedManifestation.id)}
+                                  title={`Ir a la manifestación: ${linkedManifestation.title}`}
+                                  aria-label={`Ver manifestación: ${linkedManifestation.title}`}
+                                  className="group/story-manif inline-flex max-w-full items-center gap-1.5 rounded-lg border border-swiss-border bg-swiss-control px-2.5 py-1 text-xs text-swiss-ink-muted transition-all duration-150 hover:border-swiss-accentBorder hover:bg-swiss-card hover:text-swiss-ink active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus cursor-pointer text-left"
+                                >
+                                  <BookOpen
+                                    size={12}
+                                    className="shrink-0 text-swiss-accentText transition-transform duration-150 group-hover/story-manif:scale-110"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="min-w-0 truncate font-medium text-swiss-ink group-hover/story-manif:text-swiss-accentText">
+                                    {linkedManifestation.title}
+                                  </span>
+                                  <ChevronRight
+                                    size={12}
+                                    className="shrink-0 text-swiss-ink-light transition-transform duration-150 group-hover/story-manif:translate-x-0.5 group-hover/story-manif:text-swiss-accentText"
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                              ) : (
+                                <p className="text-xs font-medium text-swiss-accentText">
+                                  Intención vinculada
+                                  {linkedManifestation.category
+                                    ? ` · ${linkedManifestation.category.charAt(0).toUpperCase() + linkedManifestation.category.slice(1)}`
+                                    : ''}
+                                </p>
+                              )}
+                            </div>
                           )}
 
                           <p className="mt-2.5 whitespace-pre-line text-sm leading-6 text-swiss-ink-muted">

@@ -105,9 +105,19 @@ export const FeaturedIntentionCard: React.FC<FeaturedIntentionCardProps> = ({
               {featuredData.category}
             </p>
 
-            <h3 className="mt-1 text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
-              {featuredData.title}
-            </h3>
+            {onSelectManifestation ? (
+              <h3
+                onClick={() => onSelectManifestation(featuredData.id)}
+                title={`Ir a ${featuredData.title}`}
+                className="mt-1 cursor-pointer text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink transition-colors hover:text-swiss-accentText"
+              >
+                {featuredData.title}
+              </h3>
+            ) : (
+              <h3 className="mt-1 text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
+                {featuredData.title}
+              </h3>
+            )}
 
             {featuredData.description && (
               <p className="mt-2 line-clamp-3 text-sm leading-6 text-swiss-ink-muted">
