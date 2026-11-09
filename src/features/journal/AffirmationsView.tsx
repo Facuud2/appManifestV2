@@ -127,7 +127,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
 
   /**
    * Sección superior ("Decretos fijados en foco"):
-   * Ordenada según `order` personalizable mediante las 3 rayitas.
+   * Únicamente afirmaciones fijadas (`pinned: true`), ordenadas según su `order`.
    */
   const pinnedAffirmations = useMemo(
     () => sortAffirmations(affirmations).filter((item) => item.pinned),
@@ -135,44 +135,18 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
   );
 
   /**
-   * Sección inferior ("la lista de abajo"):
-   * Mantiene siempre primero a todas las afirmaciones fijadas (`En foco`),
-   * pero con un orden estable (por fecha de creación / ID) para que al mover
-   * las tarjetas arriba en "Decretos fijados en foco" la lista inferior no
-   * salte ni se vea afectada.
+   * Sección inferior:
+   * Únicamente afirmaciones NO fijadas (`pinned: false`).
+   * Si están fijadas, aparecen únicamente arriba en foco y NO se repiten aquí abajo.
    */
   const [settledBottomAffirmations, setSettledBottomAffirmations] = useState<
     Affirmation[]
-  >(() =>
-    [...affirmations].sort((a, b) => {
-      const pinDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
-      if (pinDiff !== 0) return pinDiff;
-      const timeA = Date.parse(a.createdAt);
-      const timeB = Date.parse(b.createdAt);
-      if (Number.isFinite(timeA) && Number.isFinite(timeB) && timeB !== timeA) {
-        return timeB - timeA;
-      }
-      return a.id.localeCompare(b.id);
-    })
-  );
+  >(() => sortAffirmations(affirmations).filter((item) => !item.pinned));
 
   useEffect(() => {
     if (draggingSpotlightId) return;
     setSettledBottomAffirmations(
-      [...affirmations].sort((a, b) => {
-        const pinDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
-        if (pinDiff !== 0) return pinDiff;
-        const timeA = Date.parse(a.createdAt);
-        const timeB = Date.parse(b.createdAt);
-        if (
-          Number.isFinite(timeA) &&
-          Number.isFinite(timeB) &&
-          timeB !== timeA
-        ) {
-          return timeB - timeA;
-        }
-        return a.id.localeCompare(b.id);
-      })
+      sortAffirmations(affirmations).filter((item) => !item.pinned)
     );
   }, [affirmations, draggingSpotlightId]);
 
@@ -780,7 +754,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
         </section>
       )}
 
-      {bottomListAffirmations.length === 0 ? (
+      {affirmations.length === 0 ? (
         <div className="swiss-card flex flex-col items-center px-6 py-14 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--pastel-peach)] text-[color:var(--pastel-peach-ink)]">
             <Quote size={24} strokeWidth={1.7} aria-hidden="true" />
@@ -800,7 +774,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
             </button>
           )}
         </div>
-      ) : (
+      ) : bottomListAffirmations.length > 0 ? (
         <motion.div
           variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
           initial={shouldStaggerCards ? 'hidden' : false}
@@ -931,7 +905,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
             })}
           </AnimatePresence>
         </motion.div>
-      )}
+      ) : null}
     </div>
   );
 };
