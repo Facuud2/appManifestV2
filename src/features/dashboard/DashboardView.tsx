@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   Repeat,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
@@ -130,11 +131,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="mt-3.5 max-w-md text-[0.9375rem] leading-6 text-swiss-ink-muted sm:text-base">
               Un momento para volver a vos y conectar con lo que estás creando.
             </p>
-            <div className="mt-6 hidden flex-wrap gap-2 sm:flex">
+            <div className="mt-5 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={onOpenNewManifestation}
-                className="swiss-btn-primary inline-flex min-h-10 items-center gap-2 px-4 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                className="swiss-btn-primary inline-flex min-h-11 items-center gap-2 px-4 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus"
               >
                 <Feather aria-hidden="true" size={15} />
                 Escribir intención
@@ -142,15 +143,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={onOpenNewProgress}
-                className="swiss-btn-secondary inline-flex min-h-10 items-center gap-2 px-4 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                className="swiss-btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-[0.8125rem] focus-visible:ring-2 focus-visible:ring-swiss-focus"
               >
                 <Footprints aria-hidden="true" size={15} />
                 Registrar avance
               </button>
             </div>
-            <p className="mt-4 text-xs font-medium text-[color:var(--hero-hint-ink)] sm:hidden">
-              Empezá por el orbe: escribí, afirmá o escuchá.
-            </p>
           </div>
 
           <div className="hero-orb-stage mx-auto">
@@ -199,6 +197,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </motion.section>
 
+      {manifestations.length === 0 && (
+        <motion.section
+          variants={STAGGER_ITEM}
+          aria-label="Bienvenida a tu santuario"
+          className="relative overflow-hidden rounded-[24px] border border-[color:var(--pastel-sky)] bg-[color:var(--pastel-sky)]/25 p-5 sm:p-6"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="max-w-lg">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--pastel-sky)] px-2.5 py-0.5 text-xs font-semibold text-[color:var(--pastel-sky-ink)]">
+                <Sparkles size={13} aria-hidden="true" />
+                Bienvenido a tu santuario
+              </span>
+              <h2 className="mt-2 text-base font-semibold text-swiss-ink sm:text-lg">
+                Comenzá creando tu primera intención
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-swiss-ink-muted leading-relaxed">
+                Escribí un deseo en tiempo presente o dictalo con tu voz. Tu santuario irá cobrando vida con tus avances diarios y rampages guiados.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={onOpenNewManifestation}
+                className="swiss-btn-primary inline-flex min-h-11 items-center gap-2 px-4 text-xs font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              >
+                <Feather size={15} aria-hidden="true" />
+                Crear primera intención
+              </button>
+              <button
+                type="button"
+                onClick={onOpenRampage}
+                className="swiss-btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              >
+                <Headphones size={15} aria-hidden="true" />
+                Probar Rampage
+              </button>
+            </div>
+          </div>
+        </motion.section>
+      )}
+
       <motion.section variants={STAGGER_ITEM} aria-labelledby="quick-actions-title">
         <div className="mb-3 flex items-end justify-between gap-4">
           <h2 id="quick-actions-title" className="section-heading">
@@ -208,7 +247,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             type="button"
             onClick={onOpenManifestations}
             className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[0.8125rem] font-medium text-swiss-ink-muted transition-colors hover:text-swiss-accentText focus-visible:ring-2 focus-visible:ring-swiss-focus"
-            aria-label={`Ver todas tus intenciones. ${manifestations.length} guardadas`}
+            aria-label={`Ver todas tus intenciones. ${
+              manifestations.length === 1
+                ? '1 guardada'
+                : `${manifestations.length.toLocaleString('es-ES')} guardadas`
+            }`}
           >
             Ver todo
             <ChevronRight aria-hidden="true" size={15} />
@@ -298,7 +341,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
               aria-expanded={isComposerOpen}
               aria-label={isComposerOpen ? 'Cerrar afirmación nueva' : 'Crear una afirmación nueva'}
-              className="swiss-pill inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center text-swiss-accentText transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus sm:min-h-10 sm:min-w-10"
+              className="swiss-pill inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-swiss-accentText transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
@@ -384,7 +427,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     onOpenRampage();
                   }
                 }}
-                className="min-w-0 flex-1 overflow-hidden rounded-lg text-left transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+                className="min-w-0 flex-1 min-h-[44px] flex flex-col justify-center overflow-hidden rounded-lg text-left transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
                 aria-label={
                   latestRampage?.affirmations.length
                     ? `Abrir reproductor de ${latestRampage.title}`

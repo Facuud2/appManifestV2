@@ -5,6 +5,7 @@ import { useReducedMotion } from 'framer-motion';
 import { ExternalLink, Loader2, Pause, Play, X } from 'lucide-react';
 import type { SongAttachment } from '@/types';
 import { useSongPreview } from '@/hooks/useSongPreview';
+import { isSafeHttpUrl } from '@/lib/manifestationAttachments';
 
 type TileSize = 'chip' | 'card' | 'large';
 
@@ -162,7 +163,7 @@ export function SpotifySongChip({ song, onRemove }: SpotifySongChipProps) {
   const activate = () => {
     if (isLoading) return;
     if (hasFailed || (!song.previewAudioUrl && !song.providerTrackId)) {
-      if (song.spotifyUrl) {
+      if (song.spotifyUrl && isSafeHttpUrl(song.spotifyUrl)) {
         window.open(song.spotifyUrl, '_blank', 'noopener,noreferrer');
       }
       return;
@@ -228,7 +229,7 @@ export function SpotifyMiniPlayer({ song, className = '' }: SpotifyMiniPlayerPro
   const activate = () => {
     if (isLoading) return;
     if (hasFailed || (!song.previewAudioUrl && !song.providerTrackId)) {
-      if (song.spotifyUrl) {
+      if (song.spotifyUrl && isSafeHttpUrl(song.spotifyUrl)) {
         window.open(song.spotifyUrl, '_blank', 'noopener,noreferrer');
       }
       return;
@@ -284,16 +285,18 @@ export function SpotifyMiniPlayer({ song, className = '' }: SpotifyMiniPlayerPro
           </div>
         ) : null}
 
-        <a
-          href={song.spotifyUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#0d6d2e] transition-colors hover:text-[#094d20] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus dark:text-[#1DB954] dark:hover:text-[#4ade80]"
-        >
-          <SpotifyGlyph size={12} />
-          Abrir en Spotify
-          <ExternalLink size={10} aria-hidden="true" />
-        </a>
+        {isSafeHttpUrl(song.spotifyUrl) ? (
+          <a
+            href={song.spotifyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#0d6d2e] transition-colors hover:text-[#094d20] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus dark:text-[#1DB954] dark:hover:text-[#4ade80]"
+          >
+            <SpotifyGlyph size={12} />
+            Abrir en Spotify
+            <ExternalLink size={10} aria-hidden="true" />
+          </a>
+        ) : null}
       </div>
     </div>
   );
@@ -308,7 +311,7 @@ export function SpotifyLargePlayer({ song }: { song: SongAttachment }) {
   const activate = () => {
     if (isLoading) return;
     if (hasFailed || (!song.previewAudioUrl && !song.providerTrackId)) {
-      if (song.spotifyUrl) {
+      if (song.spotifyUrl && isSafeHttpUrl(song.spotifyUrl)) {
         window.open(song.spotifyUrl, '_blank', 'noopener,noreferrer');
       }
       return;
@@ -345,16 +348,18 @@ export function SpotifyLargePlayer({ song }: { song: SongAttachment }) {
         <p className="mt-1 text-xs text-white/45">
           {statusLabel(isPlaying, isAudioAvailable, isLoading)}
         </p>
-        <a
-          href={song.spotifyUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1DB954] hover:text-[#4ade80]"
-        >
-          <SpotifyGlyph size={13} />
-          Abrir en Spotify
-          <ExternalLink size={11} aria-hidden="true" />
-        </a>
+        {isSafeHttpUrl(song.spotifyUrl) ? (
+          <a
+            href={song.spotifyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1DB954] hover:text-[#4ade80]"
+          >
+            <SpotifyGlyph size={13} />
+            Abrir en Spotify
+            <ExternalLink size={11} aria-hidden="true" />
+          </a>
+        ) : null}
       </div>
     </div>
   );

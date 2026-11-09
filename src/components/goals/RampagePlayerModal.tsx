@@ -1389,14 +1389,28 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                     RAMPAGE NOCTURNO
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  aria-label="Cerrar reproductor"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all active:scale-95"
-                >
-                  <X size={15} aria-hidden="true" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSetupError('');
+                      setIsCustomizerOpen(true);
+                    }}
+                    aria-label="Personalizar tema o generar nuevo Rampage"
+                    className="flex h-8 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 text-xs font-medium text-white/90 hover:bg-white/20 transition-all active:scale-95 shadow-sm"
+                  >
+                    <Sparkles size={13} className="text-amber-300" aria-hidden="true" />
+                    <span>Personalizar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    aria-label="Cerrar reproductor"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all active:scale-95"
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </div>
               </header>
 
               {/* Center Content: Orb, Eyebrow, Affirmation, Waveform, Play Button */}
@@ -1581,10 +1595,18 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                           <input
                             id="custom-topic"
                             value={draftTitle}
-                            onChange={(e) => setDraftTitle(e.target.value)}
+                            onChange={(e) => {
+                              setDraftTitle(e.target.value);
+                              if (setupError) setSetupError('');
+                            }}
                             placeholder="Ej. Soy Dios, recibiendo todo lo que deseo"
                             className="w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
                           />
+                          {setupError && (
+                            <p className="mt-1.5 text-xs text-rose-300 font-medium">
+                              {setupError}
+                            </p>
+                          )}
                         </div>
 
                         <div>
@@ -1624,6 +1646,11 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                         <button
                           type="button"
                           onClick={async () => {
+                            if (!draftTitle.trim()) {
+                              setSetupError('Escribí o dictá un tema central para iniciar tu Rampage.');
+                              return;
+                            }
+                            setSetupError('');
                             setIsCustomizerOpen(false);
                             await handleStartRampage();
                           }}
@@ -1776,7 +1803,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
             <button
               type="button"
               onClick={onRestore}
-              className="lg-content min-w-0 flex-1 rounded-[12px] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
+              className="lg-content min-w-0 flex-1 min-h-[44px] flex flex-col justify-center rounded-[12px] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
               aria-label={`Abrir reproductor de ${activeRampageRef.current.title}`}
             >
               <span className="block truncate text-sm font-semibold">

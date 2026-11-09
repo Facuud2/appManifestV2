@@ -75,6 +75,12 @@ const ThreeLinesGripIcon: React.FC<{ className?: string }> = ({ className }) => 
   </svg>
 );
 
+const formatRepeatLabel = (rawCount: number): string => {
+  const count = Math.max(0, Number.isFinite(rawCount) ? rawCount : 0);
+  if (count === 1) return '1 vez';
+  return `${count.toLocaleString('es-ES')} veces`;
+};
+
 export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
   onOpenNewAffirmation,
   onOpenRampage,
@@ -151,6 +157,11 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
   }, [affirmations, draggingSpotlightId]);
 
   const bottomListAffirmations = settledBottomAffirmations;
+  const [visibleCount, setVisibleCount] = useState(24);
+  const visibleBottomAffirmations = useMemo(
+    () => bottomListAffirmations.slice(0, visibleCount),
+    [bottomListAffirmations, visibleCount]
+  );
 
   const handleOpenQuickAdd = useCallback(
     (trigger: HTMLElement) => {
@@ -611,7 +622,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold leading-snug text-swiss-ink">
+                      <p className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] line-clamp-4 text-sm font-semibold leading-snug text-swiss-ink" title={pinned.text}>
                         “{pinned.text}”
                       </p>
 
@@ -722,13 +733,17 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-2">
-                      <span className="text-xs text-swiss-ink-light">
-                        Por {pinned.author}
-                      </span>
+                      {pinned.author?.trim() ? (
+                        <span className="text-xs text-swiss-ink-light">
+                          Por {pinned.author.trim()}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
                       <button
                         type="button"
                         onClick={() => void incrementAffirmationRepeat(pinned.id)}
-                        aria-label={`Repetir decreto fijado. Repetido ${pinned.repeatCount} veces`}
+                        aria-label={`Repetir decreto fijado. Repetido ${formatRepeatLabel(pinned.repeatCount)}`}
                         className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-swiss-control px-2.5 py-1 text-xs font-semibold text-swiss-accentText transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-swiss-focus"
                       >
                         <Repeat size={12} aria-hidden="true" />
@@ -742,7 +757,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                           }}
                           className="inline-block tabular-nums"
                         >
-                          {pinned.repeatCount}
+                          {Math.max(0, pinned.repeatCount).toLocaleString('es-ES')}
                         </motion.span>
                       </button>
                     </div>
@@ -775,136 +790,155 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
           )}
         </div>
       ) : bottomListAffirmations.length > 0 ? (
-        <motion.div
-          variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
-          initial={shouldStaggerCards ? 'hidden' : false}
-          animate={shouldStaggerCards ? 'show' : undefined}
-          className="relative grid grid-cols-1 gap-3.5 md:grid-cols-2"
-        >
-          <AnimatePresence initial={false} mode="popLayout">
-            {bottomListAffirmations.map((item) => {
-              const isSpeaking = speakingId === item.id;
-              return (
-                <motion.article
-                  key={item.id}
-                  layout={
-                    prefersReducedMotion || Boolean(draggingSpotlightId)
-                      ? false
-                      : 'position'
-                  }
-                  transition={{ layout: POSITION_CHANGE_TRANSITION }}
-                  variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
-                  whileTap={EMIL_CARD_TAP}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.98,
-                    transition: {
-                      duration: 0.15,
-                      ease: TRANSITIONS_SMOOTH_OUT,
-                    },
-                  }}
-                  data-flash-tone={flashId === item.id ? 'rose' : undefined}
-                  className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 ${
-                    flashId === item.id ? 'quick-add-card-flash' : ''
-                  }`}
-                >
-                  <div>
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
-                          item.pinned
-                            ? 'bg-[color:var(--pastel-peri)] text-[color:var(--pastel-peri-ink)]'
-                            : 'bg-swiss-control text-swiss-ink-muted'
-                        }`}
-                      >
-                        <span className="pastel-dot" aria-hidden="true" />
-                        {item.pinned ? 'En foco' : 'Decreto'}
-                      </span>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleSpeakPreview(item)}
-                          aria-label={`Escuchar afirmación: ${item.text}`}
-                          title="Escuchar con voz"
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
-                            isSpeaking
-                              ? 'bg-swiss-accent text-swiss-accentFg'
-                              : 'text-swiss-ink-light hover:bg-swiss-control hover:text-swiss-ink'
-                          }`}
-                        >
-                          <Volume2 size={14} aria-hidden="true" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => void togglePinAffirmation(item.id)}
-                          aria-pressed={Boolean(item.pinned)}
-                          aria-label={
-                            item.pinned
-                              ? `Quitar de foco: ${item.text}`
-                              : `Fijar en foco: ${item.text}`
-                          }
-                          title={item.pinned ? 'Fijada en foco' : 'Fijar en foco'}
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+        <>
+          <motion.div
+            variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
+            initial={shouldStaggerCards ? 'hidden' : false}
+            animate={shouldStaggerCards ? 'show' : undefined}
+            className="relative grid w-full min-w-0 max-w-full grid-cols-1 gap-3.5 md:grid-cols-2"
+          >
+            <AnimatePresence initial={false} mode="popLayout">
+              {visibleBottomAffirmations.map((item) => {
+                const isSpeaking = speakingId === item.id;
+                const safeCount = Math.max(0, item.repeatCount);
+                return (
+                  <motion.article
+                    key={item.id}
+                    layout={
+                      prefersReducedMotion || Boolean(draggingSpotlightId)
+                        ? false
+                        : 'position'
+                    }
+                    transition={{ layout: POSITION_CHANGE_TRANSITION }}
+                    variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
+                    whileTap={EMIL_CARD_TAP}
+                    exit={{
+                      opacity: 0,
+                      scale: 0.98,
+                      transition: {
+                        duration: 0.15,
+                        ease: TRANSITIONS_SMOOTH_OUT,
+                      },
+                    }}
+                    data-flash-tone={flashId === item.id ? 'rose' : undefined}
+                    className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 min-w-0 max-w-full overflow-hidden ${
+                      flashId === item.id ? 'quick-add-card-flash' : ''
+                    }`}
+                  >
+                    <div>
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
                             item.pinned
                               ? 'bg-[color:var(--pastel-peri)] text-[color:var(--pastel-peri-ink)]'
-                              : 'text-swiss-ink-light hover:bg-swiss-control hover:text-swiss-ink'
+                              : 'bg-swiss-control text-swiss-ink-muted'
                           }`}
                         >
-                          <Pin size={14} aria-hidden="true" />
-                        </button>
+                          <span className="pastel-dot" aria-hidden="true" />
+                          {item.pinned ? 'En foco' : 'Decreto'}
+                        </span>
 
-                        <button
-                          type="button"
-                          onClick={() => void deleteAffirmation(item.id)}
-                          aria-label={`Eliminar afirmación: ${item.text}`}
-                          title="Eliminar"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-swiss-ink-light transition-colors hover:bg-swiss-control hover:text-swiss-red focus-visible:ring-2 focus-visible:ring-swiss-focus"
-                        >
-                          <Trash2 size={14} aria-hidden="true" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleSpeakPreview(item)}
+                            aria-label={`Escuchar afirmación: ${item.text}`}
+                            title="Escuchar con voz"
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+                              isSpeaking
+                                ? 'bg-swiss-accent text-swiss-accentFg'
+                                : 'text-swiss-ink-light hover:bg-swiss-control hover:text-swiss-ink'
+                            }`}
+                          >
+                            <Volume2 size={14} aria-hidden="true" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void togglePinAffirmation(item.id)}
+                            aria-pressed={Boolean(item.pinned)}
+                            aria-label={
+                              item.pinned
+                                ? `Quitar de foco: ${item.text}`
+                                : `Fijar en foco: ${item.text}`
+                            }
+                            title={item.pinned ? 'Fijada en foco' : 'Fijar en foco'}
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus ${
+                              item.pinned
+                                ? 'bg-[color:var(--pastel-peri)] text-[color:var(--pastel-peri-ink)]'
+                                : 'text-swiss-ink-light hover:bg-swiss-control hover:text-swiss-ink'
+                            }`}
+                          >
+                            <Pin size={14} aria-hidden="true" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void deleteAffirmation(item.id)}
+                            aria-label={`Eliminar afirmación: ${item.text}`}
+                            title="Eliminar"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-swiss-ink-light transition-colors hover:bg-swiss-control hover:text-swiss-red focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
+
+                      <p className="break-words [overflow-wrap:anywhere] text-[1.0625rem] font-semibold leading-snug tracking-[-0.018em] text-swiss-ink">
+                        “{item.text}”
+                      </p>
                     </div>
 
-                    <p className="text-[1.0625rem] font-semibold leading-snug tracking-[-0.018em] text-swiss-ink">
-                      “{item.text}”
-                    </p>
-                  </div>
+                    <div className="mt-4 flex items-center justify-between gap-2 border-t border-swiss-border pt-3.5">
+                      {item.author?.trim() ? (
+                        <span className="text-xs text-swiss-ink-light">
+                          Por {item.author.trim()}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
 
-                  <div className="mt-4 flex items-center justify-between gap-2 border-t border-swiss-border pt-3.5">
-                    <span className="text-xs text-swiss-ink-light">
-                      Por {item.author}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => void incrementAffirmationRepeat(item.id)}
-                      aria-label={`Repetir afirmación. Repetida ${item.repeatCount} veces`}
-                      className="swiss-btn-secondary inline-flex min-h-9 items-center gap-1.5 px-3.5 text-xs font-semibold text-swiss-accentText focus-visible:ring-2 focus-visible:ring-swiss-focus"
-                    >
-                      <Repeat size={13} aria-hidden="true" />
-                      <span>Repetida</span>
-                      <motion.span
-                        key={item.repeatCount}
-                        initial={{ opacity: 0, y: 4, filter: 'blur(2px)' }}
-                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                        transition={{
-                          duration: 0.15,
-                          ease: TRANSITIONS_SMOOTH_OUT,
-                        }}
-                        className="inline-block tabular-nums"
+                      <button
+                        type="button"
+                        onClick={() => void incrementAffirmationRepeat(item.id)}
+                        aria-label={`Repetir afirmación. Repetida ${formatRepeatLabel(item.repeatCount)}`}
+                        className="swiss-btn-secondary inline-flex min-h-9 items-center gap-1.5 px-3.5 text-xs font-semibold text-swiss-accentText focus-visible:ring-2 focus-visible:ring-swiss-focus"
                       >
-                        {item.repeatCount}
-                      </motion.span>
-                      <span>veces</span>
-                    </button>
-                  </div>
-                </motion.article>
-              );
-            })}
-          </AnimatePresence>
-        </motion.div>
+                        <Repeat size={13} aria-hidden="true" />
+                        <span>Repetida</span>
+                        <motion.span
+                          key={item.repeatCount}
+                          initial={{ opacity: 0, y: 4, filter: 'blur(2px)' }}
+                          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                          transition={{
+                            duration: 0.15,
+                            ease: TRANSITIONS_SMOOTH_OUT,
+                          }}
+                          className="inline-block tabular-nums"
+                        >
+                          {safeCount.toLocaleString('es-ES')}
+                        </motion.span>
+                        <span>{safeCount === 1 ? 'vez' : 'veces'}</span>
+                      </button>
+                    </div>
+                  </motion.article>
+                );
+              })}
+            </AnimatePresence>
+          </motion.div>
+
+          {bottomListAffirmations.length > visibleBottomAffirmations.length && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => c + 24)}
+                className="swiss-btn-secondary inline-flex min-h-10 items-center px-5 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-swiss-focus"
+              >
+                Mostrar más decretos ({bottomListAffirmations.length - visibleBottomAffirmations.length} restantes)
+              </button>
+            </div>
+          )}
+        </>
       ) : null}
     </div>
   );

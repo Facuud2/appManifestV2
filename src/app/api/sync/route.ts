@@ -8,6 +8,13 @@ import {
   parseAttachmentJson,
   serializeAttachment,
 } from '@/lib/manifestationAttachments';
+import {
+  AffirmationSchema,
+  ManifestationMutationSchema,
+  ProgressMutationSchema,
+  RampageSetSchema,
+  SuccessStorySchema,
+} from '@/schemas';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -159,6 +166,22 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host');
+    if (origin && host) {
+      const originHost = origin.replace(/^https?:\/\//, '');
+      if (
+        originHost !== host &&
+        !originHost.startsWith('localhost') &&
+        !originHost.startsWith('127.0.0.1')
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized mutation origin' },
+          { status: 403 }
+        );
+      }
+    }
+
     try {
       await ensureDefaultAffirmations();
     } catch (seedError) {
@@ -259,6 +282,15 @@ export async function POST(req: NextRequest) {
       const now = new Date().toISOString();
 
       if (entity === 'manifestation') {
+        const parsed = ManifestationMutationSchema.safeParse(data);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { success: false, error: parsed.error.issues[0]?.message || 'Datos de manifestación inválidos' },
+            { status: 400 }
+          );
+        }
+        const valid = parsed.data;
+
         await turso.execute({
           sql: `INSERT INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, song_attachment, media_attachment, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -275,79 +307,115 @@ export async function POST(req: NextRequest) {
                   media_attachment = excluded.media_attachment,
                   updated_at = excluded.updated_at;`,
           args: [
-            data.id,
-            data.userId || 'facu',
-            data.author || 'Facu',
-            data.title || '',
-            data.description || '',
-            data.sensoryAnchor || '',
-            data.category || 'crecimiento',
-            data.status || 'semilla',
-            data.targetDate || null,
-            serializeAttachment(data.songAttachment),
-            serializeAttachment(data.mediaAttachment),
-            data.createdAt || now,
-            data.updatedAt || now,
+            valid.id,
+            valid.userId,
+            valid.author,
+            valid.title,
+            valid.description,
+            valid.sensoryAnchor || '',
+            valid.category,
+            valid.status,
+            valid.targetDate || null,
+            serializeAttachment(valid.songAttachment),
+            serializeAttachment(valid.mediaAttachment),
+            valid.createdAt || now,
+            valid.updatedAt || now,
           ],
         });
       } else if (entity === 'progress') {
+        const parsed = ProgressMutationSchema.safeParse(data);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { success: false, error: parsed.error.issues[0]?.message || 'Datos de avance inválidos' },
+            { status: 400 }
+          );
+        }
+        const valid = parsed.data;
+
         await turso.execute({
           sql: `INSERT OR REPLACE INTO manifestation_progress (id, manifestation_id, user_id, note, sign_type, voice_transcript, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?);`,
           args: [
-            data.id,
-            data.manifestationId || null,
-            data.userId || 'facu',
-            data.note || '',
-            data.signType || null,
-            data.voiceTranscript || null,
-            data.createdAt || now,
+            valid.id,
+            valid.manifestationId || null,
+            valid.userId,
+            valid.note,
+            valid.signType || null,
+            valid.voiceTranscript || null,
+            valid.createdAt || now,
           ],
         });
       } else if (entity === 'story') {
+        const parsed = SuccessStorySchema.safeParse(data);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { success: false, error: parsed.error.issues[0]?.message || 'Datos de historia inválidos' },
+            { status: 400 }
+          );
+        }
+        const valid = parsed.data;
+
         await turso.execute({
           sql: `INSERT OR REPLACE INTO success_stories (id, manifestation_id, user_id, author, title, story, gratitude_note, manifested_date, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
-            data.id,
-            data.manifestationId || null,
-            data.userId || 'facu',
-            data.author || 'Facu',
-            data.title || '',
-            data.story || '',
-            data.gratitudeNote || '',
-            data.manifestedDate || now.split('T')[0],
-            data.createdAt || now,
+            valid.id,
+            valid.goalId || (data.manifestationId as string) || null,
+            valid.userId,
+            valid.author,
+            valid.title,
+            valid.story,
+            valid.gratitudeNote,
+            valid.manifestedDate || now.split('T')[0],
+            valid.createdAt || now,
           ],
         });
       } else if (entity === 'affirmation') {
+        const parsed = AffirmationSchema.safeParse(data);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { success: false, error: parsed.error.issues[0]?.message || 'Datos de afirmación inválidos' },
+            { status: 400 }
+          );
+        }
+        const valid = parsed.data;
+
         await turso.execute({
           sql: `INSERT OR REPLACE INTO affirmations (id, user_id, text, category, repeat_count, pinned, sort_order, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
-            data.id,
-            data.userId || 'facu',
-            data.text || '',
-            data.category || null,
-            data.repeatCount || 0,
-            data.pinned ? 1 : 0,
-            typeof data.order === 'number' ? data.order : null,
-            data.createdAt || now,
+            valid.id,
+            valid.userId,
+            valid.text,
+            valid.category || null,
+            valid.repeatCount,
+            valid.pinned ? 1 : 0,
+            typeof valid.order === 'number' ? valid.order : null,
+            valid.createdAt || now,
           ],
         });
       } else if (entity === 'rampageSet') {
+        const parsed = RampageSetSchema.safeParse(data);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { success: false, error: parsed.error.issues[0]?.message || 'Datos de rampage inválidos' },
+            { status: 400 }
+          );
+        }
+        const valid = parsed.data;
+
         await turso.execute({
           sql: `INSERT OR REPLACE INTO rampage_sets (id, user_id, title, theme, affirmations_json, ambient_sound, is_favorite, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
-            data.id,
-            data.userId || 'shared',
-            data.title || 'Rampage de Afirmaciones',
-            data.theme || 'Abundancia y Alineación',
-            JSON.stringify(data.affirmations || []),
-            data.ambientSound || 'astral_rain',
-            data.isFavorite ? 1 : 0,
-            data.createdAt || now,
+            valid.id,
+            valid.userId,
+            valid.title,
+            (data.theme as string) || valid.category || 'Abundancia y Alineación',
+            JSON.stringify(valid.affirmations || []),
+            valid.ambientSound || 'astral_rain',
+            valid.isFavorite ? 1 : 0,
+            valid.createdAt || now,
           ],
         });
       } else if (entity === 'profile') {

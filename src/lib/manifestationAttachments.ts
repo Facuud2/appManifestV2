@@ -10,6 +10,16 @@ export function buildMediaStorageKey(manifestationId: string): string {
   return `${MANIFESTATION_MEDIA_PREFIX}${manifestationId}`;
 }
 
+export function isSafeHttpUrl(url: unknown): url is string {
+  if (typeof url !== 'string' || !url.trim()) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export function isSongAttachment(value: unknown): value is SongAttachment {
   if (!value || typeof value !== 'object') return false;
   const song = value as Partial<SongAttachment>;
@@ -19,6 +29,7 @@ export function isSongAttachment(value: unknown): value is SongAttachment {
     typeof song.artist === 'string' &&
     typeof song.albumCoverUrl === 'string' &&
     typeof song.spotifyUrl === 'string' &&
+    isSafeHttpUrl(song.spotifyUrl) &&
     (typeof song.previewAudioUrl === 'string' || song.previewAudioUrl === null)
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Check, Feather, Plus, Trophy, Footprints, Trash2 } from 'lucide-react';
 import { useAppStore, ManifestationItem } from '@/store';
@@ -47,6 +47,21 @@ const nextStatusMap: Record<ManifestationItem['status'], ManifestationItem['stat
   materializado: 'semilla',
 };
 
+const formatSafeDate = (isoString?: string): string => {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return 'Reciente';
+    return d.toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return 'Reciente';
+  }
+};
+
 export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   onOpenNewManifestation,
   onOpenNewProgress,
@@ -67,6 +82,12 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   const manifestations = allManifestations.filter((item) => item.userId === activeScope);
   const progressLogs = allProgressLogs.filter((item) => item.userId === activeScope);
   const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
+
+  const [visibleCount, setVisibleCount] = useState(24);
+  const visibleManifestations = useMemo(
+    () => manifestations.slice(0, visibleCount),
+    [manifestations, visibleCount]
+  );
 
   const shouldStaggerCards = manifestations.length <= 6;
   const prefersReducedMotion = useReducedMotion();
@@ -105,7 +126,7 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
   }, []);
 
   return (
-    <div className="quick-add-page space-y-7 pb-32 sm:pb-12">
+    <div className="quick-add-page w-full min-w-0 max-w-full space-y-7 pb-32 sm:pb-12">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="section-label">Tu jardín de intenciones</p>
@@ -176,41 +197,38 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
           )}
         </div>
       ) : (
-        <motion.div
-          variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
-          initial={shouldStaggerCards ? 'hidden' : false}
-          animate={shouldStaggerCards ? 'show' : undefined}
-          className="relative grid grid-cols-1 gap-3.5 md:grid-cols-2"
-        >
-          <AnimatePresence initial={false} mode="popLayout">
-            {manifestations.map((item) => {
-              const nextStatus = nextStatusMap[item.status] ?? 'semilla';
-              return (
-                <motion.article
-                  key={item.id}
-                  layout={prefersReducedMotion ? false : 'position'}
-                  transition={{ layout: POSITION_CHANGE_TRANSITION }}
-                  variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
-                  whileTap={EMIL_CARD_TAP}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.98,
-                    transition: { duration: 0.15, ease: EMIL_EASE_OUT },
-                  }}
-                  data-flash-tone={flashId === item.id ? 'butter' : undefined}
-                  className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 ${
-                    flashId === item.id ? 'quick-add-card-flash' : ''
-                  }`}
-                >
+        <>
+          <motion.div
+            variants={shouldStaggerCards ? STAGGER_CONTAINER : undefined}
+            initial={shouldStaggerCards ? 'hidden' : false}
+            animate={shouldStaggerCards ? 'show' : undefined}
+            className="relative grid w-full min-w-0 max-w-full grid-cols-1 gap-3.5 md:grid-cols-2"
+          >
+            <AnimatePresence initial={false} mode="popLayout">
+              {visibleManifestations.map((item) => {
+                const nextStatus = nextStatusMap[item.status] ?? 'semilla';
+                return (
+                  <motion.article
+                    key={item.id}
+                    layout={prefersReducedMotion ? false : 'position'}
+                    transition={{ layout: POSITION_CHANGE_TRANSITION }}
+                    variants={shouldStaggerCards ? STAGGER_ITEM : undefined}
+                    whileTap={EMIL_CARD_TAP}
+                    exit={{
+                      opacity: 0,
+                      scale: 0.98,
+                      transition: { duration: 0.15, ease: EMIL_EASE_OUT },
+                    }}
+                    data-flash-tone={flashId === item.id ? 'butter' : undefined}
+                    className={`swiss-card swiss-card-hover motion-card flex flex-col justify-between p-5 min-w-0 max-w-full overflow-hidden ${
+                      flashId === item.id ? 'quick-add-card-flash' : ''
+                    }`}
+                  >
                   <div>
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <span className="text-xs tabular-nums text-swiss-ink-light">
-                        {new Date(item.createdAt).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                        {item.author ? ` · Por ${item.author}` : ''}
+                        {formatSafeDate(item.createdAt)}
+                        {item.author?.trim() ? ` · Por ${item.author.trim()}` : ''}
                       </span>
                       <button
                         type="button"
@@ -223,15 +241,15 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
                       </button>
                     </div>
 
-                    <h2 className="text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
+                    <h2 className="break-words [overflow-wrap:anywhere] text-[1.0625rem] font-semibold leading-snug tracking-[-0.02em] text-swiss-ink">
                       {item.title}
                     </h2>
-                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-swiss-ink-muted">
+                    <p className="mt-2 whitespace-pre-line break-words [overflow-wrap:anywhere] text-sm leading-6 text-swiss-ink-muted">
                       {item.description}
                     </p>
 
                     {item.sensoryAnchor && (
-                      <div className="surface-butter mt-3.5 rounded-[12px] border px-3.5 py-3 text-[0.8125rem] leading-5 text-swiss-ink-muted">
+                      <div className="surface-butter mt-3.5 rounded-[12px] border px-3.5 py-3 text-[0.8125rem] leading-5 text-swiss-ink-muted break-words [overflow-wrap:anywhere]">
                         <span className="mb-1 block text-xs font-semibold text-[color:var(--pastel-butter-ink)]">
                           Anclaje sensorial
                         </span>
@@ -323,6 +341,19 @@ export const ManifestationsView: React.FC<ManifestationsViewProps> = ({
             })}
           </AnimatePresence>
         </motion.div>
+
+        {manifestations.length > visibleManifestations.length && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((c) => c + 24)}
+              className="swiss-btn-secondary inline-flex min-h-10 items-center px-5 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-swiss-focus"
+            >
+              Mostrar más intenciones ({manifestations.length - visibleManifestations.length} restantes)
+            </button>
+          </div>
+        )}
+      </>
       )}
 
       <MediaLightbox

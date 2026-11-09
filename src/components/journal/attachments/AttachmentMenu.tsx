@@ -225,7 +225,7 @@ export function AttachmentMenu({ onPhoto, onVideo, onSong, disabled }: Attachmen
         aria-label="Adjuntar foto, video o canción"
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-swiss-inkMuted transition-all hover:bg-swiss-control hover:text-swiss-ink active:scale-90 disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-swiss-inkMuted transition-all hover:bg-swiss-control hover:text-swiss-ink active:scale-90 disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus"
       >
         <Plus
           size={20}

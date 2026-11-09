@@ -175,6 +175,7 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
                   onChange={(event) => setNote(event.target.value)}
                   placeholder="Hoy noté que..."
                   required
+                  maxLength={3000}
                   className="swiss-composer-field h-[8.5rem] min-h-[8.5rem] w-full resize-none rounded-[12px] px-4 pb-14 pt-4 text-sm leading-6"
                 />
                 <VoiceDictationButton

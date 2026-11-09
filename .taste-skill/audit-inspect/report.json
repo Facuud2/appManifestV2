@@ -1,0 +1,1483 @@
+{
+ "url": "http://localhost:3044",
+ "at": "2026-11-09T02:10:35.326Z",
+ "allow": [
+  "gradient"
+ ],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.59,
+    0.48
+   ],
+   "motion": {
+    "elements": 22,
+    "css": 4,
+    "transitions": 0,
+    "scripted": 18,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 1069,
+     "screens": 1.2,
+     "words": 103,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 31,
+     "sections": 3,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "chars": 36,
+     "lines": 1,
+     "size": 32,
+     "vw": 2.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.08,
+     "top": 190,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "lines": 1,
+     "size": 32,
+     "font": "-apple-system"
+    },
+    "headings": [
+     {
+      "text": "Todo lo que deseo ya está en camino.",
+      "words": 8,
+      "chars": 36,
+      "lines": 1,
+      "size": 32,
+      "vw": 2.2,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.34,
+      "top": 190,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "-apple-system",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      22,
+      32
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": {
+      "font": "-apple-system",
+      "size": 16,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 13.6
+     },
+     "measureChars": 56,
+     "max": {
+      "size": 32,
+      "vw": 2.2,
+      "font": "-apple-system",
+      "text": "Todo lo que deseo ya está en camino."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.27,
+     "smallText": 4
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f1f1ef",
+     "bodyBgHsl": {
+      "h": 60,
+      "s": 0.07,
+      "l": 0.94
+     },
+     "dark": false,
+     "sectionBgs": [],
+     "textColors": [
+      {
+       "color": "#221f26",
+       "share": 0.88
+      },
+      {
+       "color": "#525252",
+       "share": 0.07
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.04
+      },
+      {
+       "color": "#171717",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#2f6f5e",
+      "hsl": {
+       "h": 164,
+       "s": 0.41,
+       "l": 0.31
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 4,
+     "inHero": 4,
+     "radius": "pill",
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Facu",
+      "Calibrar voz",
+      "Escribir intención",
+      "Registrar avance"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 5,
+     "shadowOverlay": 2,
+     "shadowSamples": [
+      "span.hero-orb-sphere → rgba(18, 60, 45, 0.45) -8px -10px 24px 0px inset, rgba(255, 255, 255, 0.75) 4px ",
+      "span.hero-orb-pill → rgba(59, 29, 41, 0.12) 0px 4px 14px 0px, rgba(59, 29, 41, 0.08) 0px 1px 3px 0px",
+      "div.swiss-group → rgba(255, 255, 255, 0.7) 0px 1px 0px 0px inset, rgba(34, 30, 38, 0.04) 0px 1px 2",
+      "article.swiss-card.surface-peri → rgba(255, 255, 255, 0.7) 0px 1px 0px 0px inset, rgba(34, 30, 38, 0.04) 0px 1px 2"
+     ],
+     "gradients": 3,
+     "scrims": 0,
+     "gradientSamples": [
+      "span.hero-orb-aura-bloom → radial-gradient(circle, rgba(157, 224, 195, 0.55) 0%, rgba(247, 197, 163, 0.35) 44%, rgba(0, 0, 0, 0) 72%)",
+      "span.hero-orb-aura-pulse → radial-gradient(circle, rgba(157, 224, 195, 0.55) 22%, rgba(0, 0, 0, 0) 68%)",
+      "span.hero-orb-sphere → radial-gradient(circle at 35% 28%, rgb(232, 248, 239) 0%, rgb(185, 234, 214) 22%, rgb(124, 201, 174) 48%, rgb("
+     ],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "header.swiss-toolbar.sticky 1352px"
+     ],
+     "outlinedBoxes": 4,
+     "dashed": 1,
+     "blurred": 4,
+     "roundedBoxes": 4,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 900,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 1069,
+    "margins": {
+     "left": 21,
+     "right": 128
+    },
+    "sections": [
+     {
+      "sel": "section.hero-sanctuary.relative",
+      "tag": "section",
+      "top": 101,
+      "height": 320,
+      "words": 27,
+      "media": 0,
+      "middle": 323,
+      "heading": {
+       "text": "Todo lo que deseo ya está en camino.",
+       "size": 32,
+       "tag": "h1"
+      },
+      "left": 257,
+      "right": 203,
+      "textLeft": 257,
+      "textRight": 265,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 461,
+      "height": 252,
+      "words": 26,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "¿Qué necesitás hoy?",
+       "size": 22,
+       "tag": "h2"
+      },
+      "left": 216,
+      "right": 128,
+      "textLeft": 216,
+      "textRight": 155,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.w-full.min-w-0",
+      "tag": "section",
+      "top": 753,
+      "height": 236,
+      "words": 8,
+      "media": 0,
+      "middle": 66,
+      "heading": {
+       "text": "Continuar escuchando",
+       "size": 18,
+       "tag": "h2"
+      },
+      "left": 245,
+      "right": 157,
+      "textLeft": 245,
+      "textRight": 1013,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Todo lo que deseo ya está en camino.",
+      "size": 32,
+      "top": 190,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 257,
+      "n": 2
+     },
+     {
+      "x": 216,
+      "n": 1
+     },
+     {
+      "x": 245,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 4,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.07,
+    "voidBox": {
+     "x": 420,
+     "y": 360,
+     "w": 780,
+     "h": 120
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#f1f1ef",
+    "sidebar": {
+     "w": 88,
+     "tag": "aside",
+     "links": 6,
+     "share": 0.06
+    },
+    "topbar": {
+     "h": 61
+    },
+    "canvas": {
+     "left": 128,
+     "right": 107
+    },
+    "hero": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "chars": 36,
+     "lines": 1,
+     "size": 32,
+     "vw": 2.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.08,
+     "top": 190,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 3,
+     "firstScreen": 3,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 4,
+     "radii": [
+      [
+       20,
+       2
+      ],
+      [
+       28,
+       1
+      ],
+      [
+       22,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 2,
+     "shadowSamples": [],
+     "glass": 1
+    },
+    "chips": {
+     "count": 2,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 146,
+       "size": 36,
+       "radius": "10px"
+      },
+      {
+       "hue": 164,
+       "size": 44,
+       "radius": "16px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 1,
+     "tabularShare": 1,
+     "kpiMax": 11
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.37,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      22,
+      32
+     ]
+    },
+    "title": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "size": 32,
+     "top": 190
+    },
+    "colourShare": 0.009
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.8,
+    0.72
+   ],
+   "motion": {
+    "elements": 44,
+    "css": 4,
+    "transitions": 0,
+    "scripted": 40,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1241,
+     "screens": 1.2,
+     "words": 82,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 31,
+     "sections": 3,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "chars": 36,
+     "lines": 1,
+     "size": 28,
+     "vw": 3.6,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.08,
+     "top": 122,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "lines": 1,
+     "size": 27.6,
+     "font": "-apple-system"
+    },
+    "headings": [
+     {
+      "text": "Todo lo que deseo ya está en camino.",
+      "words": 8,
+      "chars": 36,
+      "lines": 1,
+      "size": 27.6,
+      "vw": 3.6,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.55,
+      "top": 122,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "-apple-system",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      22,
+      28
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": {
+      "font": "-apple-system",
+      "size": 16,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 13.6
+     },
+     "measureChars": 56,
+     "max": {
+      "size": 27.6,
+      "vw": 3.6,
+      "font": "-apple-system",
+      "text": "Todo lo que deseo ya está en camino."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.32,
+     "smallText": 6
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f1f1ef",
+     "bodyBgHsl": {
+      "h": 60,
+      "s": 0.07,
+      "l": 0.94
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#dfefe6",
+       "top": 85,
+       "hsl": {
+        "h": 146,
+        "s": 0.33,
+        "l": 0.91
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#221f26",
+       "share": 0.87
+      },
+      {
+       "color": "#525252",
+       "share": 0.06
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.04
+      },
+      {
+       "color": "#2f6f5e",
+       "share": 0.01
+      },
+      {
+       "color": "#171717",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#2f6f5e",
+      "hsl": {
+       "h": 164,
+       "s": 0.41,
+       "l": 0.31
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 3,
+     "radius": "pill",
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Facu",
+      "Escribir intención",
+      "Registrar avance"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 5,
+     "shadowOverlay": 3,
+     "shadowSamples": [
+      "span.hero-orb-sphere → rgba(18, 60, 45, 0.45) -8px -10px 24px 0px inset, rgba(255, 255, 255, 0.75) 4px ",
+      "span.hero-orb-pill → rgba(59, 29, 41, 0.12) 0px 4px 14px 0px, rgba(59, 29, 41, 0.08) 0px 1px 3px 0px",
+      "div.swiss-group → rgba(255, 255, 255, 0.7) 0px 1px 0px 0px inset, rgba(34, 30, 38, 0.04) 0px 1px 2",
+      "article.swiss-card.surface-peri → rgba(255, 255, 255, 0.7) 0px 1px 0px 0px inset, rgba(34, 30, 38, 0.04) 0px 1px 2"
+     ],
+     "gradients": 3,
+     "scrims": 0,
+     "gradientSamples": [
+      "span.hero-orb-aura-bloom → radial-gradient(circle, rgba(157, 224, 195, 0.55) 0%, rgba(247, 197, 163, 0.35) 44%, rgba(0, 0, 0, 0) 72%)",
+      "span.hero-orb-aura-pulse → radial-gradient(circle, rgba(157, 224, 195, 0.55) 22%, rgba(0, 0, 0, 0) 68%)",
+      "span.hero-orb-sphere → radial-gradient(circle at 35% 28%, rgb(232, 248, 239) 0%, rgb(185, 234, 214) 22%, rgb(124, 201, 174) 48%, rgb("
+     ],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "header.swiss-toolbar.sticky 768px"
+     ],
+     "outlinedBoxes": 4,
+     "dashed": 1,
+     "blurred": 4,
+     "roundedBoxes": 4,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 0,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1241,
+    "margins": {
+     "left": 23,
+     "right": 23
+    },
+    "sections": [
+     {
+      "sel": "section.hero-sanctuary.relative",
+      "tag": "section",
+      "top": 85,
+      "height": 470,
+      "words": 27,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Todo lo que deseo ya está en camino.",
+       "size": 28,
+       "tag": "h1"
+      },
+      "left": 56,
+      "right": 266,
+      "textLeft": 56,
+      "textRight": 266,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 587,
+      "height": 252,
+      "words": 26,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "¿Qué necesitás hoy?",
+       "size": 21,
+       "tag": "h2"
+      },
+      "left": 23,
+      "right": 23,
+      "textLeft": 23,
+      "textRight": 50,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.w-full.min-w-0",
+      "tag": "section",
+      "top": 870,
+      "height": 218,
+      "words": 8,
+      "media": 0,
+      "middle": 66,
+      "heading": {
+       "text": "Continuar escuchando",
+       "size": 18,
+       "tag": "h2"
+      },
+      "left": 43,
+      "right": 43,
+      "textLeft": 43,
+      "textRight": 542,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Todo lo que deseo ya está en camino.",
+      "size": 28,
+      "top": 122,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 56,
+      "n": 2
+     },
+     {
+      "x": 23,
+      "n": 1
+     },
+     {
+      "x": 43,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 4,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#f1f1ef",
+    "sidebar": null,
+    "topbar": {
+     "h": 61
+    },
+    "canvas": {
+     "left": 23,
+     "right": 23
+    },
+    "hero": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "chars": 36,
+     "lines": 1,
+     "size": 28,
+     "vw": 3.6,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.08,
+     "top": 122,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 3,
+     "firstScreen": 3,
+     "ragged": [],
+     "voids": [
+      {
+       "gap": 50,
+       "at": 265,
+       "panel": "Todo lo que deseo ya está en camino."
+      }
+     ]
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 4,
+     "radii": [
+      [
+       20,
+       2
+      ],
+      [
+       28,
+       1
+      ],
+      [
+       22,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 2,
+     "shadowSamples": [],
+     "glass": 1
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 164,
+       "size": 44,
+       "radius": "16px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.37,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      21,
+      28
+     ]
+    },
+    "title": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "size": 28,
+     "top": 122
+    },
+    "colourShare": 0.013
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.89,
+    0.64
+   ],
+   "motion": {
+    "elements": 44,
+    "css": 4,
+    "transitions": 0,
+    "scripted": 40,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 1266,
+     "screens": 1.5,
+     "words": 82,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 31,
+     "sections": 3,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "chars": 36,
+     "lines": 2,
+     "size": 24,
+     "vw": 6.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.08,
+     "top": 114,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "lines": 2,
+     "size": 24,
+     "font": "-apple-system"
+    },
+    "headings": [
+     {
+      "text": "Todo lo que deseo ya está en camino.",
+      "words": 8,
+      "chars": 36,
+      "lines": 2,
+      "size": 24,
+      "vw": 6.2,
+      "font": "-apple-system",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.79,
+      "top": 114,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "-apple-system",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      24
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "-apple-system",
+      "size": 15,
+      "leading": 1.6,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 13.6
+     },
+     "measureChars": 41,
+     "max": {
+      "size": 24,
+      "vw": 6.2,
+      "font": "-apple-system",
+      "text": "Todo lo que deseo ya está en camino."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.32,
+     "smallText": 6
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f1f1ef",
+     "bodyBgHsl": {
+      "h": 60,
+      "s": 0.07,
+      "l": 0.94
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#dfefe6",
+       "top": 85,
+       "hsl": {
+        "h": 146,
+        "s": 0.33,
+        "l": 0.91
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#221f26",
+       "share": 0.87
+      },
+      {
+       "color": "#525252",
+       "share": 0.06
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.04
+      },
+      {
+       "color": "#2f6f5e",
+       "share": 0.01
+      },
+      {
+       "color": "#171717",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#2f6f5e",
+      "hsl": {
+       "h": 164,
+       "s": 0.41,
+       "l": 0.31
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 3,
+     "radius": "pill",
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Facu",
+      "Escribir intención",
+      "Registrar avance"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 5,
+     "shadowOverlay": 3,
+     "shadowSamples": [
+      "span.hero-orb-sphere → rgba(18, 60, 45, 0.45) -8px -10px 24px 0px inset, rgba(255, 255, 255, 0.75) 4px ",
+      "span.hero-orb-pill → rgba(59, 29, 41, 0.12) 0px 4px 14px 0px, rgba(59, 29, 41, 0.08) 0px 1px 3px 0px",
+      "div.swiss-group → rgba(255, 255, 255, 0.7) 0px 1px 0px 0px inset, rgba(34, 30, 38, 0.04) 0px 1px 2",
+      "article.swiss-card.surface-peri → rgba(255, 255, 255, 0.7) 0px 1px 0px 0px inset, rgba(34, 30, 38, 0.04) 0px 1px 2"
+     ],
+     "gradients": 3,
+     "scrims": 0,
+     "gradientSamples": [
+      "span.hero-orb-aura-bloom → radial-gradient(circle, rgba(157, 224, 195, 0.55) 0%, rgba(247, 197, 163, 0.35) 44%, rgba(0, 0, 0, 0) 72%)",
+      "span.hero-orb-aura-pulse → radial-gradient(circle, rgba(157, 224, 195, 0.55) 22%, rgba(0, 0, 0, 0) 68%)",
+      "span.hero-orb-sphere → radial-gradient(circle at 35% 28%, rgb(232, 248, 239) 0%, rgb(185, 234, 214) 22%, rgb(124, 201, 174) 48%, rgb("
+     ],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "header.swiss-toolbar.sticky 390px"
+     ],
+     "outlinedBoxes": 4,
+     "dashed": 1,
+     "blurred": 4,
+     "roundedBoxes": 4,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 0,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 1266,
+    "margins": {
+     "left": 16,
+     "right": 16
+    },
+    "sections": [
+     {
+      "sel": "section.hero-sanctuary.relative",
+      "tag": "section",
+      "top": 85,
+      "height": 512,
+      "words": 27,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Todo lo que deseo ya está en camino.",
+       "size": 24,
+       "tag": "h1"
+      },
+      "left": 41,
+      "right": 52,
+      "textLeft": 41,
+      "textRight": 52,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 629,
+      "height": 252,
+      "words": 26,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "¿Qué necesitás hoy?",
+       "size": 20,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 16,
+      "textLeft": 16,
+      "textRight": 43,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.w-full.min-w-0",
+      "tag": "section",
+      "top": 912,
+      "height": 202,
+      "words": 8,
+      "media": 0,
+      "middle": 24,
+      "heading": {
+       "text": "Continuar escuchando",
+       "size": 16,
+       "tag": "h2"
+      },
+      "left": 33,
+      "right": 33,
+      "textLeft": 33,
+      "textRight": 192,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Todo lo que deseo ya está en camino.",
+      "size": 24,
+      "top": 114,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 33,
+      "n": 3
+     },
+     {
+      "x": 16,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 4,
+    "bodySize": 15,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#f1f1ef",
+    "sidebar": null,
+    "topbar": {
+     "h": 61
+    },
+    "canvas": {
+     "left": 16,
+     "right": 16
+    },
+    "hero": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "words": 8,
+     "chars": 36,
+     "lines": 2,
+     "size": 24,
+     "vw": 6.2,
+     "font": "-apple-system",
+     "weight": 600,
+     "tracking": -0.03,
+     "leading": 1.08,
+     "top": 114,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 3,
+     "firstScreen": 2,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 3,
+     "radii": [
+      [
+       20,
+       2
+      ],
+      [
+       28,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 2,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 164,
+       "size": 44,
+       "radius": "14px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.39,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      24
+     ]
+    },
+    "title": {
+     "text": "Todo lo que deseo ya está en camino.",
+     "size": 24,
+     "top": 114
+    },
+    "colourShare": 0.022
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/audit-inspect/desktop-fold.jpg",
+   "pages": [
+    "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/audit-inspect/desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/audit-inspect/tablet-fold.jpg",
+   "pages": [
+    "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/audit-inspect/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/audit-inspect/mobile-fold.jpg",
+   "pages": [
+    "/home/facuud2/Proyectos/Facu-Projects/appManifestV2/.taste-skill/audit-inspect/mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

@@ -149,7 +149,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 </motion.span>
               )}
               <span
-                className={`max-w-full truncate px-0.5 text-[10px] sm:text-[11px] leading-none ${
+                className={`max-w-full truncate px-0.5 text-[11px] leading-none ${
                   isActive ? 'font-semibold' : 'font-medium'
                 } ${tab.isCreate ? 'mt-0.5' : ''}`}
               >

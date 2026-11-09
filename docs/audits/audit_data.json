@@ -1,0 +1,429 @@
+{
+  "generatedAt": "2026-11-09T02:05:03.602Z",
+  "baseUrl": "http://localhost:3044",
+  "hardGates": {
+    "consoleErrors": 4,
+    "consoleWarnings": 0,
+    "network5xx": 0,
+    "network404Auth": 0,
+    "layoutCollapse": 0,
+    "a11yCritical": 0,
+    "a11ySerious": 0,
+    "lcpMs": 160
+  },
+  "perfMetrics": {
+    "domInteractive": 127,
+    "loadEventEnd": 466,
+    "fcp": 160
+  },
+  "totalManifestSteps": 32,
+  "manifest": [
+    {
+      "timestamp": "2026-11-09T02:04:28.491Z",
+      "action": "navigate",
+      "target": "http://localhost:3044?data=empty",
+      "outcome": "Loaded empty state fixture",
+      "durationMs": 4903
+    },
+    {
+      "timestamp": "2026-11-09T02:04:29.067Z",
+      "action": "click",
+      "target": "Tab Afirmaciones",
+      "outcome": "Navigated to Afirmaciones empty state",
+      "durationMs": 494
+    },
+    {
+      "timestamp": "2026-11-09T02:04:29.569Z",
+      "action": "click",
+      "target": "Tab Manifestaciones",
+      "outcome": "Navigated to Manifestaciones empty state",
+      "durationMs": 454
+    },
+    {
+      "timestamp": "2026-11-09T02:04:30.079Z",
+      "action": "click",
+      "target": "Tab Avances",
+      "outcome": "Navigated to Avances empty state",
+      "durationMs": 461
+    },
+    {
+      "timestamp": "2026-11-09T02:04:30.586Z",
+      "action": "click",
+      "target": "Scope Switcher Trigger",
+      "outcome": "Opened profile scope dropdown",
+      "durationMs": 442
+    },
+    {
+      "timestamp": "2026-11-09T02:04:31.434Z",
+      "action": "click",
+      "target": "Scope Option Facu",
+      "outcome": "Switched scope to Facu with skeleton hold",
+      "durationMs": 848
+    },
+    {
+      "timestamp": "2026-11-09T02:04:35.892Z",
+      "action": "navigate",
+      "target": "http://localhost:3044?data=demo",
+      "outcome": "Reset to demo fixture",
+      "durationMs": 4400
+    },
+    {
+      "timestamp": "2026-11-09T02:04:36.902Z",
+      "action": "click",
+      "target": "Create Sheet -> Manifestación",
+      "outcome": "Opened ManifestationEditorModal",
+      "durationMs": 485
+    },
+    {
+      "timestamp": "2026-11-09T02:04:37.005Z",
+      "action": "type",
+      "target": "Manifestation Description",
+      "outcome": "Filled description",
+      "durationMs": 13
+    },
+    {
+      "timestamp": "2026-11-09T02:04:37.889Z",
+      "action": "click",
+      "target": "Save Manifestation Button",
+      "outcome": "Submitted new manifestation",
+      "durationMs": 756
+    },
+    {
+      "timestamp": "2026-11-09T02:04:38.515Z",
+      "action": "click",
+      "target": "Afirmaciones Nav",
+      "outcome": "Switched to Affirmations view",
+      "durationMs": 565
+    },
+    {
+      "timestamp": "2026-11-09T02:04:39.137Z",
+      "action": "click",
+      "target": "Pin Affirmation Button",
+      "outcome": "Toggled pinned state on first affirmation",
+      "durationMs": 548
+    },
+    {
+      "timestamp": "2026-11-09T02:04:41.715Z",
+      "action": "reload",
+      "target": "Page Reload",
+      "outcome": "Reloaded page to test persistence of pinned / created items",
+      "durationMs": 2517
+    },
+    {
+      "timestamp": "2026-11-09T02:04:42.272Z",
+      "action": "click",
+      "target": "Avances Nav",
+      "outcome": "Navigated to Progress view",
+      "durationMs": 492
+    },
+    {
+      "timestamp": "2026-11-09T02:04:42.804Z",
+      "action": "click",
+      "target": "Registrar Avance Trigger",
+      "outcome": "Opened ProgressLogModal",
+      "durationMs": 478
+    },
+    {
+      "timestamp": "2026-11-09T02:04:43.596Z",
+      "action": "click",
+      "target": "Save Progress Button",
+      "outcome": "Saved progress log item",
+      "durationMs": 1270
+    },
+    {
+      "timestamp": "2026-11-09T02:04:44.132Z",
+      "action": "click",
+      "target": "Voice Calibration Trigger",
+      "outcome": "Opened VoiceCalibrationModal",
+      "durationMs": 475
+    },
+    {
+      "timestamp": "2026-11-09T02:04:45.224Z",
+      "action": "click",
+      "target": "Rampage Modal Trigger",
+      "outcome": "Opened RampagePlayerModal",
+      "durationMs": 562
+    },
+    {
+      "timestamp": "2026-11-09T02:04:46.128Z",
+      "action": "click",
+      "target": "Rampage Play/Pause",
+      "outcome": "Toggled playback in Rampage Player",
+      "durationMs": 1466
+    },
+    {
+      "timestamp": "2026-11-09T02:04:46.713Z",
+      "action": "click",
+      "target": "Loop Mode Toggle",
+      "outcome": "Cycled loop mode",
+      "durationMs": 2051
+    },
+    {
+      "timestamp": "2026-11-09T02:04:47.112Z",
+      "action": "click",
+      "target": "Ambient Sound Cycle",
+      "outcome": "Cycled ambient sound",
+      "durationMs": 2450
+    },
+    {
+      "timestamp": "2026-11-09T02:04:47.584Z",
+      "action": "click",
+      "target": "Personalizar Rampage Trigger",
+      "outcome": "Opened Rampage Customizer Drawer",
+      "durationMs": 2922
+    },
+    {
+      "timestamp": "2026-11-09T02:04:50.890Z",
+      "action": "click",
+      "target": "Attachment Trigger",
+      "outcome": "Opened attachment options dropdown",
+      "durationMs": 413
+    },
+    {
+      "timestamp": "2026-11-09T02:04:51.410Z",
+      "action": "click",
+      "target": "Attachment Menu -> Canción",
+      "outcome": "Opened MusicSearchSheet",
+      "durationMs": 933
+    },
+    {
+      "timestamp": "2026-11-09T02:04:52.304Z",
+      "action": "type",
+      "target": "Music Search Input",
+      "outcome": "Searched for Brian Eno",
+      "durationMs": 712
+    },
+    {
+      "timestamp": "2026-11-09T02:04:53.328Z",
+      "action": "type",
+      "target": "Music Search Impossible Query",
+      "outcome": "Checked empty state in music search",
+      "durationMs": 710
+    },
+    {
+      "timestamp": "2026-11-09T02:04:54.436Z",
+      "action": "offline",
+      "target": "Network Offline",
+      "outcome": "Disconnected network state",
+      "durationMs": 1
+    },
+    {
+      "timestamp": "2026-11-09T02:04:56.432Z",
+      "action": "sync_concurrency",
+      "target": "Triple Parallel Sync",
+      "outcome": "Tested parallel sync requests",
+      "durationMs": 1607
+    },
+    {
+      "timestamp": "2026-11-09T02:04:56.894Z",
+      "action": "viewport_test",
+      "target": "Viewport iphone-se-375x667",
+      "outcome": "Evaluated overflow (0px) and touch targets",
+      "durationMs": 462
+    },
+    {
+      "timestamp": "2026-11-09T02:04:57.353Z",
+      "action": "viewport_test",
+      "target": "Viewport iphone-16-pro-402x874",
+      "outcome": "Evaluated overflow (0px) and touch targets",
+      "durationMs": 459
+    },
+    {
+      "timestamp": "2026-11-09T02:04:58.650Z",
+      "action": "navigate",
+      "target": "http://localhost:3044?data=worst",
+      "outcome": "Loaded Break-UI worst-case fixtures",
+      "durationMs": 1288
+    },
+    {
+      "timestamp": "2026-11-09T02:05:00.609Z",
+      "action": "navigate",
+      "target": "http://localhost:3044/non-existent-audit-route-404",
+      "outcome": "Tested 404 route rendering and recovery",
+      "durationMs": 1527
+    }
+  ],
+  "consoleLogsCount": 18,
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "location": {
+        "url": "http://localhost:3044/api/sync?scope=facu",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "location": {
+        "url": "http://localhost:3044/api/ai/tts",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "location": {
+        "url": "http://localhost:3044/api/ai/tts",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://localhost:3044/non-existent-audit-route-404",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "consoleWarnings": [],
+  "networkErrors": [
+    {
+      "status": 404,
+      "url": "http://localhost:3044/non-existent-audit-route-404"
+    }
+  ],
+  "overflowIssues": [
+    {
+      "viewport": "iphone-se-375x667",
+      "docWidth": 375,
+      "winWidth": 375,
+      "bodyWidth": 375,
+      "hasHorizontalOverflow": false,
+      "overflowPx": 0
+    },
+    {
+      "viewport": "iphone-16-pro-402x874",
+      "docWidth": 402,
+      "winWidth": 402,
+      "bodyWidth": 402,
+      "hasHorizontalOverflow": false,
+      "overflowPx": 0
+    }
+  ],
+  "worstOverflow": {
+    "viewport": "iphone-se-worst-case",
+    "docWidth": 375,
+    "winWidth": 375,
+    "bodyWidth": 375,
+    "hasHorizontalOverflow": false,
+    "overflowPx": 0
+  },
+  "touchIssuesCount": 9,
+  "touchIssuesSample": [
+    {
+      "tag": "A",
+      "label": "Saltar al contenido",
+      "width": 32,
+      "height": 24,
+      "viewport": "iphone-se-375x667"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "Demo",
+      "width": 54,
+      "height": 36,
+      "viewport": "iphone-se-375x667"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "Empty",
+      "width": 56,
+      "height": 36,
+      "viewport": "iphone-se-375x667"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "One",
+      "width": 45,
+      "height": 36,
+      "viewport": "iphone-se-375x667"
+    },
+    {
+      "tag": "A",
+      "label": "Saltar al contenido",
+      "width": 32,
+      "height": 24,
+      "viewport": "iphone-16-pro-402x874"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "Repetida\n1\nveces",
+      "width": 137,
+      "height": 36,
+      "viewport": "iphone-16-pro-402x874"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "Demo",
+      "width": 54,
+      "height": 36,
+      "viewport": "iphone-16-pro-402x874"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "Empty",
+      "width": 56,
+      "height": 36,
+      "viewport": "iphone-16-pro-402x874"
+    },
+    {
+      "tag": "BUTTON",
+      "label": "One",
+      "width": 45,
+      "height": 36,
+      "viewport": "iphone-16-pro-402x874"
+    }
+  ],
+  "a11yIssuesCount": 0,
+  "a11yIssuesSample": [],
+  "findings": [
+    {
+      "id": "FND-002",
+      "title": "Áreas interactivas con tamaño menor a 44x44px en vista móvil (9 elementos detectados)",
+      "severity": "Medium",
+      "charter": "Charter 8: Móvil / PWA",
+      "repro": "Inspeccionar botones de acción en viewports móviles (375px y 402px).",
+      "impact": "Dificulta el tap certero en pantallas táctiles según WCAG 2.5.5 / 2.5.8.",
+      "location": "src/components/layout/BottomNavigation.tsx, src/components/layout/UserScopeSwitcher.tsx, src/components/dev/BreakUiToggle.tsx",
+      "recommendedSkills": [
+        "ui-ux-pro-max (criterios WCAG 2.5.5 Target Size)",
+        "transitions-dev (motion y tap targets táctiles)"
+      ],
+      "excludedSkills": [
+        "refoundai/lenny-skills@dogfooding (orientado a entrevistas humanas, no a reglas CSS de accesibilidad)"
+      ]
+    },
+    {
+      "id": "FND-005",
+      "title": "Brecha de orientación en primer uso (Onboarding / Empty State): ausencia de guía paso a paso o tour",
+      "severity": "Low",
+      "charter": "Charter 1: Onboarding + Primer Uso",
+      "repro": "Ingresar con ?data=empty en perfil nuevo sin datos previos.",
+      "impact": "El usuario novato ve pantallas limpias pero sin un llamado a la acción editorial que lo acompañe en su primera manifestación guiada.",
+      "location": "src/features/dashboard/DashboardView.tsx, src/features/journal/ManifestationsView.tsx",
+      "recommendedSkills": [
+        "ui-ux-pro-max (patrones de onboarding y empty-state design)",
+        "anti-slop-frontend"
+      ],
+      "excludedSkills": [
+        "frappe/skills@deep-app-audit",
+        "mattpocock/skills@code-review"
+      ]
+    }
+  ]
+}

@@ -212,6 +212,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="Quiero manifestar..."
                   required
+                  maxLength={5000}
                   className="swiss-composer-field h-[8.5rem] min-h-[8.5rem] w-full resize-none rounded-[12px] px-4 pb-14 pt-4 text-sm leading-6"
                 />
                 <div className="absolute bottom-3 left-3">
@@ -261,6 +262,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
                         value={title}
                         onChange={(event) => setTitle(event.target.value)}
                         placeholder="Se genera automáticamente si lo dejas vacío"
+                        maxLength={200}
                         className="swiss-composer-field min-h-11 w-full px-3 py-2 text-sm"
                       />
                     </div>
@@ -284,6 +286,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
                         value={sensoryAnchor}
                         onChange={(event) => setSensoryAnchor(event.target.value)}
                         placeholder="Un sonido, una sensación o un lugar."
+                        maxLength={300}
                         className="swiss-composer-field min-h-11 w-full px-3 py-2 text-sm"
                       />
                     </div>

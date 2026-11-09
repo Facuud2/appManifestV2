@@ -27,6 +27,18 @@ import {
   mergeDefaultRampageSets,
   sortAffirmations,
 } from '@/lib/affirmationEngine';
+import {
+  WORST_CASE_AFFIRMATIONS,
+  WORST_CASE_MANIFESTATIONS,
+  WORST_CASE_PROGRESS_LOGS,
+  WORST_CASE_SUCCESS_STORIES,
+  ONE_ITEM_AFFIRMATION,
+  ONE_ITEM_MANIFESTATION,
+  ONE_ITEM_PROGRESS,
+  ONE_ITEM_STORY,
+  generateThousandAffirmations,
+  generateThousandManifestations,
+} from '@/lib/worstCaseFixtures';
 
 export interface ProgressLog {
   id: string;
@@ -203,6 +215,10 @@ interface AppState {
   isLoading: boolean;
   fetchRemoteData: () => Promise<void>;
 
+  // Dev Edge-Case Testing (break-ui)
+  fixtureMode: 'demo' | 'worst' | 'empty' | 'one' | 'thousand';
+  setFixtureMode: (mode: 'demo' | 'worst' | 'empty' | 'one' | 'thousand') => void;
+
   // Actions
   addManifestation: (
     item: Omit<ManifestationItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
@@ -332,8 +348,61 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     isLoading: false,
+    fixtureMode: 'demo',
+
+    setFixtureMode: (mode) => {
+      set({ fixtureMode: mode });
+      const scope = get().activeScope;
+      if (mode === 'demo') {
+        void get().fetchRemoteData();
+        return;
+      }
+      if (mode === 'worst') {
+        const worstManifs = WORST_CASE_MANIFESTATIONS.map((m) => ({ ...m, userId: scope }));
+        const worstAffs = WORST_CASE_AFFIRMATIONS.map((a) => ({ ...a, userId: scope }));
+        const worstLogs = WORST_CASE_PROGRESS_LOGS.map((p) => ({ ...p, userId: scope }));
+        const worstStories = WORST_CASE_SUCCESS_STORIES.map((s) => ({ ...s, userId: scope }));
+        set({
+          manifestations: worstManifs,
+          affirmations: worstAffs,
+          progressLogs: worstLogs,
+          successStories: worstStories,
+        });
+        return;
+      }
+      if (mode === 'empty') {
+        set({
+          manifestations: [],
+          affirmations: [],
+          progressLogs: [],
+          successStories: [],
+        });
+        return;
+      }
+      if (mode === 'one') {
+        set({
+          manifestations: [{ ...ONE_ITEM_MANIFESTATION, userId: scope }],
+          affirmations: [{ ...ONE_ITEM_AFFIRMATION, userId: scope }],
+          progressLogs: [{ ...ONE_ITEM_PROGRESS, userId: scope }],
+          successStories: [{ ...ONE_ITEM_STORY, userId: scope }],
+        });
+        return;
+      }
+      if (mode === 'thousand') {
+        const thousandManifs = generateThousandManifestations().map((m) => ({ ...m, userId: scope }));
+        const thousandAffs = generateThousandAffirmations().map((a) => ({ ...a, userId: scope }));
+        set({
+          manifestations: thousandManifs,
+          affirmations: thousandAffs,
+          progressLogs: [],
+          successStories: [],
+        });
+        return;
+      }
+    },
 
     fetchRemoteData: async () => {
+      if (get().fixtureMode !== 'demo') return;
       const requestId = ++syncRequestSequence;
       const scope = get().activeScope;
       try {

@@ -19,6 +19,7 @@ import { ManifestationEditorModal } from '@/components/journal/ManifestationEdit
 import { AffirmationEditorModal } from '@/components/journal/AffirmationEditorModal';
 import { ProgressLogModal } from '@/components/goals/ProgressLogModal';
 import { SuccessStoryModal } from '@/components/goals/SuccessStoryModal';
+import { BreakUiToggle } from '@/components/dev/BreakUiToggle';
 import { audioEngine } from '@/lib/audioEngine';
 import { AmbientSoundType, RampageSet, UserScope } from '@/types';
 
@@ -529,6 +530,8 @@ export default function HomePage() {
         manifestationTitle={successStoryTarget.title}
         manifestationId={successStoryTarget.id}
       />
+
+      {process.env.NODE_ENV !== 'production' && <BreakUiToggle />}
     </div>
   );
 }

@@ -201,6 +201,7 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
                   onChange={(event) => setStory(event.target.value)}
                   placeholder="Anota los detalles, las señales que recuerdas y cómo te sentiste."
                   required
+                  maxLength={5000}
                   className="swiss-composer-field min-h-32 w-full resize-y px-4 py-3 text-base leading-6"
                 />
               </div>
