@@ -26,6 +26,7 @@ import {
 import { useAppStore } from '@/store';
 import { VoiceProfileMeta } from '@/types';
 import { audioEngine } from '@/lib/audioEngine';
+import { getMicrophoneStream } from '@/lib/microphone';
 import { BACKDROP_TRANSITION, MODAL_TRANSITION, EMIL_TAP } from '@/lib/iosSprings';
 
 interface VoiceCalibrationModalProps {
@@ -120,8 +121,12 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
       const source = context.createMediaStreamSource(stream);
       const analyser = context.createAnalyser();
       analyser.fftSize = 128;
+      const silentGain = context.createGain();
+      silentGain.gain.value = 0;
       source.connect(analyser);
-      await context.resume();
+      analyser.connect(silentGain);
+      silentGain.connect(context.destination);
+      await context.resume().catch(() => {});
 
       meterContextRef.current = context;
       meterSourceRef.current = source;
@@ -334,13 +339,9 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
       const session = ++recordingSessionRef.current;
       recordingStageRef.current = stage;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
+        const stream = await getMicrophoneStream({
+          channelCount: 1,
+          echoCancellation: true,
         });
         if (session !== recordingSessionRef.current || !isOpen) {
           stream.getTracks().forEach((track) => track.stop());
@@ -382,7 +383,11 @@ export const VoiceCalibrationModal: React.FC<VoiceCalibrationModalProps> = ({
         };
 
         await startMeter(stream);
-        recorder.start(250);
+        try {
+          recorder.start(250);
+        } catch (_) {
+          recorder.start();
+        }
         setIsStarting(false);
         setIsRecording(true);
       } catch (error) {

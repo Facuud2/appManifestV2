@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Loader2, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/store';
+import { createSafeMediaRecorder, getMicrophoneStream } from '@/lib/microphone';
 
 interface VoiceDictationButtonProps {
   onTranscript: (text: string) => void;
@@ -90,21 +91,9 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      const stream = await getMicrophoneStream();
 
-      const mimeType =
-        typeof MediaRecorder !== 'undefined' &&
-        MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/mp4';
-
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const { recorder, mimeType } = createSafeMediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
 
@@ -116,11 +105,17 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
 
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const finalType = recorder.mimeType || mimeType || (audioChunksRef.current[0]?.type || 'audio/mp4');
+        const audioBlob = new Blob(audioChunksRef.current, { type: finalType });
         await sendToGeminiTranscribe(audioBlob);
       };
 
-      recorder.start();
+      try {
+        recorder.start();
+      } catch (startErr) {
+        console.warn('[VoiceDictation] recorder.start() fallback:', startErr);
+        recorder.start();
+      }
       setIsRecording(true);
 
       if (isAutomated) {
@@ -132,7 +127,8 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
         }, 550);
       }
     } catch (err) {
-      console.warn('[VoiceDictation] Mic fallback activated:', err);
+      console.warn('[VoiceDictation] Mic access failed:', err);
+      setIsRecording(false);
       if (isAutomated) {
         await sendToGeminiTranscribe();
       }

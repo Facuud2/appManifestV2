@@ -1055,9 +1055,9 @@ export async function processVoiceCommandWithGemini(options: {
 
   const ai = new GoogleGenAI({ apiKey });
   let cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
-  // Normalizar formatos de Safari / iOS (audio/mp4 -> audio/m4a para Gemini)
-  if (cleanMime === 'audio/mp4' || cleanMime === 'video/mp4') {
-    cleanMime = 'audio/m4a';
+  // Normalizar formatos de Safari / iOS (audio/m4a o video/mp4 -> audio/mp4 para Gemini)
+  if (cleanMime === 'audio/m4a' || cleanMime === 'audio/x-m4a' || cleanMime === 'video/mp4') {
+    cleanMime = 'audio/mp4';
   }
   const systemInstruction = buildVoiceActionRouterSystemPrompt(activeManifestations);
 

@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         audioBuffer = Buffer.from(arrayBuffer);
         const rawType = file.type || '';
-        if (rawType.includes('mp4') || rawType.includes('m4a') || file.name.endsWith('.m4a')) {
-          mimeType = 'audio/m4a';
+        if (rawType.includes('mp4') || rawType.includes('m4a') || file.name.endsWith('.m4a') || file.name.endsWith('.mp4')) {
+          mimeType = 'audio/mp4';
         } else {
           mimeType = rawType || 'audio/webm';
         }

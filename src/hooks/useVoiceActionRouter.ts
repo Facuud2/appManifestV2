@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { audioEngine } from '@/lib/audioEngine';
+import {
+  connectAudioAnalyser,
+  createSafeMediaRecorder,
+  getMicrophoneStream,
+} from '@/lib/microphone';
 import type { VoiceCommandResult } from '@/lib/gemini';
 import type { UserScope } from '@/types';
 
@@ -142,7 +147,7 @@ export function useVoiceActionRouter({
 
         const formData = new FormData();
         const isM4A = audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a') || audioBlob.type.includes('aac');
-        const fileExt = isM4A ? 'm4a' : 'webm';
+        const fileExt = isM4A ? 'mp4' : 'webm';
         formData.append('audio', audioBlob, `voice-command.${fileExt}`);
         formData.append('currentProfile', activeScope);
         formData.append(
@@ -226,15 +231,8 @@ export function useVoiceActionRouter({
       return;
     }
 
-    // Flush any pending chunks in WebKit before stopping
-    if (recorder.state === 'recording') {
-      try {
-        recorder.requestData();
-      } catch (_) {}
-    }
-
     recorder.onstop = () => {
-      const mime = recorder.mimeType || (audioChunksRef.current[0]?.type || 'audio/webm');
+      const mime = recorder.mimeType || (audioChunksRef.current[0]?.type || 'audio/mp4');
       const completeBlob = new Blob(audioChunksRef.current, { type: mime });
       void sendAudioToServer(completeBlob);
     };
@@ -242,7 +240,7 @@ export function useVoiceActionRouter({
     try {
       recorder.stop();
     } catch {
-      const mime = recorder.mimeType || (audioChunksRef.current[0]?.type || 'audio/webm');
+      const mime = recorder.mimeType || (audioChunksRef.current[0]?.type || 'audio/mp4');
       const completeBlob = new Blob(audioChunksRef.current, { type: mime });
       void sendAudioToServer(completeBlob);
     }
@@ -273,30 +271,17 @@ export function useVoiceActionRouter({
       setHoldProgress(Math.min(1, elapsed / 1500));
     }, 50);
 
-    // 3. Obtain microphone stream
+    // 3. Obtain microphone stream with resilient iOS WebKit support
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      const stream = await getMicrophoneStream();
       mediaStreamRef.current = stream;
 
-      // Setup Web Audio Analyser
+      // Setup Web Audio Analyser with WebKit keep-alive graph
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
-        if (ctx.state === 'suspended') {
-          void ctx.resume();
-        }
         audioContextRef.current = ctx;
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
-        analyser.smoothingTimeConstant = 0.8;
-        source.connect(analyser);
+        const { analyser } = connectAudioAnalyser(ctx, stream);
         setAnalyserNode(analyser);
 
         // VAD loop for Hands-free mode with dynamic ambient noise floor & hysteresis
@@ -340,28 +325,8 @@ export function useVoiceActionRouter({
         }, 100);
       }
 
-      // Initialize MediaRecorder with iOS Safari compatibility
-      let mimeType = '';
-      if (typeof MediaRecorder !== 'undefined') {
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          mimeType = 'audio/webm;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          mimeType = 'audio/mp4';
-        } else if (MediaRecorder.isTypeSupported('audio/aac')) {
-          mimeType = 'audio/aac';
-        }
-      }
-
-      const recorderOptions: MediaRecorderOptions = {};
-      if (mimeType) {
-        recorderOptions.mimeType = mimeType;
-      }
-      // Only set explicit bitrate on WebM; Safari iOS AAC encoder fails with custom 32000 bitrate
-      if (mimeType.includes('webm')) {
-        recorderOptions.audioBitsPerSecond = 32000;
-      }
-
-      const recorder = new MediaRecorder(stream, recorderOptions);
+      // Initialize MediaRecorder safely for iOS Safari
+      const { recorder, mimeType } = createSafeMediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
 
@@ -371,22 +336,44 @@ export function useVoiceActionRouter({
         }
       };
 
-      // In iOS Safari, passing a timeslice to start() causes empty chunks bug in WebKit
-      if (mimeType.includes('webm')) {
-        recorder.start(250);
-      } else {
+      try {
+        if (mimeType.includes('webm')) {
+          recorder.start(250);
+        } else {
+          recorder.start();
+        }
+      } catch (startErr) {
+        console.warn('[VoiceActionRouter] recorder.start() fallback:', startErr);
         recorder.start();
       }
-    } catch (micErr) {
+    } catch (micErr: any) {
       console.warn('[VoiceActionRouter] Mic access rejected or unavailable:', micErr);
+      const isNotAllowed =
+        micErr?.name === 'NotAllowedError' || micErr?.name === 'PermissionDeniedError';
+      const isUnsecure = typeof window !== 'undefined' && !window.isSecureContext;
+
+      onError?.({
+        message: 'No se detectó el micrófono',
+        detail: isUnsecure
+          ? 'En iOS Safari el micrófono requiere una conexión HTTPS segura.'
+          : isNotAllowed
+            ? 'El acceso al micrófono fue denegado. Habilitá el permiso en Ajustes > Safari.'
+            : (micErr?.message || 'Comprobá que el micrófono esté habilitado en el navegador e intentá de nuevo.'),
+        variant: 'error',
+      });
+      cancelRecording();
     }
-  }, [finishAndSubmit]);
+  }, [finishAndSubmit, onError, cancelRecording]);
 
   const lockHandsFree = useCallback(() => {}, []);
 
   // Pointer event handlers for the '+' button: dejar pulsado abre automáticamente la funcionalidad
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      try {
+        void audioEngine?.unlock();
+      } catch (_) {}
+
       pointerStartYRef.current = e.clientY;
       isLongPressActiveRef.current = false;
 

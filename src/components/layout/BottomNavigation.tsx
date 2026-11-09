@@ -83,6 +83,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               key={tab.id}
               type="button"
               data-quick-add-trigger={tab.isCreate ? 'true' : undefined}
+              style={tab.isCreate ? { touchAction: 'none', WebkitTouchCallout: 'none' } : undefined}
               {...(tab.isCreate && createGestureProps
                 ? {
                     ...createGestureProps,
