@@ -11,6 +11,8 @@
  * 5. Gemini API expects audio/mp4 (NOT audio/m4a).
  */
 
+import { audioEngine } from '@/lib/audioEngine';
+
 export async function getMicrophoneStream(constraints?: MediaTrackConstraints): Promise<MediaStream> {
   if (typeof navigator === 'undefined') {
     throw new Error('El navegador no está disponible.');
@@ -19,6 +21,20 @@ export async function getMicrophoneStream(constraints?: MediaTrackConstraints): 
   // Check for secure context (crucial for iOS Safari)
   if (typeof window !== 'undefined' && window.isSecureContext === false) {
     throw new Error('En iOS Safari el micrófono requiere una conexión HTTPS segura (o localhost).');
+  }
+
+  // CRITICAL FOR IOS SAFARI:
+  // If AudioSession is in 'playback' category (or a silent keeper is playing),
+  // iOS throws: "AudioSession category is not compatible with audio capture".
+  // We must pause playback session keepers and switch to 'play-and-record'.
+  try {
+    audioEngine?.prepareForRecording();
+  } catch (_) {}
+
+  if (typeof navigator !== 'undefined' && (navigator as any).audioSession) {
+    try {
+      (navigator as any).audioSession.type = 'play-and-record';
+    } catch (_) {}
   }
 
   const getMedia =

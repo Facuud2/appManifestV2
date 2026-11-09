@@ -173,6 +173,25 @@ class ManifestAudioEngine {
     } catch (_) {}
   }
 
+  public prepareForRecording() {
+    if (typeof window === 'undefined') return;
+
+    // 1. Pause the silent session keeper so it doesn't hold AVAudioSession in 'playback' mode
+    try {
+      if (this.sessionKeeper && !this.sessionKeeper.paused) {
+        this.sessionKeeper.pause();
+      }
+    } catch (_) {}
+
+    // 2. Set iOS audioSession type to 'play-and-record' (required for iOS Safari microphone capture)
+    try {
+      const audioSession = (navigator as any).audioSession;
+      if (audioSession) {
+        audioSession.type = 'play-and-record';
+      }
+    } catch (_) {}
+  }
+
   private async resumeContext(ctx: AudioContext) {
     // iOS can report "interrupted" (calls, Siri, lock screen) besides "suspended".
     if ((ctx.state as string) !== 'running') {
@@ -180,10 +199,14 @@ class ManifestAudioEngine {
     }
   }
 
-  public async unlock(): Promise<boolean> { // taste-skill-ignore
+  public async unlock(mode: 'playback' | 'record' = 'playback'): Promise<boolean> { // taste-skill-ignore
     try {
       // Everything before the first await runs synchronously within the user gesture.
-      this.ensurePlaybackAudioSession();
+      if (mode === 'record') {
+        this.prepareForRecording();
+      } else {
+        this.ensurePlaybackAudioSession();
+      }
       const ctx = this.getAudioContext();
       await this.resumeContext(ctx);
       const buffer = ctx.createBuffer(1, 1, 22050);

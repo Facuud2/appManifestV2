@@ -247,9 +247,9 @@ export function useVoiceActionRouter({
   }, [sendAudioToServer]);
 
   const startVoiceCapture = useCallback(async () => {
-    // 1. Immediately unlock audio context for iOS
+    // 1. Immediately unlock audio context for iOS in record mode
     try {
-      void audioEngine?.unlock();
+      void audioEngine?.unlock('record');
     } catch (_) {}
 
     // 2. Haptic feedback
@@ -371,7 +371,7 @@ export function useVoiceActionRouter({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       try {
-        void audioEngine?.unlock();
+        void audioEngine?.unlock('record');
       } catch (_) {}
 
       pointerStartYRef.current = e.clientY;
