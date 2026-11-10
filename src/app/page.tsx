@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT } from '@/lib/iosSprings';
@@ -25,6 +25,9 @@ import { AmbientSoundType, RampageSet, UserScope } from '@/types';
 import { VoiceActionOrb } from '@/components/voice/VoiceActionOrb';
 import type { VoiceActionToastState } from '@/components/voice/VoiceActionToast';
 import { useVoiceActionRouter } from '@/hooks/useVoiceActionRouter';
+import { useNarrativeOrganizer } from '@/hooks/useNarrativeOrganizer';
+import { SiriOrganizerOverlay } from '@/components/voice/SiriOrganizerOverlay';
+import { extractPersonNames, type ExistingContextItem } from '@/lib/narrativeOrganizer';
 import type { VoiceCommandResult } from '@/lib/gemini';
 
 const SCOPE_REGENERATION_MIN_MS = 320;
@@ -576,7 +579,25 @@ export default function HomePage() {
     ]
   );
 
+  const existingNarrativeContext = useMemo<ExistingContextItem[]>(() => {
+    return manifestations
+      .filter((manifestation) => manifestation.userId === activeScope)
+      .slice(0, 50)
+      .map((manifestation) => ({
+        id: manifestation.id,
+        title: manifestation.title,
+        personNames: extractPersonNames(
+          `${manifestation.title}. ${manifestation.description || ''}`
+        ),
+        summary: (manifestation.description || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 300),
+      }));
+  }, [manifestations, activeScope]);
+
   const voiceRouter = useVoiceActionRouter({
+    enabled: false,
     onOpenManualCreate: () => {
       const trigger =
         (document.querySelector('[data-quick-add-trigger="true"]') as HTMLElement) ||
@@ -601,6 +622,35 @@ export default function HomePage() {
       .filter((m) => m.userId === activeScope)
       .map((m) => ({ id: m.id, title: m.title })),
     isSandboxMode,
+  });
+
+  const narrative = useNarrativeOrganizer({
+    profileId: activeScope,
+    existingContext: existingNarrativeContext,
+    isSandboxMode,
+    onOpenManualCreate: () => {
+      const trigger =
+        (document.querySelector('[data-quick-add-trigger="true"]') as HTMLElement) ||
+        createMenuTriggerRef.current ||
+        document.body;
+      handleMobileCreate(trigger);
+    },
+    onCommitted: (_result, saveRampage, committedDraft) => {
+      const rampage = committedDraft.proposedPlan.rampageToStart;
+      if (!rampage) return;
+
+      void audioEngine?.unlock();
+      setRampageToResume(null);
+      setDirectRampagePayload({
+        title: rampage.title,
+        affirmations: rampage.affirmations,
+        ambientSound: rampage.ambientSound,
+        requestId: Date.now(),
+        saveToSanctuary: saveRampage,
+      });
+      setRampageOpenMode('pinned');
+      setIsRampageOpen(true);
+    },
   });
 
   return (
@@ -757,7 +807,7 @@ export default function HomePage() {
           onOpenRampage={handleOpenNewRampage}
           onOpenCreateMenu={handleMobileCreate}
           isCreateMenuOpen={isMobileCreateActive}
-          createGestureProps={voiceRouter.buttonGestureProps}
+          createGestureProps={narrative.buttonGestureProps}
         />
       </div>
 
@@ -779,6 +829,21 @@ export default function HomePage() {
         onLockHandsFree={voiceRouter.lockHandsFree}
         activeResponse={voiceToast}
         onDismissResponse={() => setVoiceToast(null)}
+      />
+
+      <SiriOrganizerOverlay
+        isOpen={narrative.isOpen}
+        phase={narrative.phase}
+        draft={narrative.draft}
+        error={narrative.error}
+        errorKind={narrative.errorKind}
+        analyserNode={narrative.analyserNode}
+        canConfirm={narrative.canConfirm}
+        canRetryCommit={narrative.canRetryCommit}
+        onCancel={narrative.cancelAll}
+        onConfirm={narrative.confirm}
+        onReRecord={narrative.reRecord}
+        onSubmit={narrative.finishAndSubmit}
       />
 
       {/* Modals */}

@@ -53,6 +53,11 @@ export interface DirectRampagePayload {
   affirmations: string[];
   ambientSound: AmbientSoundType;
   requestId: number;
+  /**
+   * Whether this session should be stored in the sanctuary for later replay.
+   * The narrative organizer asks this before starting; default keeps legacy behavior.
+   */
+  saveToSanctuary?: boolean;
 }
 
 interface RampagePlayerModalProps {
@@ -103,6 +108,19 @@ const RAMPAGE_MODE_OPTIONS: RampageModeOption[] = [
 
 const INITIAL_PRELOAD_COUNT = 3;
 const BACKGROUND_PRELOAD_CONCURRENCY = 2;
+const SAVE_SET_PREFERENCE_KEY = 'manifest_rampage_save_set';
+
+function readSaveSetPreference(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const stored = window.localStorage.getItem(SAVE_SET_PREFERENCE_KEY);
+    if (stored === 'false') return false;
+    if (stored === 'true') return true;
+  } catch {
+    // ignore
+  }
+  return true;
+}
 
 /*
  * Displacement map for the Liquid Glass mini player. R encodes horizontal offset, G vertical;
@@ -170,6 +188,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isSaveDecisionOpen, setIsSaveDecisionOpen] = useState(false);
   const [isSavedToSanctuary, setIsSavedToSanctuary] = useState(false);
+  const [saveToSanctuary, setSaveToSanctuary] = useState(readSaveSetPreference);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [loopModeIndex, setLoopModeIndex] = useState(0);
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
@@ -183,6 +202,16 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     ],
     []
   );
+
+  useEffect(() => {
+    saveToSanctuaryRef.current = saveToSanctuary;
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SAVE_SET_PREFERENCE_KEY, String(saveToSanctuary));
+    } catch {
+      // ignore quota errors
+    }
+  }, [saveToSanctuary]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -354,6 +383,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     count: 11,
   });
   const activeRampageSetRef = useRef<RampageSet | null>(null);
+  const saveToSanctuaryRef = useRef(saveToSanctuary);
   const activeRampageScopeRef = useRef<UserScope>(activeScope);
   const activeProfileAffirmationsRef = useRef<string[]>([]);
   const activeProfileManifestationsRef = useRef<RampageManifestationContext[]>([]);
@@ -610,25 +640,30 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       setPhrasesHeardCount(0);
 
       // Persist set in Turso/store so it is immediately available; Paso 3 modal lets user keep or discard
-      const savedSet = await saveRampageSet({
-        userId: activeRampageScopeRef.current,
-        author:
-          activeRampageScopeRef.current === 'maia'
-            ? 'Maia'
-            : activeRampageScopeRef.current === 'facu'
-              ? 'Facu'
-              : 'Juntos',
-        title: activeRampageRef.current.title,
-        affirmations: generated.map((text, index) => ({
-          id: `${Date.now()}_${index}`,
-          text,
-          repeatCount: 0,
-        })),
-        ambientSound,
-        isFavorite: false,
-      });
-      activeRampageSetRef.current = savedSet;
-      setIsSavedToSanctuary(true);
+      if (saveToSanctuaryRef.current) {
+        const savedSet = await saveRampageSet({
+          userId: activeRampageScopeRef.current,
+          author:
+            activeRampageScopeRef.current === 'maia'
+              ? 'Maia'
+              : activeRampageScopeRef.current === 'facu'
+                ? 'Facu'
+                : 'Juntos',
+          title: activeRampageRef.current.title,
+          affirmations: generated.map((text, index) => ({
+            id: `${Date.now()}_${index}`,
+            text,
+            repeatCount: 0,
+          })),
+          ambientSound,
+          isFavorite: false,
+        });
+        activeRampageSetRef.current = savedSet;
+        setIsSavedToSanctuary(true);
+      } else {
+        activeRampageSetRef.current = null;
+        setIsSavedToSanctuary(false);
+      }
 
       // Preload first 3 immediately, then remaining in background (max 2 concurrent)
       await preloadSetStaggered(generated);
@@ -888,7 +923,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       affirmations.length <= 5 ? 5 : affirmations.length <= 11 ? 11 : 15;
     const title = directRampage.title || 'Decretos fijados';
     const chosenAmbient = directRampage.ambientSound || 'astral_rain';
+    const shouldSaveToSanctuary = directRampage.saveToSanctuary !== false;
 
+    setSaveToSanctuary(shouldSaveToSanctuary);
+    saveToSanctuaryRef.current = shouldSaveToSanctuary;
     setAmbientSound(chosenAmbient);
     activeRampageRef.current = {
       title,
@@ -917,6 +955,11 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setCurrentVoiceSpeaker(getSpeakerForText(affirmations[0] || '', 0));
 
     void (async () => {
+      if (!shouldSaveToSanctuary) {
+        activeRampageSetRef.current = null;
+        setIsSavedToSanctuary(false);
+        return;
+      }
       try {
         const savedSet = await saveRampageSet({
           userId: activeScope,
@@ -1280,7 +1323,30 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         ...activeRampageSetRef.current,
         ambientSound,
       });
+    } else {
+      const affirmations = affirmationQueueRef.current;
+      if (affirmations.length > 0) {
+        const savedSet = await saveRampageSet({
+          userId: activeRampageScopeRef.current,
+          author:
+            activeRampageScopeRef.current === 'maia'
+              ? 'Maia'
+              : activeRampageScopeRef.current === 'facu'
+                ? 'Facu'
+                : 'Juntos',
+          title: activeRampageRef.current.title || 'Rampage Nocturno',
+          affirmations: affirmations.map((text, index) => ({
+            id: `${Date.now()}_${index}`,
+            text,
+            repeatCount: 0,
+          })),
+          ambientSound,
+          isFavorite: false,
+        });
+        activeRampageSetRef.current = savedSet;
+      }
     }
+    setIsSavedToSanctuary(true);
     setIsSaveDecisionOpen(false);
     handleStopBackgroundPlayback();
   }
@@ -1642,6 +1708,40 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                             ))}
                           </div>
                         </div>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={saveToSanctuary}
+                          data-testid="rampage-save-toggle"
+                          onClick={() => setSaveToSanctuary((previous) => !previous)}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2 text-left"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-xs font-medium text-white/90">
+                              Guardar para volver a escucharlo
+                            </span>
+                            <span className="mt-0.5 block text-[10px] leading-snug text-white/50">
+                              {saveToSanctuary
+                                ? 'Queda en tu santuario y no repetís la orden cada día.'
+                                : 'Solo esta sesión: no se guarda en el santuario.'}
+                            </span>
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className="relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200"
+                            style={{
+                              background: saveToSanctuary
+                                ? 'var(--color-rampage-accent)'
+                                : 'rgba(255, 255, 255, 0.18)',
+                            }}
+                          >
+                            <span
+                              className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200"
+                              style={{ left: saveToSanctuary ? '1.125rem' : '0.125rem' }}
+                            />
+                          </span>
+                        </button>
 
                         <button
                           type="button"

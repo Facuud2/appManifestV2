@@ -36,12 +36,16 @@ export const SiriOrb: React.FC<{
   audioLevel?: number;
   isProcessing?: boolean;
   interactive?: boolean;
+  disabled?: boolean;
+  label?: string;
   onClick?: () => void;
 }> = ({
   size = 104,
   audioLevel = 0,
   isProcessing = false,
   interactive = false,
+  disabled = false,
+  label = 'Orbe de voz',
   onClick,
 }) => {
   // Escala reactiva según el volumen vocal con amortiguación
@@ -53,13 +57,27 @@ export const SiriOrb: React.FC<{
     <div
       data-ui="siri-orb"
       className={`relative flex items-center justify-center select-none ${
-        interactive ? 'cursor-pointer active:scale-95 transition-transform duration-150 ease-out' : ''
+        interactive && !disabled
+          ? 'cursor-pointer active:scale-95 transition-transform duration-150 ease-out'
+          : ''
       }`}
       style={{ width: size, height: size }}
-      onClick={interactive ? onClick : undefined}
+      onClick={interactive && !disabled ? onClick : undefined}
+      onKeyDown={
+        interactive && !disabled
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+                event.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
       role={interactive ? 'button' : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      aria-label="Orbe multicolor de Siri"
+      tabIndex={interactive && !disabled ? 0 : undefined}
+      aria-label={label}
+      aria-disabled={interactive ? disabled : undefined}
+      data-testid="siri-orb"
     >
       {/* 1. Halo difuso exterior cromático (Apple Intelligence Ambient Bloom) */}
       <motion.div

@@ -360,7 +360,7 @@ export async function POST(req: NextRequest) {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             valid.id,
-            valid.goalId || (data.manifestationId as string) || null,
+            valid.manifestationId || valid.goalId || null,
             valid.userId,
             valid.author,
             valid.title,

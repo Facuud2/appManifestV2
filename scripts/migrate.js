@@ -1,12 +1,16 @@
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { createClient } from '@libsql/client';
 
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'libsql://manifestapp-facuud2.aws-us-east-1.turso.io',
-  authToken: process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTM0MDcwNTQsImlkIjoiMDFhMThmNjMtNTUwMS03ZjgzLWI4ZTEtMWFkYTMxMDcwNWFhIiwia2lkIjoiNDd0YTBUX09Jczkza0lJeTdrSTZhbmV6QUl4djNvWXZJMkdTNUhDaW5GdyIsInJpZCI6ImFmMzJkMTdiLTI5YTAtNDEwNi1hMGViLThlZmNhZmE0YmZjZCJ9.R3waIxPpxINhoJnvn9KG4XpxcPXxKp7Ufk6Qku_FYEKfCWaquTjo41IPDKPERVcVk_5NV9XYDy_13J8oJgitDQ'
+  url: process.env.TURSO_DATABASE_URL ?? 'libsql://manifestapp-facuud2.aws-us-east-1.turso.io',
+  // `??` (not `||`) keeps an intentionally empty token for local `file:` databases.
+  authToken:
+    process.env.TURSO_AUTH_TOKEN ??
+    'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTM0MDcwNTQsImlkIjoiMDFhMThmNjMtNTUwMS03ZjgzLWI4ZTEtMWFkYTMxMDcwNWFhIiwia2lkIjoiNDd0YTBUX09Jczkza0lJeTdrSTZhbmV6QUl4djNvWXZJMkdTNUhDaW5GdyIsInJpZCI6ImFmMzJkMTdiLTI5YTAtNDEwNi1hMGViLThlZmNhZmE0YmZjZCJ9.R3waIxPpxINhoJnvn9KG4XpxcPXxKp7Ufk6Qku_FYEKfCWaquTjo41IPDKPERVcVk_5NV9XYDy_13J8oJgitDQ',
 });
 
-async function run() {
+export async function run() {
   console.log('🔄 Initializing Turso Database Tables...');
 
   await client.execute(`
@@ -126,6 +130,7 @@ async function run() {
       category TEXT,
       repeat_count INTEGER DEFAULT 0,
       pinned INTEGER DEFAULT 0,
+      sort_order INTEGER,
       created_at TEXT NOT NULL
     );
   `);
@@ -237,7 +242,12 @@ async function run() {
   console.log('✅ Tables created successfully:', res.rows.map(r => r.name));
 }
 
-run().catch(err => {
-  console.error('❌ Migration failed:', err);
-  process.exit(1);
-});
+const invokedDirectly =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  run().catch((err) => {
+    console.error('❌ Migration failed:', err);
+    process.exit(1);
+  });
+}

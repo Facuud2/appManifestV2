@@ -43,6 +43,8 @@ export const SuccessStorySchema = z.object({
   userId: UserScopeEnum.default('facu'),
   author: z.string().max(100).default('Facu'),
   title: z.string().min(1, 'Nombra tu manifestación cumplida').max(280),
+  manifestationId: z.string().max(128).nullable().optional(),
+  /** @deprecated legacy alias kept for older clients. Use `manifestationId`. */
   goalId: z.string().max(128).optional(),
   manifestedDate: z.string().max(100),
   story: z.string().min(1, 'Cuéntanos cómo se materializó en tu realidad').max(10000),

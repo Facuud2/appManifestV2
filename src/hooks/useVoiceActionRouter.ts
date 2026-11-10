@@ -23,6 +23,11 @@ interface UseVoiceActionRouterProps {
   activeScope: UserScope;
   activeManifestations: Array<{ id: string; title: string }>;
   isSandboxMode?: boolean;
+  /**
+   * Set to false when the narrative organizer owns the create gesture.
+   * Keeps the hook mounted as a rollback path without double-triggering.
+   */
+  enabled?: boolean;
 }
 
 export function useVoiceActionRouter({
@@ -32,6 +37,7 @@ export function useVoiceActionRouter({
   activeScope,
   activeManifestations,
   isSandboxMode = false,
+  enabled = true,
 }: UseVoiceActionRouterProps) {
   const [isOrbOpen, setIsOrbOpen] = useState(false);
   const [isHandsFree, setIsHandsFree] = useState(false);
@@ -370,6 +376,7 @@ export function useVoiceActionRouter({
   // Pointer event handlers for the '+' button: dejar pulsado abre automáticamente la funcionalidad
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (!enabled) return;
       try {
         void audioEngine?.unlock('record');
       } catch (_) {}
@@ -383,7 +390,7 @@ export function useVoiceActionRouter({
         void startVoiceCapture();
       }, 300);
     },
-    [startVoiceCapture]
+    [enabled, startVoiceCapture]
   );
 
   const handlePointerMove = useCallback(() => {
@@ -391,6 +398,7 @@ export function useVoiceActionRouter({
   }, []);
 
   const handlePointerUp = useCallback(() => {
+    if (!enabled) return;
     // 1. Si se soltó antes de 300ms, es un toque corto -> abre menú manual de creación
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
@@ -404,7 +412,7 @@ export function useVoiceActionRouter({
 
     // 2. Si fue pulsación larga, startVoiceCapture ya abrió el orbe y está escuchando.
     // Queda escuchando de forma natural hasta que termine de hablar o pulse fuera para cerrar.
-  }, [onOpenManualCreate]);
+  }, [enabled, onOpenManualCreate]);
 
   const handlePointerCancel = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -415,6 +423,7 @@ export function useVoiceActionRouter({
 
   // Global PC Spacebar hold handler: mantener espacio abre automáticamente la funcionalidad
   useEffect(() => {
+    if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== ' ' || e.repeat) return;
 
@@ -452,7 +461,7 @@ export function useVoiceActionRouter({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isOrbOpen, startVoiceCapture, finishAndSubmit]);
+  }, [enabled, isOrbOpen, startVoiceCapture, finishAndSubmit]);
 
   useEffect(() => {
     return () => {

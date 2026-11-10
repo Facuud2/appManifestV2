@@ -39,6 +39,7 @@ import {
   generateThousandAffirmations,
   generateThousandManifestations,
 } from '@/lib/worstCaseFixtures';
+import type { NarrativeCommitResult } from '@/lib/narrativeOrganizer';
 
 export interface ProgressLog {
   id: string;
@@ -214,6 +215,11 @@ interface AppState {
   // Synchronization
   isLoading: boolean;
   fetchRemoteData: () => Promise<void>;
+  /**
+   * Merges an AI narrative commit into the local cache. The commit route
+   * already persisted everything atomically, so this is a UI-only merge.
+   */
+  applyNarrativeCommit: (result: NarrativeCommitResult) => void;
 
   // Dev Edge-Case Testing (break-ui)
   fixtureMode: 'demo' | 'worst' | 'empty' | 'one' | 'thousand';
@@ -505,6 +511,101 @@ export const useAppStore = create<AppState>((set, get) => {
           get().refreshVoiceCalibrationStatus();
         }
       }
+    },
+
+    applyNarrativeCommit: (result) => {
+      const scope = result.profileId as UserScope;
+
+      set((state) => {
+        const previous = state.scopeCollections[scope];
+
+        const mergeById = <T extends { id: string }>(current: T[], incoming: T[]): T[] => {
+          if (incoming.length === 0) return current;
+          const byId = new Map(current.map((item) => [item.id, item]));
+          incoming.forEach((item) => byId.set(item.id, item));
+          const incomingIds = new Set(incoming.map((item) => item.id));
+          const merged = Array.from(byId.values());
+          // Keep fresh items on top of the lists that read newest-first.
+          merged.sort((a, b) => {
+            const aNew = incomingIds.has(a.id) ? 0 : 1;
+            const bNew = incomingIds.has(b.id) ? 0 : 1;
+            return aNew - bNew;
+          });
+          return merged;
+        };
+
+        const manifestations = mergeById(
+          previous.manifestations,
+          result.manifestations.map(({ tempId: _tempId, ...item }) => item)
+        );
+
+        const progressLogs = mergeById(
+          previous.progressLogs,
+          result.progressLogs.map(({ tempId: _tempId, ...item }) => ({
+            ...item,
+            manifestationId: item.manifestationId ?? undefined,
+            signType: item.signType ?? undefined,
+            voiceTranscript: item.voiceTranscript ?? undefined,
+          }))
+        );
+
+        const successStories = mergeById(
+          previous.successStories,
+          result.successStories.map(({ tempId: _tempId, ...item }) => ({
+            ...item,
+            manifestationId: item.manifestationId ?? undefined,
+          }))
+        );
+
+        const affirmations = sortAffirmations(
+          mergeById(
+            previous.affirmations,
+            result.affirmations.map(({ tempId: _tempId, ...item }) => item)
+          )
+        );
+
+        // A success story marks its manifestation as materialized.
+        const materializedIds = new Set(
+          result.successStories
+            .map((story) => story.manifestationId)
+            .filter((id): id is string => Boolean(id))
+        );
+        const nextManifestations =
+          materializedIds.size > 0
+            ? manifestations.map((item) =>
+                materializedIds.has(item.id) && item.userId === scope
+                  ? { ...item, status: 'materializado' as const }
+                  : item
+              )
+            : manifestations;
+
+        const nextCollections: ProfileCollections = {
+          ...previous,
+          manifestations: nextManifestations,
+          progressLogs,
+          successStories,
+          affirmations,
+        };
+
+        const isActive = state.activeScope === scope;
+
+        return {
+          scopeCollections: {
+            ...state.scopeCollections,
+            [scope]: nextCollections,
+          },
+          ...(isActive
+            ? {
+                manifestations: nextCollections.manifestations,
+                progressLogs: nextCollections.progressLogs,
+                successStories: nextCollections.successStories,
+                affirmations: nextCollections.affirmations,
+              }
+            : {}),
+        };
+      });
+
+      writeLocalAffirmationOrder(scope, get().scopeCollections[scope].affirmations);
     },
 
     addManifestation: async (item) => {

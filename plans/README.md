@@ -18,6 +18,9 @@ unavailable.
 | 010 | [Crossfade the Rampage play and pause states](./010-rampage-transport-state-crossfade.md) | LOW | DONE |
 | 011 | [Pastel cutie palette (Pinkie Pie, sin gradientes)](./011-pastel-cutie-palette.md) | HIGH | DONE |
 | 012 | [Dividir "Escritos" en Manifestaciones y Afirmaciones](./012-split-escritos-manifestaciones-afirmaciones.md) | HIGH | DONE |
+| 013 | [Voice Calibration and Rampage Flows](./013-voice-calibration-rampage-flows.md) | HIGH | DONE |
+| 014 | [Affirmations Pinned Order and Drag Reorder](./014-affirmations-pinned-order-and-drag-reorder.md) | HIGH | DONE |
+| 015 | [Organizador Narrativo Conversacional por Voz (estilo Siri)](./015-narrative-organizer-voz.md) | HIGH | DONE |
 
 ## Recommended execution order
 
