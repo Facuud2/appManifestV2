@@ -105,6 +105,7 @@ export const ManifestationMutationSchema = z.object({
   category: z.string().max(100).default('crecimiento'),
   status: z.enum(['semilla', 'alineacion', 'evidencia', 'materializado']).default('semilla'),
   targetDate: z.string().max(100).nullable().optional(),
+  repeatCount: z.number().int().min(0).default(0).optional(),
   songAttachment: z.any().optional(),
   mediaAttachment: z.any().optional(),
   createdAt: z.string().max(100).optional(),

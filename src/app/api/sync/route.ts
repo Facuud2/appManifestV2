@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
       category: r.category as string,
       status: r.status as string,
       targetDate: (r.target_date as string) || undefined,
+      repeatCount: Number(r.repeat_count || 0),
       songAttachment: parseAttachmentJson(r.song_attachment, isSongAttachment),
       mediaAttachment: parseAttachmentJson(r.media_attachment, isMediaAttachment),
       createdAt: r.created_at as string,
@@ -292,8 +293,8 @@ export async function POST(req: NextRequest) {
         const valid = parsed.data;
 
         await turso.execute({
-          sql: `INSERT INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, song_attachment, media_attachment, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sql: `INSERT INTO manifestations (id, user_id, author, title, description, sensory_anchor, category, status, target_date, repeat_count, song_attachment, media_attachment, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                   user_id = excluded.user_id,
                   author = excluded.author,
@@ -303,6 +304,7 @@ export async function POST(req: NextRequest) {
                   category = excluded.category,
                   status = excluded.status,
                   target_date = excluded.target_date,
+                  repeat_count = excluded.repeat_count,
                   song_attachment = excluded.song_attachment,
                   media_attachment = excluded.media_attachment,
                   updated_at = excluded.updated_at;`,
@@ -316,6 +318,7 @@ export async function POST(req: NextRequest) {
             valid.category,
             valid.status,
             valid.targetDate || null,
+            valid.repeatCount || 0,
             serializeAttachment(valid.songAttachment),
             serializeAttachment(valid.mediaAttachment),
             valid.createdAt || now,

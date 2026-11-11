@@ -26,6 +26,7 @@ interface SiriOrganizerOverlayProps {
   onConfirm: (saveRampage: boolean) => void;
   onReRecord: () => void;
   onSubmit: () => void;
+  onToggleItemAction?: (kind: 'manifestation' | 'affirmation', tempId: string) => void;
 }
 
 type ItemKind = 'manifestation' | 'progress' | 'success' | 'affirmation' | 'rampage';
@@ -93,13 +94,24 @@ interface PlanItemProps {
   title: string;
   content: string;
   badge?: string | null;
+  existingId?: string;
+  action?: 'repeat' | 'create_new';
+  onToggleAction?: () => void;
 }
 
 /**
  * Authentic iOS Inset Grouped item.
  * Clean SF-Pro style typography, subtle hairpins, zero emojis, zero pastel blocks.
  */
-const PlanItem: React.FC<PlanItemProps> = ({ kind, title, content, badge }) => {
+const PlanItem: React.FC<PlanItemProps> = ({
+  kind,
+  title,
+  content,
+  badge,
+  existingId,
+  action,
+  onToggleAction,
+}) => {
   return (
     <li
       data-testid={`narrative-card-${kind}`}
@@ -123,21 +135,52 @@ const PlanItem: React.FC<PlanItemProps> = ({ kind, title, content, badge }) => {
           {content}
         </p>
       )}
+      {existingId && (
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-2 text-[12px]">
+          <span className="text-[var(--color-ink-muted)]">
+            {action === 'create_new' ? 'Se guardará como nueva' : 'Por defecto se repetirá'}
+          </span>
+          <button
+            type="button"
+            data-testid={kind === 'manifestation' ? 'toggle-save-new-manifestation' : 'toggle-save-new-affirmation'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleAction?.();
+            }}
+            className="rounded-full bg-[var(--control-bg)] px-3 py-1 font-medium text-[var(--color-accent-text)] transition-transform active:scale-95 hover:bg-[var(--color-surface-card)] focus-visible:ring-2 focus-visible:ring-swiss-focus"
+          >
+            {kind === 'manifestation'
+              ? (action === 'create_new' ? 'Repetir manifestación (por defecto)' : 'Guardar nueva manifestación')
+              : (action === 'create_new' ? 'Repetir afirmación (por defecto)' : 'Guardar nueva afirmación')}
+          </button>
+        </div>
+      )}
     </li>
   );
 };
 
-function renderPlanItems(plan: NarrativeProposedPlan) {
+function renderPlanItems(
+  plan: NarrativeProposedPlan,
+  onToggleAction?: (kind: 'manifestation' | 'affirmation', tempId: string) => void
+) {
   const items: React.ReactNode[] = [];
 
   plan.manifestations.forEach((item) => {
+    const isRepeated = Boolean(item.existingId);
+    const badgeText = isRepeated
+      ? (item.action === 'create_new' ? 'Nueva manifestación' : 'Repetir · ya presente')
+      : (item.isNewPersonWithSameName ? 'Persona nueva · mismo nombre' : 'Nueva');
+
     items.push(
       <PlanItem
         key={`m_${item.tempId}`}
         kind="manifestation"
         title={item.title}
         content={item.context || item.content}
-        badge={item.isNewPersonWithSameName ? 'Persona nueva · mismo nombre' : 'Nueva'}
+        badge={badgeText}
+        existingId={item.existingId}
+        action={item.action}
+        onToggleAction={onToggleAction ? () => onToggleAction('manifestation', item.tempId) : undefined}
       />
     );
   });
@@ -167,13 +210,21 @@ function renderPlanItems(plan: NarrativeProposedPlan) {
   });
 
   plan.affirmations.forEach((item) => {
+    const isRepeated = Boolean(item.existingId);
+    const badgeText = isRepeated
+      ? (item.action === 'create_new' ? 'Nueva afirmación' : 'Repetir · ya presente')
+      : (item.category || 'Afirmación');
+
     items.push(
       <PlanItem
         key={`a_${item.tempId}`}
         kind="affirmation"
         title={item.text}
         content=""
-        badge={item.category || 'Afirmación'}
+        badge={badgeText}
+        existingId={item.existingId}
+        action={item.action}
+        onToggleAction={onToggleAction ? () => onToggleAction('affirmation', item.tempId) : undefined}
       />
     );
   });
@@ -194,6 +245,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   onConfirm,
   onReRecord,
   onSubmit,
+  onToggleItemAction,
 }) => {
   const prefersReducedMotion = useReducedMotion();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -206,7 +258,10 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   const plan = draft?.proposedPlan;
   const showPlan = Boolean(plan) && itemCount > 0;
 
-  const planItems = useMemo(() => (plan ? renderPlanItems(plan) : []), [plan]);
+  const planItems = useMemo(
+    () => (plan ? renderPlanItems(plan, onToggleItemAction) : []),
+    [plan, onToggleItemAction]
+  );
 
   useEffect(() => {
     if (!isOpen) return;

@@ -61,6 +61,7 @@ export interface ManifestationItem {
   category?: string;
   status: 'semilla' | 'alineacion' | 'evidencia' | 'materializado';
   targetDate?: string;
+  repeatCount?: number;
   songAttachment?: SongAttachment | null;
   mediaAttachment?: MediaAttachment | null;
   createdAt: string;
@@ -230,6 +231,7 @@ interface AppState {
     item: Omit<ManifestationItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
   ) => Promise<ManifestationItem>;
   updateManifestationStatus: (id: string, status: ManifestationItem['status']) => Promise<void>;
+  incrementManifestationRepeat: (id: string) => Promise<void>;
   deleteManifestation: (id: string) => Promise<void>;
 
   addProgressLog: (log: Omit<ProgressLog, 'id' | 'createdAt'>) => Promise<ProgressLog>;
@@ -564,13 +566,24 @@ export const useAppStore = create<AppState>((set, get) => {
           )
         );
 
+        let finalAffirmations = affirmations;
+        if (result.repeatedAffirmations && result.repeatedAffirmations.length > 0) {
+          const repeatMap = new Map(result.repeatedAffirmations.map((r) => [r.id, r.repeatCount]));
+          finalAffirmations = affirmations.map((a) => {
+            if (repeatMap.has(a.id)) {
+              return { ...a, repeatCount: repeatMap.get(a.id)! };
+            }
+            return a;
+          });
+        }
+
         // A success story marks its manifestation as materialized.
         const materializedIds = new Set(
           result.successStories
             .map((story) => story.manifestationId)
             .filter((id): id is string => Boolean(id))
         );
-        const nextManifestations =
+        let nextManifestations =
           materializedIds.size > 0
             ? manifestations.map((item) =>
                 materializedIds.has(item.id) && item.userId === scope
@@ -579,12 +592,26 @@ export const useAppStore = create<AppState>((set, get) => {
               )
             : manifestations;
 
+        if (result.repeatedManifestations && result.repeatedManifestations.length > 0) {
+          const repeatMap = new Map(result.repeatedManifestations.map((r) => [r.id, r.repeatCount]));
+          nextManifestations = nextManifestations.map((m) => {
+            if (repeatMap.has(m.id)) {
+              return {
+                ...m,
+                repeatCount: repeatMap.get(m.id)!,
+                updatedAt: new Date().toISOString(),
+              };
+            }
+            return m;
+          });
+        }
+
         const nextCollections: ProfileCollections = {
           ...previous,
           manifestations: nextManifestations,
           progressLogs,
           successStories,
-          affirmations,
+          affirmations: finalAffirmations,
         };
 
         const isActive = state.activeScope === scope;
@@ -651,6 +678,39 @@ export const useAppStore = create<AppState>((set, get) => {
       const scope = get().activeScope;
       const manifestations = get().manifestations.map((m) =>
         m.id === id && m.userId === scope ? { ...m, status, updatedAt: new Date().toISOString() } : m
+      );
+      set((state) => ({
+        manifestations,
+        scopeCollections: {
+          ...state.scopeCollections,
+          [scope]: {
+            ...state.scopeCollections[scope],
+            manifestations,
+          },
+        },
+      }));
+
+      const target = manifestations.find((m) => m.id === id && m.userId === scope);
+      if (target) {
+        try {
+          await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity: 'manifestation', action: 'save', scope, data: target }),
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    },
+
+    incrementManifestationRepeat: async (id) => {
+      const scope = get().activeScope;
+      const now = new Date().toISOString();
+      const manifestations = get().manifestations.map((m) =>
+        m.id === id && m.userId === scope
+          ? { ...m, repeatCount: (m.repeatCount || 0) + 1, updatedAt: now }
+          : m
       );
       set((state) => ({
         manifestations,

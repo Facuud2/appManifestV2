@@ -769,8 +769,15 @@ CASOS DE USO E INTENCIONES (ELIGE EXACTAMENTE UNA):
 3. INTENT: "CREATE_MANIFESTATION"
 - Se activa cuando el usuario quiere registrar una nueva manifestación, meta o deseo futuro ya cumplido en consciencia.
 - Limpia muletillas ("Registrar una nueva manifestación donde...", "Quiero manifestar...", "Anotar deseo...").
-- "title": Título corto y concreto (máx 5 palabras, ej: "Sushi toda la semana").
-- "description": Redacción en presente cumplido (ej: "Disfruto comiendo sushi durante toda la semana").
+- "title": Afirmación directa en presente indicativo de 3 a 6 palabras (ej. "Maia me invita a salir", "Eugenia me ama", "Vemos El Conjuro con Yamila", "Conozco a una piba y nos vemos", "Salgo con Brisa").
+  * PROHIBIDO verbos en infinitivo ("Conectar...", "Ver...", "Salir...").
+  * PROHIBIDO paréntesis como "(Nueva) - " ni tags de base de datos.
+  * PROHIBIDO meter "https://www" o enlaces en el title.
+- "description": ÚNICAMENTE UN PÁRRAFO. En la mayoría de los casos, UNA SOLA ORACIÓN DIRECTA de 6 a 18 palabras que empieza igual que el título y completa la idea con las palabras exactas del usuario (ej: "Maia me invita a salir un día de semana.").
+  * PROHIBIDO TERMINANTEMENTE el salto de línea (\n\n) en la manifestación. NUNCA pongas 2 párrafos.
+  * PROHIBIDO repetir frases con "Quiero..." o bloques "Contexto:".
+  * PROHIBIDAS frases artificiales ("Tengo excelente química", "disfrutar momentos juntos", "chica ideal").
+  * Usa las palabras literales del usuario (si dice "piba", usa "piba", nunca "chica ideal").
 - "category": "lifestyle" | "career" | "wealth" | "love" | "health" | "other" (default "lifestyle").
 - Estructura:
   "manifestationData": {
@@ -780,10 +787,10 @@ CASOS DE USO E INTENCIONES (ELIGE EXACTAMENTE UNA):
   }
 
 4. INTENT: "LOG_PROGRESS"
-- Se activa cuando el usuario reporta un avance, señal, movimiento, sincronicidad o novedad respecto a un deseo.
+- Se activa cuando el usuario reporta un avance, señal, movimiento, sincronicidad o novedad respecto a un deseo, o relata una historia de cómo se conocieron o qué hablaron.
 - Vinculación inteligente:
   * Si semánticamente coincide con una manifestación de la lista 'MANIFESTACIONES ACTIVAS ACTUALES', asigna su ID en "manifestationId".
-  * Si NO existe ninguna en la lista que coincida, NO dejes el progreso huérfano: genera "retroactiveManifestation" con título y descripción para crear la semilla en la misma operación, y deja "manifestationId" en null.
+  * Si NO existe ninguna en la lista que coincida, NO dejes el progreso huérfano: genera "retroactiveManifestation" con título y descripción cumpliendo las mismas reglas (título en presente de 3 a 6 palabras, descripción de 1 sola oración en presente) y el contexto o avance va en "progressData.note" (en primera persona), dejando la semilla limpia de 1 solo párrafo.
 - "note": Redacción concisa de lo sucedido en primera persona.
 - "signType": "movement" | "synchronicity" | "bridge".
 - Estructura:
@@ -796,6 +803,39 @@ CASOS DE USO E INTENCIONES (ELIGE EXACTAMENTE UNA):
     "title": string,
     "description": string
   }
+
+EJEMPLOS REALES DE CÓMO ESCRIBE EL USUARIO SUS MANIFESTACIONES (IMITA ESTE FORMATO EXACTO):
+
+Ejemplo 1 (Deseo puntual):
+- title: "Maia me invita a salir"
+- content: "Maia me invita a salir un día de semana."
+
+Ejemplo 2 (Sentimiento / Persona específica):
+- title: "Eugenia me ama"
+- content: "Eugenia me ama, me quiere y me desea."
+
+Ejemplo 3 (Plan concreto dicho con "Quiero..."):
+- Si el usuario dice: "Quiero conocer a una piba, hablar un par de meses y que después de todo eso nos vayamos a ver y que esté todo bien"
+- title: "Conozco a una piba y nos vemos"
+- content: "Conozco a una piba, hablamos un par de meses y después de todo eso nos vamos a ver y está todo bien." (Usa sus mismas palabras en presente, en 1 sola oración, sin cambiar 'piba' por 'chica ideal' y sin repetir el 'Quiero...' abajo).
+
+Ejemplo 4 (Historia con contexto de Tinder/citas):
+- Si el usuario dice: "Conocí a Brisa por Tinder hace una semana, veníamos hablando y me propuso vernos este jueves o viernes"
+- En Manifestación:
+  - title: "Salgo con Brisa"
+  - content: "Salgo con Brisa y pasamos un gran momento juntos."
+- En Avance vinculado (progressLog):
+  - content: "La conocí por Tinder hace una semana, venimos hablando re bien y me propuso vernos este jueves o viernes."
+
+Ejemplo 5 (Situación más detallada):
+- title: "Salgo con una mujer que tiene pareja"
+- content: "Salgo con una mujer que tiene pareja. Su pareja no logra complacerla en el sentido de atención y su autoestima por el suelo. Situación en la cual, constantemente soy quien eleva su autoestima y le da la atención necesaria."
+
+REGLAS PROHIBIDAS:
+- Prohibido usar las frases "Tengo excelente química", "disfrutar momentos juntos", "chica ideal" o "Contexto:".
+- Prohibido escribir en tercera persona ("Empezaron a hablar", "Coordinaron").
+- Prohibido poner 2 párrafos en una manifestación.
+- Prohibido meter "https://www" en el title cuando hay un link en el texto.
 
 5. INTENT: "LOG_SUCCESS"
 - Se activa cuando el deseo se cumplió por completo (éxito total).

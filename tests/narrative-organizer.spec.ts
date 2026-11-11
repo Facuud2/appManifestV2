@@ -175,7 +175,8 @@ test('4 · confirma y persiste todo con voiceTranscript y contexto', async ({ pa
     args: [data.manifestations[0].id],
   });
   expect(manifestation.rows).toHaveLength(1);
-  expect(String(manifestation.rows[0].description)).toContain('Tinder');
+  expect(String(manifestation.rows[0].description)).not.toContain('\n\n');
+  expect(String(manifestation.rows[0].description)).toContain('Sabrina');
   expect(String(manifestation.rows[0].status)).toBe('semilla');
 
   const progress = await db.execute({
@@ -354,4 +355,141 @@ test('12 · axe sin hallazgos critical/serious en la revisión', async ({ page }
     (violation) => violation.impact === 'critical' || violation.impact === 'serious'
   );
   expect(blocking).toEqual([]);
+});
+
+test('13 · si se repite una afirmación presente, por defecto la repite e incrementa repeat_count', async ({ page }) => {
+  await db.execute({
+    sql: 'INSERT OR REPLACE INTO affirmations (id, user_id, text, repeat_count, pinned, sort_order, created_at) VALUES (?, ?, ?, 0, 0, 0, ?);',
+    args: ['aff_existing_1', 'facu', 'Soy siempre la primera opción', new Date().toISOString()],
+  });
+
+  await boot(page, 'repeat_affirmation');
+  await openOrganizer(page);
+  await submitListening(page);
+  await waitForReview(page);
+
+  const card = page.getByTestId('narrative-card-affirmation');
+  await expect(card).toContainText('Repetir · ya presente');
+  const toggleBtn = page.getByTestId('toggle-save-new-affirmation');
+  await expect(toggleBtn).toBeVisible();
+  await expect(toggleBtn).toHaveText('Guardar nueva afirmación');
+
+  // Por defecto, confirma sin pulsar el botón
+  await confirmAndCapture(page);
+
+  const res = await db.execute({
+    sql: 'SELECT repeat_count FROM affirmations WHERE id = ?;',
+    args: ['aff_existing_1'],
+  });
+  expect(Number(res.rows[0]?.repeat_count)).toBe(1);
+});
+
+test('14 · si se pulsa en guardar nueva afirmación, la guarda como nueva sin incrementar la existente', async ({ page }) => {
+  await db.execute({
+    sql: 'INSERT OR REPLACE INTO affirmations (id, user_id, text, repeat_count, pinned, sort_order, created_at) VALUES (?, ?, ?, 0, 0, 0, ?);',
+    args: ['aff_existing_1', 'facu', 'Soy siempre la primera opción', new Date().toISOString()],
+  });
+
+  await boot(page, 'repeat_affirmation');
+  await openOrganizer(page);
+  await submitListening(page);
+  await waitForReview(page);
+
+  const toggleBtn = page.getByTestId('toggle-save-new-affirmation');
+  await expect(toggleBtn).toBeVisible();
+  // El usuario pulsa en el botón guardar nueva afirmación
+  await toggleBtn.click();
+
+  const card = page.getByTestId('narrative-card-affirmation');
+  await expect(card).toContainText('Nueva afirmación');
+  await expect(toggleBtn).toHaveText('Repetir afirmación (por defecto)');
+
+  await confirmAndCapture(page);
+
+  // La existente no fue incrementada
+  const resExisting = await db.execute({
+    sql: 'SELECT repeat_count FROM affirmations WHERE id = ?;',
+    args: ['aff_existing_1'],
+  });
+  expect(Number(resExisting.rows[0]?.repeat_count)).toBe(0);
+
+  // Se guardó una nueva afirmación con el mismo texto
+  const total = await db.execute({
+    sql: 'SELECT COUNT(*) AS total FROM affirmations WHERE text = ?;',
+    args: ['Soy siempre la primera opción'],
+  });
+  expect(Number(total.rows[0]?.total)).toBeGreaterThanOrEqual(2);
+});
+
+test('15 · si se repite una manifestación presente, por defecto la repite e incrementa repeat_count', async ({ page }) => {
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO manifestations
+      (id, user_id, author, title, description, sensory_anchor, category, status, repeat_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, '', 'relaciones', 'semilla', 0, ?, ?);`,
+    args: ['m_existing_1', 'facu', 'Facu', 'Relación y juntadas con Sabrina', 'Descripción inicial', now, now],
+  });
+
+  await boot(page, 'repeat_manifestation');
+  await openOrganizer(page);
+  await submitListening(page);
+  await waitForReview(page);
+
+  const card = page.getByTestId('narrative-card-manifestation');
+  await expect(card).toContainText('Repetir · ya presente');
+  const toggleBtn = page.getByTestId('toggle-save-new-manifestation');
+  await expect(toggleBtn).toBeVisible();
+  await expect(toggleBtn).toHaveText('Guardar nueva manifestación');
+
+  // Por defecto, confirma sin pulsar el botón
+  await confirmAndCapture(page);
+
+  const res = await db.execute({
+    sql: 'SELECT repeat_count FROM manifestations WHERE id = ?;',
+    args: ['m_existing_1'],
+  });
+  expect(Number(res.rows[0]?.repeat_count)).toBe(1);
+});
+
+test('16 · si se pulsa en guardar nueva manifestación, la guarda como nueva', async ({ page }) => {
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO manifestations
+      (id, user_id, author, title, description, sensory_anchor, category, status, repeat_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, '', 'relaciones', 'semilla', 0, ?, ?);`,
+    args: ['m_existing_1', 'facu', 'Facu', 'Relación y juntadas con Sabrina', 'Descripción inicial', now, now],
+  });
+
+  await boot(page, 'repeat_manifestation');
+  await openOrganizer(page);
+  await submitListening(page);
+  await waitForReview(page);
+
+  const toggleBtn = page.getByTestId('toggle-save-new-manifestation');
+  await expect(toggleBtn).toBeVisible();
+  // El usuario pulsa en el botón guardar nueva manifestación
+  await toggleBtn.click();
+
+  const card = page.getByTestId('narrative-card-manifestation');
+  await expect(card).toContainText('Nueva manifestación');
+  await expect(toggleBtn).toHaveText('Repetir manifestación (por defecto)');
+
+  const { data } = await confirmAndCapture(page);
+  expect(data.manifestations).toHaveLength(1);
+  // El ID debe ser uno nuevo, no el existente
+  expect(data.manifestations[0].id).not.toBe('m_existing_1');
+
+  // La existente no fue incrementada
+  const resExisting = await db.execute({
+    sql: 'SELECT repeat_count FROM manifestations WHERE id = ?;',
+    args: ['m_existing_1'],
+  });
+  expect(Number(resExisting.rows[0]?.repeat_count)).toBe(0);
+
+  // Hay dos manifestaciones con ese título en la BD
+  const total = await db.execute({
+    sql: 'SELECT COUNT(*) AS total FROM manifestations WHERE title = ?;',
+    args: ['Relación y juntadas con Sabrina'],
+  });
+  expect(Number(total.rows[0]?.total)).toBeGreaterThanOrEqual(2);
 });

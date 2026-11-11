@@ -58,33 +58,78 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [manifestationsRes, affirmationsRes, maxOrderRes] = await Promise.all([
-      turso.execute({
-        sql: 'SELECT id FROM manifestations WHERE user_id = ?;',
-        args: [profileId],
-      }),
-      turso.execute({
-        sql: 'SELECT text FROM affirmations WHERE user_id = ?;',
-        args: [profileId],
-      }),
-      turso.execute({
-        sql: 'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM affirmations WHERE user_id = ? AND pinned = 0;',
-        args: [profileId],
-      }),
-    ]);
+    const runQuery = async () => {
+      try {
+        return await Promise.all([
+          turso.execute({
+            sql: 'SELECT id, title, repeat_count FROM manifestations WHERE user_id = ?;',
+            args: [profileId],
+          }),
+          turso.execute({
+            sql: 'SELECT id, text, repeat_count FROM affirmations WHERE user_id = ?;',
+            args: [profileId],
+          }),
+          turso.execute({
+            sql: 'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM affirmations WHERE user_id = ? AND pinned = 0;',
+            args: [profileId],
+          }),
+        ]);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('no such column: repeat_count')) {
+          await Promise.allSettled([
+            turso.execute('ALTER TABLE manifestations ADD COLUMN repeat_count INTEGER DEFAULT 0;'),
+            turso.execute('ALTER TABLE affirmations ADD COLUMN repeat_count INTEGER DEFAULT 0;'),
+          ]);
+          return Promise.all([
+            turso.execute({
+              sql: 'SELECT id, title, repeat_count FROM manifestations WHERE user_id = ?;',
+              args: [profileId],
+            }),
+            turso.execute({
+              sql: 'SELECT id, text, repeat_count FROM affirmations WHERE user_id = ?;',
+              args: [profileId],
+            }),
+            turso.execute({
+              sql: 'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM affirmations WHERE user_id = ? AND pinned = 0;',
+              args: [profileId],
+            }),
+          ]);
+        }
+        throw err;
+      }
+    };
+
+    const [manifestationsRes, affirmationsRes, maxOrderRes] = await runQuery();
 
     const validExistingIds = manifestationsRes.rows
       .map((row) => row.id)
       .filter((id): id is string => typeof id === 'string');
-    const existingAffirmationTexts = affirmationsRes.rows
-      .map((row) => row.text)
-      .filter((text): text is string => typeof text === 'string');
+    const existingManifestations = manifestationsRes.rows.map((row) => ({
+      id: String(row.id),
+      title: String(row.title || ''),
+      repeatCount: Number(row.repeat_count || 0),
+    }));
+    const existingAffirmations = affirmationsRes.rows.map((row) => ({
+      id: String(row.id),
+      text: String(row.text || ''),
+      repeatCount: Number(row.repeat_count || 0),
+    }));
+    const existingAffirmationTexts = existingAffirmations.map((a) => a.text);
     const baseSortOrder = Number(maxOrderRes.rows[0]?.max_order ?? -1) + 1;
 
     // Re-normalize server-side: never trust the client payload.
     const { draft } = normalizeNarrativeDraft(body.currentDraft as NarrativeDraft, {
       draftId,
       existingManifestationIds: validExistingIds,
+      existingContext: existingManifestations.map((m) => ({
+        id: m.id,
+        title: m.title,
+        personNames: [],
+        summary: '',
+        repeatCount: m.repeatCount,
+      })),
+      existingAffirmations,
       allowLegacy: true,
     });
 
@@ -93,11 +138,26 @@ export async function POST(req: NextRequest) {
       profileId,
       validExistingIds,
       existingAffirmationTexts,
+      existingAffirmations,
+      existingManifestations,
       baseSortOrder,
     });
 
     if (statements.length > 0) {
-      await turso.batch(statements, 'write');
+      try {
+        await turso.batch(statements, 'write');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('no such column: repeat_count')) {
+          await Promise.allSettled([
+            turso.execute('ALTER TABLE manifestations ADD COLUMN repeat_count INTEGER DEFAULT 0;'),
+            turso.execute('ALTER TABLE affirmations ADD COLUMN repeat_count INTEGER DEFAULT 0;'),
+          ]);
+          await turso.batch(statements, 'write');
+        } else {
+          throw err;
+        }
+      }
     }
 
     return NextResponse.json({ success: true, data: result });

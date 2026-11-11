@@ -11,6 +11,7 @@ import { useAppStore } from '@/store';
 import {
   countProposedItems,
   type ExistingContextItem,
+  type ExistingAffirmationItem,
   type NarrativeCommitResult,
   type NarrativeDraft,
   type NarrativeScenario,
@@ -30,6 +31,7 @@ export type NarrativeErrorKind = 'analyze' | 'commit' | 'microphone' | 'quota';
 interface UseNarrativeOrganizerProps {
   profileId: string;
   existingContext: ExistingContextItem[];
+  existingAffirmations?: ExistingAffirmationItem[];
   isSandboxMode?: boolean;
   onOpenManualCreate: () => void;
   onCommitted?: (
@@ -59,6 +61,8 @@ function readSandboxScenario(): NarrativeScenario | undefined {
       scenario === 'sabrina_homonym' ||
       scenario === 'sabrina_unlink' ||
       scenario === 'sabrina_rampage' ||
+      scenario === 'repeat_affirmation' ||
+      scenario === 'repeat_manifestation' ||
       scenario === 'unclear'
     ) {
       return scenario;
@@ -81,6 +85,7 @@ function readSandboxSpeech(): string {
 export function useNarrativeOrganizer({
   profileId,
   existingContext,
+  existingAffirmations,
   isSandboxMode = false,
   onOpenManualCreate,
   onCommitted,
@@ -122,15 +127,17 @@ export function useNarrativeOrganizer({
 
   const profileIdRef = useRef(profileId);
   const existingContextRef = useRef(existingContext);
+  const existingAffirmationsRef = useRef(existingAffirmations);
   const callbacksRef = useRef({ onOpenManualCreate, onCommitted, onClosed });
   const isSandboxRef = useRef(isSandboxMode);
 
   useEffect(() => {
     profileIdRef.current = profileId;
     existingContextRef.current = existingContext;
+    existingAffirmationsRef.current = existingAffirmations;
     callbacksRef.current = { onOpenManualCreate, onCommitted, onClosed };
     isSandboxRef.current = isSandboxMode;
-  }, [profileId, existingContext, isSandboxMode, onOpenManualCreate, onCommitted, onClosed]);
+  }, [profileId, existingContext, existingAffirmations, isSandboxMode, onOpenManualCreate, onCommitted, onClosed]);
 
   const setPhaseSafe = useCallback((next: NarrativePhase) => {
     phaseRef.current = next;
@@ -221,6 +228,9 @@ export function useNarrativeOrganizer({
         formData.append('profileId', profileIdRef.current);
         formData.append('draftId', draftIdRef.current);
         formData.append('existingContext', JSON.stringify(existingContextRef.current));
+        if (existingAffirmationsRef.current) {
+          formData.append('existingAffirmations', JSON.stringify(existingAffirmationsRef.current));
+        }
         if (draftRef.current) {
           formData.append('currentDraft', JSON.stringify(draftRef.current));
         }
@@ -660,6 +670,42 @@ export function useNarrativeOrganizer({
     };
   }, [isOpen]);
 
+  const toggleItemAction = useCallback(
+    (kind: 'manifestation' | 'affirmation', tempId: string) => {
+      setDraft((prev) => {
+        if (!prev) return prev;
+        if (kind === 'manifestation') {
+          const manifestations = prev.proposedPlan.manifestations.map((m) => {
+            if (m.tempId !== tempId) return m;
+            const nextAction: 'repeat' | 'create_new' =
+              m.action === 'create_new' ? 'repeat' : 'create_new';
+            return { ...m, action: nextAction };
+          });
+          const nextDraft = {
+            ...prev,
+            proposedPlan: { ...prev.proposedPlan, manifestations },
+          };
+          draftRef.current = nextDraft;
+          return nextDraft;
+        } else {
+          const affirmations = prev.proposedPlan.affirmations.map((a) => {
+            if (a.tempId !== tempId) return a;
+            const nextAction: 'repeat' | 'create_new' =
+              a.action === 'create_new' ? 'repeat' : 'create_new';
+            return { ...a, action: nextAction };
+          });
+          const nextDraft = {
+            ...prev,
+            proposedPlan: { ...prev.proposedPlan, affirmations },
+          };
+          draftRef.current = nextDraft;
+          return nextDraft;
+        }
+      });
+    },
+    []
+  );
+
   /* ------------------------------- derived -------------------------------- */
 
   const itemCount = draft ? countProposedItems(draft.proposedPlan) : 0;
@@ -684,6 +730,7 @@ export function useNarrativeOrganizer({
     finishAndSubmit,
     confirm,
     cancelAll,
+    toggleItemAction,
     buttonGestureProps: {
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,

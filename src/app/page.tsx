@@ -46,10 +46,13 @@ export default function HomePage() {
     isScopeRegenerating,
     setScopeRegenerating,
     manifestations,
+    affirmations,
     addManifestation,
     deleteManifestation,
+    incrementManifestationRepeat,
     addAffirmation,
     deleteAffirmation,
+    incrementAffirmationRepeat,
     addProgressLog,
     deleteProgressLog,
     addSuccessStory,
@@ -388,6 +391,24 @@ export default function HomePage() {
 
       if (result.intent === 'CREATE_AFFIRMATION') {
         const text = result.affirmationData?.text?.trim() || 'Soy Dios';
+        const existingAff = affirmations.find(
+          (a) => a.userId === activeScope && a.text.trim().toLowerCase() === text.toLowerCase()
+        );
+
+        if (existingAff) {
+          await incrementAffirmationRepeat(existingAff.id);
+          setVoiceToast({
+            id: `toast_${Date.now()}`,
+            intent: 'CREATE_AFFIRMATION',
+            message: `Afirmación repetida (+1) · '${text}'`,
+            switchLabel: 'Guardar nueva afirmación',
+            onSwitchType: async () => {
+              await addAffirmation(text);
+            },
+          });
+          return;
+        }
+
         const newAffirmation = await addAffirmation(text);
 
         setVoiceToast({
@@ -419,6 +440,36 @@ export default function HomePage() {
         const description = result.manifestationData?.description || '';
         const category = result.manifestationData?.category || 'lifestyle';
         const author = activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos';
+
+        const existingMan = manifestations.find(
+          (m) =>
+            m.userId === activeScope &&
+            (m.title.trim().toLowerCase() === title.trim().toLowerCase() ||
+              (description && m.description.trim().toLowerCase() === description.trim().toLowerCase()))
+        );
+
+        if (existingMan) {
+          await incrementManifestationRepeat(existingMan.id);
+          setVoiceToast({
+            id: `toast_${Date.now()}`,
+            intent: 'CREATE_MANIFESTATION',
+            message: `Manifestación repetida (+1) · '${existingMan.title}'`,
+            manifestationId: existingMan.id,
+            switchLabel: 'Guardar nueva manifestación',
+            onSwitchType: async () => {
+              await addManifestation({
+                title,
+                description,
+                category,
+                author,
+                sensoryAnchor: '',
+                status: 'semilla',
+                userId: activeScope,
+              });
+            },
+          });
+          return;
+        }
 
         const newItem = await addManifestation({
           title,
@@ -593,8 +644,21 @@ export default function HomePage() {
           .replace(/\s+/g, ' ')
           .trim()
           .slice(0, 300),
+        repeatCount: manifestation.repeatCount || 0,
       }));
   }, [manifestations, activeScope]);
+
+  const existingNarrativeAffirmations = useMemo(() => {
+    return affirmations
+      .filter((a) => a.userId === activeScope)
+      .slice(0, 50)
+      .map((a) => ({
+        id: a.id,
+        text: a.text,
+        category: a.category,
+        repeatCount: a.repeatCount || 0,
+      }));
+  }, [affirmations, activeScope]);
 
   const voiceRouter = useVoiceActionRouter({
     enabled: false,
@@ -627,6 +691,7 @@ export default function HomePage() {
   const narrative = useNarrativeOrganizer({
     profileId: activeScope,
     existingContext: existingNarrativeContext,
+    existingAffirmations: existingNarrativeAffirmations,
     isSandboxMode,
     onOpenManualCreate: () => {
       const trigger =
@@ -844,6 +909,7 @@ export default function HomePage() {
         onConfirm={narrative.confirm}
         onReRecord={narrative.reRecord}
         onSubmit={narrative.finishAndSubmit}
+        onToggleItemAction={narrative.toggleItemAction}
       />
 
       {/* Modals */}

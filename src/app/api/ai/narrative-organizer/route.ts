@@ -9,6 +9,7 @@ import {
   readSandboxScenarioFromSearch,
   resolveNarrativeProfileId,
   type ExistingContextItem,
+  type ExistingAffirmationItem,
   type NarrativeDraft,
   type NarrativeScenario,
 } from '@/lib/narrativeOrganizer';
@@ -32,6 +33,22 @@ function parseJsonField<T>(value: unknown, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function sanitizeExistingAffirmations(value: unknown): ExistingAffirmationItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 50)
+    .flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const record = item as Record<string, unknown>;
+      const id = typeof record.id === 'string' ? record.id.trim() : '';
+      const text = typeof record.text === 'string' ? record.text.trim() : '';
+      if (!id || !text) return [];
+      const category = typeof record.category === 'string' ? record.category.slice(0, 100) : undefined;
+      const repeatCount = typeof record.repeatCount === 'number' ? record.repeatCount : 0;
+      return [{ id, text: text.slice(0, 1000), category, repeatCount }];
+    });
 }
 
 function sanitizeExistingContext(value: unknown): ExistingContextItem[] {
@@ -66,6 +83,7 @@ export async function POST(req: NextRequest) {
     let draftId = '';
     let currentDraftRaw: unknown = null;
     let existingContextRaw: unknown = [];
+    let existingAffirmationsRaw: unknown = [];
     let sandbox = false;
     let spokenText = '';
     let scenario: NarrativeScenario | undefined;
@@ -76,6 +94,7 @@ export async function POST(req: NextRequest) {
       draftId = typeof json.draftId === 'string' ? json.draftId : '';
       currentDraftRaw = json.currentDraft ?? null;
       existingContextRaw = json.existingContext ?? [];
+      existingAffirmationsRaw = json.existingAffirmations ?? [];
       sandbox = Boolean(json.sandbox);
       spokenText = typeof json.spokenText === 'string' ? json.spokenText : '';
       scenario = typeof json.scenario === 'string' ? (json.scenario as NarrativeScenario) : undefined;
@@ -94,6 +113,7 @@ export async function POST(req: NextRequest) {
       draftId = (formData.get('draftId') as string) || '';
       currentDraftRaw = parseJsonField(formData.get('currentDraft'), null);
       existingContextRaw = parseJsonField(formData.get('existingContext'), []);
+      existingAffirmationsRaw = parseJsonField(formData.get('existingAffirmations'), []);
       sandbox = formData.get('sandbox') === 'true';
       spokenText = (formData.get('spokenText') as string) || '';
       const rawScenario = formData.get('scenario');
@@ -113,11 +133,13 @@ export async function POST(req: NextRequest) {
     if (!draftId) draftId = randomUUID();
 
     const existingContext = sanitizeExistingContext(existingContextRaw);
+    const existingAffirmations = sanitizeExistingAffirmations(existingAffirmationsRaw);
 
     const currentDraftNormalized: NarrativeDraft | null = currentDraftRaw
       ? normalizeNarrativeDraft(currentDraftRaw, {
           draftId,
           existingContext,
+          existingAffirmations,
           allowLegacy: true,
         }).draft
       : null;
@@ -181,6 +203,7 @@ export async function POST(req: NextRequest) {
         draftId,
         currentDraft: currentDraftNormalized,
         existingContext,
+        existingAffirmations,
       });
 
       return NextResponse.json({

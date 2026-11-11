@@ -37,6 +37,7 @@ export async function run() {
       category TEXT NOT NULL,
       status TEXT DEFAULT 'semilla',
       target_date TEXT,
+      repeat_count INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -162,6 +163,7 @@ export async function run() {
   await ensureColumn('manifestations', 'target_date', 'TEXT');
   await ensureColumn('manifestations', 'song_attachment', 'TEXT');
   await ensureColumn('manifestations', 'media_attachment', 'TEXT');
+  await ensureColumn('manifestations', 'repeat_count', 'INTEGER DEFAULT 0');
   await ensureColumn('success_stories', 'author', "TEXT NOT NULL DEFAULT ''");
   await ensureColumn('success_stories', 'gratitude_note', 'TEXT');
   await ensureColumn('rampage_sets', 'theme', "TEXT NOT NULL DEFAULT ''");

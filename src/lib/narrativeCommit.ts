@@ -4,6 +4,7 @@ import {
   type NarrativeDraft,
   type NarrativeProfileId,
 } from './narrativeOrganizer';
+import { generateCleanTitle, URL_REGEX } from '@/utils/urlParser';
 
 export interface CommitStatement {
   sql: string;
@@ -17,6 +18,10 @@ export interface BuildCommitOptions {
   validExistingIds: string[];
   /** Affirmations already stored for this profile (to avoid duplicates). */
   existingAffirmationTexts?: string[];
+  /** Full existing affirmations for repeat count lookups. */
+  existingAffirmations?: Array<{ id: string; text: string; repeatCount?: number }>;
+  /** Full existing manifestations for repeat count lookups. */
+  existingManifestations?: Array<{ id: string; title: string; repeatCount?: number }>;
   /** Current MAX(sort_order) + 1 for unpinned affirmations. */
   baseSortOrder?: number;
 }
@@ -72,22 +77,58 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
 
   const validExistingIds = new Set(options.validExistingIds);
   const manifestationIdByTemp = new Map<string, string>();
+  const repeatedManifestations: Array<{ id: string; repeatCount: number }> = [];
+  const repeatedAffirmations: Array<{ id: string; repeatCount: number }> = [];
 
-  const manifestations = plan.manifestations.map((item) => {
+  const existingManMap = new Map((options.existingManifestations || []).map((m) => [m.id, m]));
+  const existingAffMap = new Map((options.existingAffirmations || []).map((a) => [a.id, a]));
+
+  const manifestations: Array<{
+    id: string;
+    userId: NarrativeProfileId;
+    author: string;
+    title: string;
+    description: string;
+    sensoryAnchor: string;
+    category: string;
+    status: any;
+    createdAt: string;
+    updatedAt: string;
+    tempId: string;
+  }> = [];
+
+  plan.manifestations.forEach((item) => {
+    // If it is a repeat and has existingId
+    if (item.action === 'repeat' && item.existingId && validExistingIds.has(item.existingId)) {
+      manifestationIdByTemp.set(item.tempId, item.existingId);
+      const prevRepeat = existingManMap.get(item.existingId)?.repeatCount ?? 0;
+      repeatedManifestations.push({ id: item.existingId, repeatCount: prevRepeat + 1 });
+      return;
+    }
+
     const id = buildId('manif', short, item.tempId);
     manifestationIdByTemp.set(item.tempId, id);
 
-    const descriptionParts = [item.content.trim()];
-    if (item.context.trim()) {
-      descriptionParts.push(item.context.trim());
+    // Enforce 1 single paragraph, no \n\n, no "Contexto:"
+    let cleanContent = item.content.trim();
+    if (cleanContent.includes('\n\n')) {
+      cleanContent = cleanContent.split(/\n\n+/)[0].trim();
     }
-    const description = clip(descriptionParts.filter(Boolean).join('\n\n'), NARRATIVE_LIMITS.content);
+    cleanContent = cleanContent.replace(/^Contexto:\s*/i, '').trim();
+    const description = clip(cleanContent, NARRATIVE_LIMITS.content);
 
-    return {
+    // Sanitize title to remove any URLs and robotic prefixes
+    let cleanTitle = item.title.replace(URL_REGEX, '').replace(/https?:\/\/\S*/gi, '').trim();
+    cleanTitle = cleanTitle.replace(/^\([^\)]+\)\s*-\s*/, '').trim();
+    if (!cleanTitle) {
+      cleanTitle = generateCleanTitle(cleanContent) || 'Manifestación';
+    }
+
+    manifestations.push({
       id,
       userId: profileId,
       author,
-      title: clip(item.title, NARRATIVE_LIMITS.title),
+      title: clip(cleanTitle, NARRATIVE_LIMITS.title),
       description,
       sensoryAnchor: '',
       category: item.category || 'crecimiento',
@@ -95,7 +136,7 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
       createdAt: now,
       updatedAt: now,
       tempId: item.tempId,
-    };
+    });
   });
 
   const resolveManifestationId = (link: {
@@ -124,6 +165,35 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
     tempId: item.tempId,
   }));
 
+  // Route any orphan context to a linked progress log so that history/context is preserved
+  // exclusively inside progressLogs (generating the 👣 1 avance vinculado badge)
+  plan.manifestations.forEach((item) => {
+    const manifestationId = manifestationIdByTemp.get(item.tempId);
+    if (!manifestationId) return;
+
+    const hasLinkedProgress = progressLogs.some(
+      (p) => p.manifestationId === manifestationId
+    );
+
+    if (!hasLinkedProgress && item.context && item.context.trim()) {
+      const cleanCtx = item.context.replace(/^Contexto:\s*/i, '').trim();
+      if (cleanCtx) {
+        progressLogs.push({
+          id: buildId('prog', short, `${item.tempId}_ctx`),
+          manifestationId,
+          userId: profileId,
+          note: clip(cleanCtx, NARRATIVE_LIMITS.content),
+          signType: 'encounter',
+          voiceTranscript: draft.userTranscript
+            ? clip(draft.userTranscript, NARRATIVE_LIMITS.transcript)
+            : null,
+          createdAt: now,
+          tempId: `${item.tempId}_ctx`,
+        });
+      }
+    }
+  });
+
   const successStories = plan.successStories.map((item) => ({
     id: buildId('story', short, item.tempId),
     manifestationId: resolveManifestationId(item.link),
@@ -145,11 +215,30 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
   let nextOrder = options.baseSortOrder ?? 0;
 
   const affirmations = plan.affirmations.flatMap((item) => {
+    if (item.action === 'repeat' && item.existingId) {
+      const prevRepeat = existingAffMap.get(item.existingId)?.repeatCount ?? 0;
+      repeatedAffirmations.push({ id: item.existingId, repeatCount: prevRepeat + 1 });
+      return [];
+    }
+
     const key = normalizeForCompare(item.text);
-    if (!key || seen.has(key) || existingTexts.has(key)) {
+    if (!key || seen.has(key)) {
       skippedAffirmations.push(item.text);
       return [];
     }
+
+    if (existingTexts.has(key) && item.action !== 'create_new') {
+      const matched = (options.existingAffirmations || []).find(
+        (ea) => normalizeForCompare(ea.text) === key
+      );
+      if (matched) {
+        repeatedAffirmations.push({ id: matched.id, repeatCount: (matched.repeatCount ?? 0) + 1 });
+        return [];
+      }
+      skippedAffirmations.push(item.text);
+      return [];
+    }
+
     seen.add(key);
     const record = {
       id: buildId('aff', short, item.tempId),
@@ -167,6 +256,20 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
   });
 
   const statements: CommitStatement[] = [];
+
+  repeatedManifestations.forEach((item) => {
+    statements.push({
+      sql: 'UPDATE manifestations SET repeat_count = COALESCE(repeat_count, 0) + 1, updated_at = ? WHERE id = ? AND user_id = ?;',
+      args: [now, item.id, profileId],
+    });
+  });
+
+  repeatedAffirmations.forEach((item) => {
+    statements.push({
+      sql: 'UPDATE affirmations SET repeat_count = COALESCE(repeat_count, 0) + 1 WHERE id = ? AND user_id = ?;',
+      args: [item.id, profileId],
+    });
+  });
 
   manifestations.forEach((item) => {
     statements.push({
@@ -286,6 +389,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
       successStories,
       affirmations,
       skippedAffirmations,
+      repeatedAffirmations,
+      repeatedManifestations,
     },
   };
 }

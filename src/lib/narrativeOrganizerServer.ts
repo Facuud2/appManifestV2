@@ -8,6 +8,7 @@ import {
   buildNarrativeOrganizerSystemPrompt,
   normalizeNarrativeDraft,
   type ExistingContextItem,
+  type ExistingAffirmationItem,
   type NarrativeDraft,
   type NarrativeProfileId,
 } from './narrativeOrganizer';
@@ -87,6 +88,7 @@ export async function analyzeNarrativeWithGemini(options: {
   draftId: string;
   currentDraft: NarrativeDraft | null;
   existingContext: ExistingContextItem[];
+  existingAffirmations?: ExistingAffirmationItem[];
 }): Promise<NarrativeAnalysisResult> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
@@ -95,6 +97,7 @@ export async function analyzeNarrativeWithGemini(options: {
 
   const systemInstruction = buildNarrativeOrganizerSystemPrompt({
     existingContext: options.existingContext,
+    existingAffirmations: options.existingAffirmations,
     currentDraft: options.currentDraft,
   });
 
@@ -132,6 +135,7 @@ Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.${options
     const { draft, warnings } = normalizeNarrativeDraft(rawText, {
       draftId: options.draftId,
       existingContext: options.existingContext,
+      existingAffirmations: options.existingAffirmations,
       allowLegacy: true,
     });
     return { draft, source: 'GEMINI_LIVE', quotaUsedToday, warnings };
