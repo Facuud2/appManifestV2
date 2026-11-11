@@ -78,6 +78,7 @@ export default function HomePage() {
   // Modals state
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [isRampageOpen, setIsRampageOpen] = useState(false);
+  const [initialCustomizerOpen, setInitialCustomizerOpen] = useState(false);
   const [rampageOpenMode, setRampageOpenMode] = useState<'new' | 'restore' | 'pinned'>('new');
   const [rampageToResume, setRampageToResume] = useState<RampageSet | null>(null);
   const [directRampagePayload, setDirectRampagePayload] = useState<DirectRampagePayload | null>(null);
@@ -329,12 +330,13 @@ export default function HomePage() {
     setIsRampageOpen(true);
   }, []);
 
-  const handleOpenNewRampage = useCallback(() => {
+  const handleOpenNewRampage = useCallback((options?: { customize?: boolean }) => {
     executeWithRampageGuard(() => {
       setCurrentPlayingRampageId(undefined);
       setRampageToResume(null);
       setDirectRampagePayload(null);
       setRampageOpenMode('new');
+      setInitialCustomizerOpen(Boolean(options?.customize));
       setIsRampageOpen(true);
     });
   }, [executeWithRampageGuard]);
@@ -422,7 +424,7 @@ export default function HomePage() {
     } else if (action === 'affirmation') {
       setIsNewAffirmationOpen(true);
     } else {
-      handleOpenNewRampage();
+      handleOpenNewRampage({ customize: true });
     }
   }, [handleOpenNewRampage]);
 
@@ -894,6 +896,7 @@ export default function HomePage() {
                     onToggleRampagePlayback={handleToggleRampagePlayback}
                     onRestoreRampage={handleRestoreRampage}
                     currentPlayingId={currentPlayingRampageId}
+                    onViewAllRampages={() => setActiveTab('rampage')}
                   />
                 )}
 
@@ -997,7 +1000,10 @@ export default function HomePage() {
 
       <RampagePlayerModal
         isOpen={isRampageOpen}
-        onClose={() => setIsRampageOpen(false)}
+        onClose={() => {
+          setIsRampageOpen(false);
+          setInitialCustomizerOpen(false);
+        }}
         onRestore={handleRestoreRampage}
         openMode={rampageOpenMode}
         resumeRampage={rampageToResume}
@@ -1008,6 +1014,7 @@ export default function HomePage() {
         registerTogglePlayback={handleRegisterTogglePlayback}
         registerSessionControls={handleRegisterSessionControls}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
+        initialCustomizerOpen={initialCustomizerOpen}
       />
 
       <RampageGuardModal

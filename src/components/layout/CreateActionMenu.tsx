@@ -58,7 +58,7 @@ const actions = [
   {
     id: 'rampage' as const,
     title: 'Rampage',
-    description: 'Empezá a escuchar ahora',
+    description: 'Personalizá y escuchá con IA',
     icon: Sparkles,
     color: 'bg-[color:var(--pastel-peri)] text-[color:var(--pastel-peri-ink)]',
   },

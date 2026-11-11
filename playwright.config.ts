@@ -18,7 +18,7 @@ export default defineConfig({
     isMobile: true,
     hasTouch: true,
     colorScheme: 'light',
-    trace: 'retain-on-failure',
+    trace: 'off',
     screenshot: 'only-on-failure',
     video: 'off',
   },
@@ -31,7 +31,7 @@ export default defineConfig({
   webServer: {
     command: `npm run db:local:fresh && TURSO_DATABASE_URL=file:/tmp/manifest-narrative-test.db TURSO_AUTH_TOKEN= AI_SANDBOX=true next dev --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     stdout: 'pipe',
     stderr: 'pipe',

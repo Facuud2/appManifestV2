@@ -81,6 +81,7 @@ interface RampagePlayerModalProps {
   registerTogglePlayback?: (toggleFn: () => void) => void;
   registerSessionControls?: (controls: RampageSessionControls) => void;
   onOpenCalibration?: () => void;
+  initialCustomizerOpen?: boolean;
 }
 
 interface RampageModeOption {
@@ -162,6 +163,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   registerTogglePlayback,
   registerSessionControls,
   onOpenCalibration,
+  initialCustomizerOpen = false,
 }) => {
   const {
     activeScope,
@@ -763,6 +765,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.stopPropagation();
+      if (isCustomizerOpen) {
+        setIsCustomizerOpen(false);
+        return;
+      }
       handleClose();
       return;
     }
@@ -810,11 +816,13 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       setHasStarted(false);
       setIsAwaitingVoiceCalibration(false);
       setIsSaveDecisionOpen(false);
+      setIsCustomizerOpen(false);
       return;
     }
 
     if (openMode === 'restore' || openMode === 'pinned') {
       setIsMinimized(false);
+      setIsCustomizerOpen(false);
       return;
     }
 
@@ -845,14 +853,19 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     setGenerationError('');
     setAudioPreparationWarning('');
     setSetupError('');
-    setDraftTitle(centralTheme || 'Rampage Nocturno');
+    setDraftTitle(initialCustomizerOpen ? (centralTheme || '') : (centralTheme || 'Rampage Nocturno'));
     setDraftDetails('');
     setSelectedCount(11);
     setIsSaveDecisionOpen(false);
     setIsSavedToSanctuary(false);
     setIsAwaitingVoiceCalibration(false);
     isNewSessionRef.current = false;
-    activeRampageRef.current = { title: centralTheme || 'Rampage Nocturno', details: '', count: 11 };
+    setIsCustomizerOpen(Boolean(initialCustomizerOpen));
+    activeRampageRef.current = {
+      title: centralTheme || (initialCustomizerOpen ? 'Personalizar Rampage' : 'Rampage Nocturno'),
+      details: '',
+      count: 11,
+    };
     activeRampageScopeRef.current = activeScopeRef.current;
     activeProfileAffirmationsRef.current = profileAffirmationsRef.current;
     activeProfileManifestationsRef.current = profileManifestationsRef.current;
@@ -896,7 +909,17 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     isPlayingRef.current = false;
     setCurrentVoiceSpeaker(getSpeakerForText(initialQueue[0] || '', 0));
     void preloadSetStaggered(initialQueue);
-  }, [centralTheme, getSpeakerForText, isMinimized, isOpen, openMode, preloadSetStaggered, resumeRampage]);
+  }, [centralTheme, getSpeakerForText, initialCustomizerOpen, isMinimized, isOpen, openMode, preloadSetStaggered, resumeRampage]);
+
+  useEffect(() => {
+    if (isCustomizerOpen) {
+      const timer = window.setTimeout(() => {
+        const input = document.getElementById('custom-topic');
+        input?.focus();
+      }, 150);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isCustomizerOpen]);
 
   useEffect(() => {
     if (!resumeRampage || resumeRequestId === 0) return;
@@ -1143,6 +1166,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
           setAffirmationQueue(shuffledQueue);
           nextIndex = 0;
           setCompletedCyclesCount((cycles) => cycles + 1);
+          if (activeRampageSetRef.current?.id) {
+            touchRampageLastPlayed(activeRampageSetRef.current.id);
+          }
         }
 
         setCurrentAffirmationIndex(nextIndex);
@@ -1252,6 +1278,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       isPlayingRef.current = true;
       if (ambientSound !== 'none') {
         audioEngine.setAmbience(ambientSound as AmbienceType);
+      }
+      if (activeRampageSetRef.current?.id) {
+        touchRampageLastPlayed(activeRampageSetRef.current.id);
       }
       void playCurrentItem(currentAffirmationIndex);
     }
@@ -1390,6 +1419,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       setAffirmationQueue(shuffled);
       nextIndex = 0;
       setCompletedCyclesCount((cycles) => cycles + 1);
+      if (activeRampageSetRef.current?.id) {
+        touchRampageLastPlayed(activeRampageSetRef.current.id);
+      }
     }
 
     setCurrentAffirmationIndex(nextIndex);
@@ -1786,14 +1818,16 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 z-30 flex flex-col justify-end bg-black/60 backdrop-blur-sm p-4"
+                    onClick={() => setIsCustomizerOpen(false)}
+                    className="absolute inset-0 z-30 flex flex-col justify-end bg-black/60 backdrop-blur-sm p-4 cursor-pointer"
                   >
                     <motion.div
                       initial={{ y: 80, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ y: 80, opacity: 0 }}
                       transition={APPLE_ELASTIC_SPRING}
-                      className="rampage-surface rounded-[24px] border border-white/15 p-5 text-white shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
+                      className="rampage-surface rounded-[24px] border border-white/15 p-5 text-white shadow-2xl cursor-default"
                     >
                       <div className="flex items-center justify-between pb-3 border-b border-white/10">
                         <div className="flex items-center gap-2">
@@ -1803,7 +1837,8 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => setIsCustomizerOpen(false)}
-                          className="rounded-full p-1 text-white/70 hover:bg-white/10"
+                          aria-label="Cerrar personalizador"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10 active:scale-95 transition-all"
                         >
                           <X size={16} />
                         </button>
@@ -2084,7 +2119,6 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
               type="button"
               onClick={onRestore}
               className="lg-content min-w-0 flex-1 min-h-[44px] flex flex-col justify-center rounded-[12px] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
-              aria-label={`Abrir reproductor de ${activeRampageRef.current.title}`}
             >
               <span className="block truncate text-sm font-semibold">
                 {activeRampageRef.current.title}

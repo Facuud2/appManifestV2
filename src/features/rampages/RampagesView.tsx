@@ -18,11 +18,13 @@ import {
   Check,
   X,
   Volume2,
+  Search,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { RampageSet, AmbientSoundType } from '@/types';
 import { APPLE_ELASTIC_SPRING, EMIL_EASE_OUT, STAGGER_CONTAINER, STAGGER_ITEM } from '@/lib/iosSprings';
 import { RampageAudioWaveform } from '@/components/goals/RampageAudioWaveform';
+import { DeleteRampageModal } from '@/components/goals/DeleteRampageModal';
 
 interface RampagesViewProps {
   onOpenNewRampage: () => void;
@@ -31,10 +33,41 @@ interface RampagesViewProps {
   currentPlayingId?: string;
 }
 
-const AMBIENT_OPTIONS: { id: AmbientSoundType; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-  { id: 'astral_rain', label: 'Lluvia astral', icon: CloudRain },
-  { id: 'white_noise', label: 'Ruido blanco', icon: Radio },
-  { id: 'none', label: 'Sin sonido ambiente', icon: VolumeX },
+const AMBIENT_OPTIONS: {
+  id: AmbientSoundType;
+  label: string;
+  subtitle: string;
+  badge: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+}[] = [
+  {
+    id: 'astral_rain',
+    label: 'Lluvia astral',
+    subtitle: 'Gotas binaurales y relajación profunda',
+    badge: 'Calma',
+    icon: CloudRain,
+  },
+  {
+    id: 'white_noise',
+    label: 'Ruido blanco',
+    subtitle: 'Aislamiento acústico y enfoque total',
+    badge: 'Enfoque',
+    icon: Radio,
+  },
+  {
+    id: 'none',
+    label: 'Sin sonido ambiente',
+    subtitle: 'Silencio puro, solo tu propia huella de voz',
+    badge: 'Voz pura',
+    icon: VolumeX,
+  },
+];
+
+const QUICK_INSPIRATION_TITLES = [
+  '⚡ Autoconcepto Invencible',
+  '💎 Abundancia y Flujo',
+  '🌙 Paz y Descanso Puro',
+  '🔥 Magnetismo Personal',
 ];
 
 export const RampagesView: React.FC<RampagesViewProps> = ({
@@ -78,6 +111,10 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
 
   const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
 
+  // Estados para modal de confirmación de eliminación
+  const [setToDelete, setSetToDelete] = useState<RampageSet | null>(null);
+  const [isDeletingSet, setIsDeletingSet] = useState(false);
+
   // Estados para modal de crear / editar Set
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingSet, setEditingSet] = useState<RampageSet | null>(null);
@@ -85,19 +122,37 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
   const [editorAmbient, setEditorAmbient] = useState<AmbientSoundType>('astral_rain');
   const [editorPhrases, setEditorPhrases] = useState<string[]>([]);
   const [newPhraseInput, setNewPhraseInput] = useState('');
+  const [libraryFilter, setLibraryFilter] = useState('');
+  const [isLibraryExpanded, setIsLibraryExpanded] = useState(false);
   const [editorError, setEditorError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const editorDialogRef = React.useRef<HTMLDivElement>(null);
+
+  const filteredAffirmations = useMemo(() => {
+    if (!libraryFilter.trim()) return userAffirmations;
+    const term = libraryFilter.toLowerCase();
+    return userAffirmations.filter((a) => a.text.toLowerCase().includes(term));
+  }, [userAffirmations, libraryFilter]);
+
+  const estimatedLoopSeconds = useMemo(() => {
+    // Estimación táctil: ~6 segundos por decreto más breve pausa
+    return editorPhrases.length * 6;
+  }, [editorPhrases.length]);
 
   // Abrir editor para un set nuevo
   const handleOpenNewEditor = () => {
     setEditingSet(null);
     setEditorTitle('');
     setEditorAmbient('astral_rain');
-    // Pre-cargar con 3 sugerencias vacías o dejar que el usuario agregue
     setEditorPhrases([]);
     setNewPhraseInput('');
+    setLibraryFilter('');
+    setIsLibraryExpanded(false);
     setEditorError('');
     setIsEditorOpen(true);
+    requestAnimationFrame(() => {
+      editorDialogRef.current?.focus();
+    });
   };
 
   // Abrir editor para modificar un set existente
@@ -107,8 +162,13 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
     setEditorAmbient(set.ambientSound || 'astral_rain');
     setEditorPhrases(set.affirmations.map((a) => a.text));
     setNewPhraseInput('');
+    setLibraryFilter('');
+    setIsLibraryExpanded(false);
     setEditorError('');
     setIsEditorOpen(true);
+    requestAnimationFrame(() => {
+      editorDialogRef.current?.focus();
+    });
   };
 
   const handleAddPhrase = () => {
@@ -120,6 +180,28 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
 
   const handleRemovePhrase = (index: number) => {
     setEditorPhrases((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMovePhraseUp = (index: number) => {
+    if (index <= 0) return;
+    setEditorPhrases((prev) => {
+      const next = [...prev];
+      const temp = next[index - 1];
+      next[index - 1] = next[index];
+      next[index] = temp;
+      return next;
+    });
+  };
+
+  const handleMovePhraseDown = (index: number) => {
+    setEditorPhrases((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const next = [...prev];
+      const temp = next[index + 1];
+      next[index + 1] = next[index];
+      next[index] = temp;
+      return next;
+    });
   };
 
   const handleAddFromLibrary = (text: string) => {
@@ -175,10 +257,26 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
     }
   };
 
-  const handleDeleteSet = async (id: string, title: string) => {
-    if (window.confirm(`¿Seguro que deseas eliminar el set "${title}"?`)) {
-      await deleteRampageSet(id);
+  const handleOpenDeleteModal = (set: RampageSet) => {
+    setSetToDelete(set);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!setToDelete) return;
+    setIsDeletingSet(true);
+    try {
+      await deleteRampageSet(setToDelete.id);
+      setSetToDelete(null);
+    } catch (err) {
+      console.error('Error al eliminar set de rampage:', err);
+    } finally {
+      setIsDeletingSet(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    if (isDeletingSet) return;
+    setSetToDelete(null);
   };
 
   return (
@@ -363,7 +461,7 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteSet(rampage.id, rampage.title)}
+                      onClick={() => handleOpenDeleteModal(rampage)}
                       aria-label={`Eliminar ${rampage.title}`}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500/70 hover:bg-red-500/10 hover:text-red-600 transition-colors"
                       title="Eliminar set"
@@ -387,29 +485,37 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
             onClick={() => setIsEditorOpen(false)}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-4 backdrop-blur-md"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 14 }}
+              ref={editorDialogRef}
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
               transition={APPLE_ELASTIC_SPRING}
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setIsEditorOpen(false);
+              }}
               role="dialog"
               aria-modal="true"
               aria-labelledby="rampage-editor-title"
-              className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[26px] border border-[color:var(--glass-border)] bg-[color:var(--bg-card)] p-6 text-swiss-ink shadow-2xl"
+              className="swiss-modal relative flex flex-col w-full max-w-xl max-h-[92dvh] sm:max-w-2xl rounded-t-[var(--radius-modal)] sm:rounded-[var(--radius-modal)] border border-[color:var(--glass-border)] bg-[color:var(--color-modal-surface)] p-5 sm:p-7 text-swiss-ink shadow-modal overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-[color:var(--border-subtle)] pb-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-swiss-accent/15 text-swiss-accentText">
-                    <Headphones size={18} />
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-[color:var(--border-subtle)] pb-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-swiss-accent/15 text-swiss-accentText ring-1 ring-swiss-accent/25 shadow-sm">
+                    <Headphones size={20} />
                   </span>
                   <div>
-                    <h3 id="rampage-editor-title" className="text-base font-semibold leading-tight">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-swiss-accentText font-semibold">
+                      Estudio de Rampages
+                    </span>
+                    <h3 id="rampage-editor-title" className="text-lg font-semibold leading-tight text-swiss-ink">
                       {editingSet ? 'Modificar Set de Rampage' : 'Crear Set de Rampage Propio'}
                     </h3>
-                    <p className="text-xs text-swiss-ink-muted">
+                    <p className="mt-0.5 text-xs text-swiss-ink-muted">
                       Arma tu colección personalizada de afirmaciones.
                     </p>
                   </div>
@@ -417,42 +523,66 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditorOpen(false)}
-                  className="rounded-full p-1.5 text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink transition-colors"
+                  aria-label="Cerrar creador de Rampage"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-swiss-ink-muted transition-colors hover:bg-swiss-control hover:text-swiss-ink focus-visible:ring-2 focus-visible:ring-swiss-focus"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveSet} className="mt-5 space-y-5">
+              {/* Formulario scrollable */}
+              <form onSubmit={handleSaveSet} className="mt-5 space-y-6 overflow-y-auto pr-1">
                 {editorError && (
-                  <p className="rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs font-medium text-red-600 dark:text-red-400">
-                    {editorError}
-                  </p>
+                  <div className="rounded-xl border border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger-bg)] p-3 text-xs font-medium text-swiss-red flex items-center gap-2">
+                    <span>{editorError}</span>
+                  </div>
                 )}
 
-                {/* Título */}
-                <div>
-                  <label htmlFor="rampage-title" className="block text-xs font-semibold text-swiss-ink">
-                    Título del Rampage
-                  </label>
+                {/* 1. Título */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="rampage-title" className="block text-xs font-semibold uppercase tracking-wider text-swiss-ink">
+                      1. Título del Rampage
+                    </label>
+                    <span className="text-[11px] text-swiss-ink-light">
+                      {editorTitle.length}/100
+                    </span>
+                  </div>
                   <input
                     id="rampage-title"
                     type="text"
                     value={editorTitle}
                     onChange={(e) => setEditorTitle(e.target.value)}
                     placeholder="Ej. Despertar en Abundancia, Autoconcepto Puro…"
-                    className="swiss-input mt-1.5 w-full text-sm"
+                    className="swiss-input w-full px-3.5 py-2.5 text-sm font-medium"
                     maxLength={100}
                     required
                   />
+
+                  {/* Sugerencias rápidas de título */}
+                  {!editorTitle.trim() && (
+                    <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-swiss-ink-light">Inspiración:</span>
+                      {QUICK_INSPIRATION_TITLES.map((titleSuggestion) => (
+                        <button
+                          key={titleSuggestion}
+                          type="button"
+                          onClick={() => setEditorTitle(titleSuggestion)}
+                          className="rounded-full border border-[color:var(--border-subtle)] bg-swiss-surface/60 px-2.5 py-0.5 text-[11px] text-swiss-ink hover:border-swiss-accent hover:text-swiss-accentText transition-all"
+                        >
+                          {titleSuggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Sonido ambiente */}
-                <div>
-                  <label className="block text-xs font-semibold text-swiss-ink mb-1.5">
-                    Ambiente Sonoro de Inmersión
+                {/* 2. Sonido ambiente */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-swiss-ink">
+                    2. Ambiente Sonoro de Inmersión
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {AMBIENT_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
                       const isSelected = editorAmbient === opt.id;
@@ -460,29 +590,78 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
                         <button
                           key={opt.id}
                           type="button"
+                          role="radio"
+                          aria-checked={isSelected}
                           onClick={() => setEditorAmbient(opt.id)}
-                          className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-xs transition-colors ${
+                          className={`group relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all ${
                             isSelected
-                              ? 'border-swiss-accent bg-swiss-accent/10 font-semibold text-swiss-accentText'
-                              : 'border-[color:var(--border-subtle)] text-swiss-ink-muted hover:bg-swiss-control'
+                              ? 'border-swiss-accent bg-swiss-accent/10 shadow-[0_0_24px_-6px_var(--color-accent-subtle)] ring-1 ring-swiss-accent/40'
+                              : 'border-[color:var(--border-subtle)] bg-swiss-surface/40 hover:bg-swiss-control/70 hover:border-swiss-border text-swiss-ink'
                           }`}
                         >
-                          <Icon size={16} />
-                          <span className="text-[11px] leading-tight text-center">{opt.label}</span>
+                          <div className="flex items-center justify-between w-full">
+                            <span
+                              className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+                                isSelected
+                                  ? 'bg-swiss-accent text-swiss-accentFg'
+                                  : 'bg-swiss-control text-swiss-ink-muted group-hover:text-swiss-ink'
+                              }`}
+                            >
+                              <Icon size={16} />
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                isSelected
+                                  ? 'bg-swiss-accent/20 text-swiss-accentText font-semibold'
+                                  : 'bg-swiss-control/60 text-swiss-ink-light'
+                              }`}
+                            >
+                              {opt.badge}
+                            </span>
+                          </div>
+                          <div className="mt-2.5">
+                            <span
+                              className={`text-xs font-semibold leading-tight block ${
+                                isSelected ? 'text-swiss-accentText' : 'text-swiss-ink'
+                              }`}
+                            >
+                              {opt.label}
+                            </span>
+                            <p className="mt-0.5 text-[11px] leading-snug text-swiss-ink-muted">
+                              {opt.subtitle}
+                            </p>
+                          </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Agregar frases */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-swiss-ink">
-                      Afirmaciones del Set ({editorPhrases.length})
-                    </label>
+                {/* 3. Afirmaciones del Set */}
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-swiss-ink">
+                        3. Afirmaciones del Set ({editorPhrases.length})
+                      </label>
+                      {editorPhrases.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-swiss-accent/15 px-2.5 py-0.5 text-[10px] font-semibold text-swiss-accentText border border-swiss-accent/25">
+                          ~{estimatedLoopSeconds}s por ciclo continuo
+                        </span>
+                      )}
+                    </div>
+                    {editorPhrases.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setEditorPhrases([])}
+                        className="text-[11px] text-swiss-ink-muted hover:text-swiss-red transition-colors"
+                      >
+                        Limpiar lista
+                      </button>
+                    )}
                   </div>
 
+                  {/* Input para nueva afirmación */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -495,12 +674,13 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
                         }
                       }}
                       placeholder="Escribe una afirmación en primera persona…"
-                      className="swiss-input flex-1 text-xs sm:text-sm"
+                      className="swiss-input flex-1 px-3.5 py-2.5 text-xs sm:text-sm font-medium"
                     />
                     <button
                       type="button"
                       onClick={handleAddPhrase}
-                      className="swiss-btn-secondary shrink-0 px-3.5 text-xs font-semibold"
+                      disabled={!newPhraseInput.trim()}
+                      className="swiss-btn-secondary shrink-0 px-4 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:border-swiss-accent transition-all"
                     >
                       <Plus size={15} />
                       <span>Agregar</span>
@@ -509,86 +689,203 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
 
                   {/* Decretos sugeridos desde la biblioteca */}
                   {userAffirmations.length > 0 && (
-                    <div className="mt-2.5">
-                      <p className="text-[11px] text-swiss-ink-light mb-1">
-                        O agrega de tus afirmaciones guardadas:
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {userAffirmations.slice(0, 8).map((aff) => {
-                          const alreadyAdded = editorPhrases.includes(aff.text);
-                          return (
-                            <button
-                              key={aff.id}
-                              type="button"
-                              disabled={alreadyAdded}
-                              onClick={() => handleAddFromLibrary(aff.text)}
-                              className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors truncate max-w-[200px] ${
-                                alreadyAdded
-                                  ? 'border-transparent bg-swiss-control opacity-50 text-swiss-ink-light'
-                                  : 'border-[color:var(--border-subtle)] bg-swiss-surface text-swiss-ink hover:border-swiss-accent'
-                              }`}
-                              title={aff.text}
-                            >
-                              + {aff.text}
-                            </button>
-                          );
-                        })}
+                    <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-swiss-surface/30 p-3 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsLibraryExpanded(!isLibraryExpanded)}
+                          className="flex items-center gap-2 text-left group"
+                        >
+                          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-swiss-control text-swiss-ink-muted group-hover:text-swiss-ink">
+                            <Sparkles size={12} />
+                          </span>
+                          <span className="text-xs font-semibold text-swiss-ink group-hover:text-swiss-accentText transition-colors">
+                            Decretos de tu biblioteca ({userAffirmations.length})
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            className={`text-swiss-ink-muted transition-transform duration-200 ${
+                              isLibraryExpanded ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+
+                        {isLibraryExpanded && userAffirmations.length > 3 && (
+                          <div className="relative">
+                            <input
+                              type="search"
+                              value={libraryFilter}
+                              onChange={(e) => setLibraryFilter(e.target.value)}
+                              placeholder="Filtrar…"
+                              className="h-7 w-32 sm:w-44 rounded-lg border border-[color:var(--border-subtle)] bg-swiss-control/60 px-2 text-[11px] text-swiss-ink placeholder:text-swiss-ink-light focus:outline-none focus:border-swiss-accent"
+                            />
+                          </div>
+                        )}
                       </div>
+
+                      <AnimatePresence initial={false}>
+                        {isLibraryExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.18, ease: EMIL_EASE_OUT }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-3 flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                              {filteredAffirmations.length === 0 ? (
+                                <p className="py-2 text-[11px] text-swiss-ink-muted italic">
+                                  No se encontraron afirmaciones con ese término.
+                                </p>
+                              ) : (
+                                filteredAffirmations.map((aff) => {
+                                  const alreadyAdded = editorPhrases.includes(aff.text);
+                                  return (
+                                    <button
+                                      key={aff.id}
+                                      type="button"
+                                      onClick={() => {
+                                        if (alreadyAdded) {
+                                          const idx = editorPhrases.indexOf(aff.text);
+                                          if (idx >= 0) handleRemovePhrase(idx);
+                                        } else {
+                                          handleAddFromLibrary(aff.text);
+                                        }
+                                      }}
+                                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] leading-snug transition-all text-left ${
+                                        alreadyAdded
+                                          ? 'border-swiss-accent/40 bg-swiss-accent/15 text-swiss-accentText font-medium'
+                                          : 'border-[color:var(--border-subtle)] bg-swiss-surface text-swiss-ink hover:border-swiss-border hover:bg-swiss-control'
+                                      }`}
+                                      title={aff.text}
+                                    >
+                                      <span
+                                        className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[9px] ${
+                                          alreadyAdded
+                                            ? 'bg-swiss-accent text-swiss-accentFg'
+                                            : 'bg-swiss-control text-swiss-ink-muted'
+                                        }`}
+                                      >
+                                        {alreadyAdded ? '✓' : '+'}
+                                      </span>
+                                      <span className="line-clamp-1 max-w-[220px] sm:max-w-[300px]">
+                                        {aff.text}
+                                      </span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   )}
 
-                  {/* Lista actual de frases */}
-                  <div className="mt-3 max-h-48 overflow-y-auto space-y-1.5 rounded-xl border border-[color:var(--border-subtle)] bg-swiss-surface p-2.5">
-                    {editorPhrases.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-swiss-ink-muted">
-                        No has agregado afirmaciones aún.
-                      </p>
-                    ) : (
-                      editorPhrases.map((phrase, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between gap-2 rounded-lg bg-[color:var(--bg-card)] px-3 py-1.5 text-xs text-swiss-ink"
-                        >
-                          <span className="font-semibold text-swiss-accentText text-[11px] shrink-0">
-                            {idx + 1}.
+                  {/* Lista actual de frases de la secuencia */}
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-semibold text-swiss-ink-light uppercase tracking-wider">
+                      Secuencia en bucle:
+                    </p>
+                    <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-2xl border border-[color:var(--border-subtle)] bg-swiss-surface/40 p-2.5">
+                      {editorPhrases.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-7 text-center">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-swiss-control text-swiss-ink-muted mb-2">
+                            <Headphones size={20} />
                           </span>
-                          <span className="flex-1 truncate">{phrase}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePhrase(idx)}
-                            className="text-red-500 hover:text-red-600 transition-colors p-1"
-                          >
-                            <X size={14} />
-                          </button>
+                          <p className="text-xs font-semibold text-swiss-ink">
+                            No has agregado afirmaciones aún.
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-swiss-ink-muted max-w-xs">
+                            Escribe tus decretos arriba o selecciónalos de tu biblioteca para armar la pista continua.
+                          </p>
                         </div>
-                      ))
-                    )}
+                      ) : (
+                        editorPhrases.map((phrase, idx) => (
+                          <div
+                            key={`${phrase}_${idx}`}
+                            className="group flex items-center justify-between gap-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-[color:var(--color-surface-card)] px-3 py-2 text-xs text-swiss-ink shadow-sm transition-all hover:border-swiss-border"
+                          >
+                            <span className="font-mono text-[10px] font-semibold text-swiss-accentText shrink-0 w-5">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                            <span className="flex-1 font-medium leading-relaxed select-text">
+                              {phrase}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMovePhraseUp(idx)}
+                                aria-label="Mover hacia arriba"
+                                className="rounded-lg p-1 text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
+                              >
+                                <ChevronUp size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === editorPhrases.length - 1}
+                                onClick={() => handleMovePhraseDown(idx)}
+                                aria-label="Mover hacia abajo"
+                                className="rounded-lg p-1 text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
+                              >
+                                <ChevronDown size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhrase(idx)}
+                                aria-label="Quitar afirmación"
+                                className="rounded-lg p-1 text-swiss-ink-muted hover:bg-[color:var(--color-danger-bg)] hover:text-swiss-red transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Botones de guardar */}
-                <div className="flex items-center justify-end gap-2.5 border-t border-[color:var(--border-subtle)] pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditorOpen(false)}
-                    className="swiss-btn-secondary px-4 py-2 text-xs font-semibold"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="swiss-btn-primary inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold shadow-card"
-                  >
-                    <Check size={14} />
-                    <span>{isSaving ? 'Guardando…' : editingSet ? 'Guardar Cambios' : 'Crear Rampage'}</span>
-                  </button>
+                <div className="flex items-center justify-between border-t border-[color:var(--border-subtle)] pt-4 mt-2">
+                  <div className="hidden sm:flex items-center gap-1.5 text-xs text-swiss-ink-muted">
+                    <Headphones size={13} className="text-swiss-accentText" />
+                    <span>Audio continuo con tu voz calibrada</span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditorOpen(false)}
+                      className="swiss-btn-secondary px-4 py-2 text-xs font-semibold"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="swiss-btn-primary inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold shadow-card disabled:opacity-50"
+                    >
+                      <Check size={14} />
+                      <span>{isSaving ? 'Guardando…' : editingSet ? 'Guardar Cambios' : 'Crear Rampage'}</span>
+                    </button>
+                  </div>
                 </div>
               </form>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal de confirmación para eliminar Set de Rampage */}
+      <DeleteRampageModal
+        isOpen={Boolean(setToDelete)}
+        rampage={setToDelete}
+        isDeleting={isDeletingSet}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   );
 };

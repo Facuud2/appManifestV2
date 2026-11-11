@@ -20,6 +20,15 @@ test.describe('Rampages y Sets de Afirmaciones', () => {
     // En el Dashboard, el reproductor debe estar presente arriba
     const continuePlayer = page.locator('[data-testid="continue-listening-player"], [data-testid="continue-listening-uncalibrated"]');
     await expect(continuePlayer).toBeVisible();
+
+    // Debajo de los rampages previamente guardados, debe estar el botón "Ver todos los rampage"
+    const viewAllBtn = page.getByRole('button', { name: /Ver todos los rampage/i });
+    await expect(viewAllBtn).toBeVisible();
+
+    // Al hacer click, debe navegar a la sección de Rampages
+    await viewAllBtn.click();
+    const rampagesHeading = page.getByRole('heading', { name: 'Rampages', exact: true });
+    await expect(rampagesHeading).toBeVisible();
   });
 
   test('Flujo en Escritorio: Botón Rampages en la barra lateral y navegación a la sección Rampages', async ({
@@ -73,6 +82,41 @@ test.describe('Rampages y Sets de Afirmaciones', () => {
     // El modal debe cerrarse y el nuevo set debe verse en la lista
     await expect(editorModal).not.toBeVisible();
     await expect(page.getByText('Set de Prueba E2E')).toBeVisible();
+
+    // Comprobar eliminación con el nuevo modal interactivo (sin window.confirm)
+    let dialogTriggered = false;
+    page.on('dialog', () => {
+      dialogTriggered = true;
+    });
+
+    const setArticle = page.locator('article', { hasText: 'Set de Prueba E2E' });
+    const deleteBtn = setArticle.getByRole('button', { name: /Eliminar Set de Prueba E2E/i });
+    await expect(deleteBtn).toBeVisible();
+
+    // 1. Abrir modal de eliminación
+    await deleteBtn.click();
+    expect(dialogTriggered).toBe(false); // No debe abrir alert ni confirm del navegador
+
+    const deleteModal = page.getByRole('alertdialog');
+    await expect(deleteModal).toBeVisible();
+    await expect(deleteModal.getByText(/¿Eliminar este set de Rampage\?/i)).toBeVisible();
+    await expect(deleteModal.getByText('Set de Prueba E2E')).toBeVisible();
+
+    // 2. Cancelar la eliminación
+    const cancelBtn = deleteModal.getByRole('button', { name: /Cancelar/i });
+    await cancelBtn.click();
+    await expect(deleteModal).not.toBeVisible();
+    await expect(page.getByText('Set de Prueba E2E')).toBeVisible();
+
+    // 3. Abrir de nuevo y confirmar eliminación
+    await deleteBtn.click();
+    await expect(deleteModal).toBeVisible();
+    const confirmDeleteBtn = deleteModal.getByRole('button', { name: /Eliminar set/i });
+    await confirmDeleteBtn.click();
+
+    // Modal se cierra y el set desaparece
+    await expect(deleteModal).not.toBeVisible();
+    await expect(page.getByText('Set de Prueba E2E')).not.toBeVisible();
   });
 
   test('Detección de sesión activa: Popup solo aparece cuando hay un rampage activo sin guardar', async ({
@@ -161,5 +205,95 @@ test.describe('Rampages y Sets de Afirmaciones', () => {
     await expect(guardModal).toBeVisible();
     await discardBtn.click();
     await expect(guardModal).not.toBeVisible();
+  });
+
+  test('Al pulsar sobre el orbe para crear un rampage, abre el menú de personalización', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // Ocultar dev fixture toggle si está presente para no interceptar clics
+    await page.addStyleTag({
+      content: '[data-testid="break-ui-toggle"]{display:none !important;pointer-events:none !important;}',
+    });
+
+    // 1. Pulsar sobre el orbe en el Dashboard para abrir el menú de creación
+    const heroOrb = page.locator('button.hero-orb');
+    await expect(heroOrb).toBeVisible();
+    await heroOrb.click({ force: true });
+
+    // 2. En el menú de creación, seleccionar la opción "Rampage" visible (sea móvil o escritorio)
+    const rampageActionBtn = page.locator('.create-action:visible', { hasText: 'Rampage' });
+    await expect(rampageActionBtn).toBeVisible();
+    await rampageActionBtn.click({ force: true });
+
+    // 3. Debe abrir el reproductor y desplegar INMEDIATAMENTE el menú de personalización
+    const customizerHeading = page.getByRole('heading', { name: /Personalizar tu Rampage/i });
+    await expect(customizerHeading).toBeVisible();
+
+    const topicInput = page.locator('#custom-topic');
+    await expect(topicInput).toBeVisible();
+
+    // 4. El usuario puede escribir su intención personalizada
+    await topicInput.fill('Abundancia y éxito absoluto en mis proyectos');
+    await expect(topicInput).toHaveValue('Abundancia y éxito absoluto en mis proyectos');
+
+    // 5. El botón de generación con IA está listo para iniciar
+    const generateBtn = page.getByRole('button', { name: /Generar con IA y Reproducir/i });
+    await expect(generateBtn).toBeVisible();
+  });
+
+  test('Al crear un nuevo rampage y luego otro, el anterior cuenta como reproducido 1 vez y se coloca bajo el reproductor', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    // 1. Ir a la sección Rampages y crear el primer Rampage (Set 1)
+    const sidebar = page.locator('aside[aria-label="Navegación lateral"]');
+    await sidebar.getByRole('button', { name: /Rampages/i }).click();
+
+    await page.getByRole('button', { name: /Crear Set Propio/i }).click();
+    const editorModal = page.getByRole('dialog', { name: /Crear Set de Rampage Propio/i });
+    await expect(editorModal).toBeVisible();
+
+    await page.fill('#rampage-title', 'Primer Rampage de Prueba');
+    const phraseInput = page.getByPlaceholder(/Escribe una afirmación en primera persona/i);
+    await phraseInput.fill('Mi energía crea abundancia ilimitada');
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /Crear Rampage/i }).click();
+    await expect(editorModal).not.toBeVisible();
+
+    // 2. Crear el segundo Rampage (Set 2)
+    await page.getByRole('button', { name: /Crear Set Propio/i }).click();
+    await expect(editorModal).toBeVisible();
+    await page.fill('#rampage-title', 'Segundo Rampage de Prueba');
+    await phraseInput.fill('Todo fluye en perfecta armonía y paz');
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /Crear Rampage/i }).click();
+    await expect(editorModal).not.toBeVisible();
+
+    // 3. Volver al Inicio / Dashboard
+    await sidebar.getByRole('button', { name: /Inicio/i }).click();
+
+    // 4. El reproductor principal debe mostrar el último creado (Segundo Rampage de Prueba)
+    const continuePlayer = page.locator('[data-testid="continue-listening-player"]');
+    await expect(continuePlayer).toBeVisible();
+    await expect(continuePlayer.getByText('Segundo Rampage de Prueba')).toBeVisible();
+
+    // 5. Justo debajo del reproductor, en "Últimos reproducidos", debe figurar el primer rampage ("el anterior")
+    // contando como reproducido 1 vez
+    const recentBlock = page.locator('p:has-text("Últimos reproducidos")').locator('..').locator('..');
+    await expect(recentBlock).toBeVisible();
+    const previousCard = recentBlock.locator('div[role="button"]', { hasText: 'Primer Rampage de Prueba' });
+    await expect(previousCard).toBeVisible();
+    await expect(previousCard.getByText(/1 reproducción/i)).toBeVisible();
+
+    // 6. El rampage actualmente en el reproductor NO debe repetirse en el historial / últimos reproducidos
+    const activeCardInRecent = recentBlock.locator('div[role="button"]', { hasText: 'Segundo Rampage de Prueba' });
+    await expect(activeCardInRecent).not.toBeVisible();
   });
 });

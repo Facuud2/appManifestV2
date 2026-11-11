@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Check,
   ChevronRight,
   CloudRain,
   Feather,
@@ -21,7 +20,6 @@ import {
 } from 'lucide-react';
 import { useAppStore, readRecentRampageIds } from '@/store';
 import { RampageSet } from '@/types';
-import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { RampageAudioWaveform } from '@/components/goals/RampageAudioWaveform';
 import { audioEngine } from '@/lib/audioEngine';
 import {
@@ -34,7 +32,7 @@ interface DashboardViewProps {
   onOpenManifestations: () => void;
   onOpenNewManifestation: () => void;
   onOpenNewProgress: () => void;
-  onOpenRampage: () => void;
+  onOpenRampage: (options?: { customize?: boolean }) => void;
   onOpenCalibration?: () => void;
   onContinueRampage: (rampage: RampageSet) => void;
   isCreateMenuOpen: boolean;
@@ -44,9 +42,24 @@ interface DashboardViewProps {
   onToggleRampagePlayback?: () => void;
   onRestoreRampage?: () => void;
   currentPlayingId?: string;
+  onViewAllRampages?: () => void;
 }
 
 const SKELETON_WAVE_BARS = [12, 22, 30, 16, 26, 14, 24, 18, 28, 14, 20];
+
+const getRampageRepeatCount = (rampage: RampageSet): number => {
+  if (typeof (rampage as any).playCount === 'number' && (rampage as any).playCount > 0) {
+    return (rampage as any).playCount;
+  }
+  if (typeof (rampage as any).repeatCount === 'number' && (rampage as any).repeatCount > 0) {
+    return (rampage as any).repeatCount;
+  }
+  const maxAffRepeat = rampage.affirmations?.length
+    ? Math.max(0, ...rampage.affirmations.map((a) => a.repeatCount || 0))
+    : 0;
+  if (maxAffRepeat > 0) return maxAffRepeat;
+  return rampage.lastPlayedAt ? 1 : 1;
+};
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenManifestations,
@@ -62,6 +75,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onToggleRampagePlayback,
   onRestoreRampage,
   currentPlayingId,
+  onViewAllRampages,
 }) => {
   const {
     activeScope,
@@ -70,7 +84,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     manifestations: allManifestations,
     affirmations: allAffirmations,
     rampageSets: allRampageSets,
-    addAffirmation,
     incrementAffirmationRepeat,
   } = useAppStore();
 
@@ -85,25 +98,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         ? isFacuCalibrated
         : isFacuCalibrated || isMaiaCalibrated;
 
-  const [newAffirmationText, setNewAffirmationText] = useState('');
-  const [isAddingAffirmation, setIsAddingAffirmation] = useState(false);
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [affirmationError, setAffirmationError] = useState('');
-
   const featuredAffirmation =
     affirmations.find((affirmation) => affirmation.pinned) ?? affirmations[0];
-  const latestRampage = rampageSets[0];
+  const currentPlayingRampage = currentPlayingId
+    ? rampageSets.find((item) => item.id === currentPlayingId)
+    : null;
+  const latestRampage = currentPlayingRampage || rampageSets[0];
 
   const recentRampages = useMemo(() => {
+    const activeRampageId = currentPlayingId || latestRampage?.id;
+    const activeRampageTitle = latestRampage?.title.trim().toLowerCase();
+
+    const isExcluded = (s: RampageSet) =>
+      s.id === activeRampageId || (activeRampageTitle && s.title.trim().toLowerCase() === activeRampageTitle);
+
     const recentIds = readRecentRampageIds(activeScope);
     const setsMap = new Map(rampageSets.map((s) => [s.id, s]));
     const matched: RampageSet[] = [];
 
-    // 1. Prioridad: orden de IDs en localStorage
+    // 1. Prioridad: orden de IDs en localStorage (excluyendo el que se encuentra en el reproductor)
     for (const id of recentIds) {
       const found = setsMap.get(id);
       if (
         found &&
+        !isExcluded(found) &&
         !matched.some(
           (m) =>
             m.id === found.id ||
@@ -115,12 +133,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       if (matched.length >= 2) break;
     }
 
-    // 2. Si faltan, rellenar con sets que tengan lastPlayedAt
+    // 2. Si faltan, rellenar con sets que tengan lastPlayedAt (excluyendo el activo)
     if (matched.length < 2) {
       const withTimestamp = rampageSets
         .filter(
           (s) =>
             s.lastPlayedAt &&
+            !isExcluded(s) &&
             !matched.some(
               (m) =>
                 m.id === s.id ||
@@ -134,27 +153,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
     }
 
-    return matched;
-  }, [activeScope, rampageSets]);
-
-  const handleAddQuickAffirmation = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const text = newAffirmationText.trim();
-    if (!text || isAddingAffirmation) return;
-
-    setIsAddingAffirmation(true);
-    setAffirmationError('');
-    try {
-      await addAffirmation(text);
-      setNewAffirmationText('');
-      setIsComposerOpen(false);
-    } catch (error) {
-      console.error('No se pudo guardar la afirmación.', error);
-      setAffirmationError('No se pudo guardar. Inténtalo de nuevo.');
-    } finally {
-      setIsAddingAffirmation(false);
+    // 3. Si aún faltan y hay múltiples sets creados, alimentar la sección con los sets anteriores
+    if (matched.length < 2 && rampageSets.length > 1) {
+      const otherSets = rampageSets.filter((s) => !isExcluded(s));
+      for (const item of otherSets) {
+        if (
+          !matched.some(
+            (m) =>
+              m.id === item.id ||
+              m.title.trim().toLowerCase() === item.title.trim().toLowerCase()
+          )
+        ) {
+          matched.push(item);
+        }
+        if (matched.length >= 2) break;
+      }
     }
-  };
+
+    return matched;
+  }, [activeScope, currentPlayingId, latestRampage, rampageSets]);
 
   return (
     <motion.div
@@ -215,7 +232,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               type="button"
               onClick={(event) => onOpenCreateMenu(event.currentTarget)}
               aria-label={
-                isCreateMenuOpen ? 'Cerrar menú de creación' : 'Abrir menú de creación'
+                isCreateMenuOpen ? 'Cerrar menú de creación' : 'Crear: abrir menú de creación'
               }
               aria-expanded={isCreateMenuOpen}
               className="hero-orb hero-orb-button group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-swiss-focus focus-visible:ring-offset-4 focus-visible:ring-offset-swiss-card"
@@ -275,7 +292,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={onOpenRampage}
+                onClick={() => onOpenRampage()}
                 className="swiss-btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-swiss-focus"
               >
                 <Headphones size={15} aria-hidden="true" />
@@ -295,11 +312,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             type="button"
             onClick={onOpenManifestations}
             className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2 text-[0.8125rem] font-medium text-swiss-ink-muted transition-colors hover:text-swiss-accentText focus-visible:ring-2 focus-visible:ring-swiss-focus"
-            aria-label={`Ver todas tus intenciones. ${
+            aria-label={`Ver todo: intenciones guardadas (${
               manifestations.length === 1
                 ? '1 guardada'
                 : `${manifestations.length.toLocaleString('es-ES')} guardadas`
-            }`}
+            })`}
           >
             Ver todo
             <ChevronRight aria-hidden="true" size={15} />
@@ -309,7 +326,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <motion.div variants={STAGGER_CONTAINER} className="swiss-group">
           <motion.button
             type="button"
-            onClick={onOpenRampage}
+            onClick={() => onOpenRampage({ customize: true })}
             variants={STAGGER_ITEM}
             className="swiss-row action-card min-h-[4.25rem] gap-3.5 px-4 focus-visible:ring-2 focus-visible:ring-swiss-focus"
           >
@@ -381,29 +398,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h2 className="text-base font-semibold tracking-[-0.02em] text-swiss-ink sm:text-lg">
               Continuar escuchando
             </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setIsComposerOpen((open) => !open);
-                setAffirmationError('');
-              }}
-              aria-expanded={isComposerOpen}
-              aria-label={isComposerOpen ? 'Cerrar afirmación nueva' : 'Crear una afirmación nueva'}
-              className="swiss-pill inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-swiss-accentText transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={isComposerOpen ? 'close' : 'create'}
-                  initial={{ opacity: 0, rotate: -35, scale: 0.9 }}
-                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                  exit={{ opacity: 0, rotate: 35, scale: 0.9 }}
-                  transition={{ duration: 0.15, ease: EMIL_EASE_OUT }}
-                  className="flex"
-                >
-                  {isComposerOpen ? <X aria-hidden="true" size={16} /> : <Plus aria-hidden="true" size={16} />}
-                </motion.span>
-              </AnimatePresence>
-            </button>
           </div>
 
           {isCurrentProfileCalibrated ? (
@@ -477,11 +471,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   }
                 }}
                 className="min-w-0 flex-1 min-h-[44px] flex flex-col justify-center overflow-hidden rounded-lg text-left transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-swiss-focus"
-                aria-label={
-                  latestRampage?.affirmations.length
-                    ? `Abrir reproductor de ${latestRampage.title}`
-                    : 'Crear Rampage'
-                }
               >
                 {latestRampage?.affirmations.length ? (
                   <>
@@ -530,7 +519,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             onContinueRampage(rampage);
                           }
                         }}
-                        aria-label={`Reproducir ${rampage.title}`}
                         className={`group flex items-center justify-between gap-3 rounded-[16px] border bg-swiss-surface/80 p-2.5 transition-all cursor-pointer hover:bg-swiss-control ${
                           isPlayingThis
                             ? 'border-swiss-accent/60 ring-1 ring-swiss-accent/40 shadow-sm'
@@ -555,14 +543,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             <p className="truncate text-xs font-semibold text-swiss-ink">
                               {rampage.title}
                             </p>
-                            <p className="truncate text-[11px] text-swiss-ink-muted">
-                              {rampage.affirmations.length} afirmaciones
-                              {rampage.ambientSound === 'astral_rain'
-                                ? ' · Lluvia astral'
-                                : rampage.ambientSound === 'white_noise'
-                                ? ' · Ruido blanco'
-                                : ''}
-                            </p>
+                            <div className="flex items-center gap-1.5 truncate text-[11px] text-swiss-ink-muted">
+                              <span>{rampage.affirmations.length} afirmaciones</span>
+                              <span>·</span>
+                              <span className="inline-flex items-center gap-0.5 font-medium text-swiss-accentText">
+                                <Repeat size={10} aria-hidden="true" />
+                                <span>
+                                  {getRampageRepeatCount(rampage)}{' '}
+                                  {getRampageRepeatCount(rampage) === 1
+                                    ? 'reproducción'
+                                    : 'reproducciones'}
+                                </span>
+                              </span>
+                              {rampage.ambientSound === 'astral_rain' ? (
+                                <>
+                                  <span>·</span>
+                                  <span>Lluvia astral</span>
+                                </>
+                              ) : rampage.ambientSound === 'white_noise' ? (
+                                <>
+                                  <span>·</span>
+                                  <span>Ruido blanco</span>
+                                </>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
 
@@ -575,6 +579,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     );
                   })}
                 </div>
+
+                {/* Botón Ver todos los rampage debajo de los rampages previamente guardados */}
+                <div className="flex items-center justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={onViewAllRampages}
+                    aria-label="Ver todos los rampage"
+                    data-testid="view-all-rampages-btn"
+                    className="group inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-swiss-accentText transition-colors hover:bg-swiss-control focus-visible:ring-2 focus-visible:ring-swiss-focus"
+                  >
+                    <Headphones size={13} aria-hidden="true" className="shrink-0" />
+                    <span>Ver todos los rampage</span>
+                    <ChevronRight
+                      size={13}
+                      aria-hidden="true"
+                      className="shrink-0 transition-transform group-hover:translate-x-0.5"
+                    />
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="mt-3 flex items-center justify-between rounded-xl bg-swiss-surface/60 p-2.5 text-xs text-swiss-ink-muted border border-[color:var(--border-subtle)]">
@@ -582,13 +605,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Headphones size={15} className="text-swiss-accentText shrink-0" />
                   <span>Aún no tienes rampages reproducidos.</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={onOpenRampage}
-                  className="text-xs font-semibold text-swiss-accentText hover:underline"
-                >
-                  Probar primer Rampage
-                </button>
+                <div className="flex items-center gap-2">
+                  {rampageSets.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onViewAllRampages}
+                      aria-label="Ver todos los rampage"
+                      data-testid="view-all-rampages-empty-btn"
+                      className="group inline-flex items-center gap-1 text-xs font-semibold text-swiss-accentText hover:underline"
+                    >
+                      <Headphones size={12} aria-hidden="true" className="shrink-0" />
+                      <span>Ver todos los rampage</span>
+                      <ChevronRight
+                        size={12}
+                        aria-hidden="true"
+                        className="shrink-0 transition-transform group-hover:translate-x-0.5"
+                      />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenRampage()}
+                    className="text-xs font-semibold text-swiss-accentText hover:underline"
+                  >
+                    Probar primer Rampage
+                  </button>
+                </div>
               </div>
             )}
           </>
@@ -646,62 +688,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
           )}
-
-          <AnimatePresence initial={false}>
-            {isComposerOpen && (
-              <motion.form
-                key="quick-affirmation-composer"
-                onSubmit={handleAddQuickAffirmation}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.2, ease: EMIL_EASE_OUT }}
-                className="mt-4"
-              >
-                <label htmlFor="quick-affirmation" className="sr-only">
-                  Escribe una afirmación
-                </label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <div className="relative min-w-0 flex-1">
-                    <input
-                      id="quick-affirmation"
-                      type="text"
-                      value={newAffirmationText}
-                      onChange={(event) => setNewAffirmationText(event.target.value)}
-                      placeholder="Escribí una afirmación directa…"
-                      maxLength={500}
-                      className="swiss-input min-h-12 w-full px-4 pr-14 text-sm"
-                    />
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                      <VoiceDictationButton
-                        size="sm"
-                        className="min-h-11 min-w-11"
-                        onTranscript={(text) =>
-                          setNewAffirmationText((previous) =>
-                            previous ? `${previous} ${text}` : text,
-                          )
-                        }
-                        previousTextTail={newAffirmationText}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isAddingAffirmation || !newAffirmationText.trim()}
-                    className="swiss-btn-primary inline-flex min-h-12 shrink-0 items-center justify-center gap-2 px-5 text-sm disabled:opacity-50"
-                  >
-                    <Check aria-hidden="true" size={16} />
-                    {isAddingAffirmation ? 'Guardando…' : 'Guardar'}
-                  </button>
-                </div>
-                {affirmationError && (
-                  <p role="alert" className="mt-2 text-sm text-swiss-red">
-                    {affirmationError}
-                  </p>
-                )}
-              </motion.form>
-            )}
-          </AnimatePresence>
 
           {featuredAffirmation && (
             <button

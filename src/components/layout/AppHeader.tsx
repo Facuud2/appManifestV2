@@ -132,7 +132,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
             <button
               type="button"
               onClick={onOpenCalibration}
-              aria-label={isCurrentCalibrated ? 'Voz calibrada. Abrir ajustes de voz' : 'Calibrar voz'}
+              aria-label={isCurrentCalibrated ? 'Voz calibrada: abrir ajustes de voz' : 'Calibrar voz'}
               title={isCurrentCalibrated ? 'Voz calibrada' : 'Calibrar tu voz'}
               className="swiss-pill inline-flex min-h-10 items-center gap-2 px-3 text-[0.8125rem] font-medium text-swiss-ink transition-colors focus-visible:ring-2 focus-visible:ring-swiss-focus"
             >
@@ -143,7 +143,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenCalibration }) => {
                 }`}
               />
               <Mic aria-hidden="true" size={15} />
-              Calibrar voz
+              {isCurrentCalibrated ? 'Voz calibrada' : 'Calibrar voz'}
             </button>
           </div>
 

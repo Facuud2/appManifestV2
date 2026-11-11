@@ -1287,10 +1287,41 @@ export const useAppStore = create<AppState>((set, get) => {
         updatedAt: now,
       };
 
+      // Si existe un rampage previo del usuario (distinto al que se está guardando),
+      // el rampage anterior debe contar como que fue reproducido una vez
+      // y registrarse para alimentar la sección de "últimos 2 rampages" bajo el reproductor.
+      const currentSets = get().rampageSets.filter(
+        (item) => item.userId === scope && item.id !== newSet.id
+      );
+      const previousSet = currentSets[0];
+
+      let updatedPreviousSet: RampageSet | null = null;
+      if (previousSet) {
+        const prevRepeats = previousSet.affirmations.map((a) => ({
+          ...a,
+          repeatCount: Math.max(1, (a.repeatCount || 0) + (previousSet.lastPlayedAt ? 0 : 1)),
+        }));
+        updatedPreviousSet = {
+          ...previousSet,
+          lastPlayedAt: previousSet.lastPlayedAt || now,
+          affirmations: prevRepeats,
+        };
+
+        const currentRecent = readRecentRampageIds(scope);
+        const nextRecent = [
+          previousSet.id,
+          ...currentRecent.filter((existingId) => existingId !== previousSet.id),
+        ].slice(0, 10);
+        writeRecentRampageIds(scope, nextRecent);
+      }
+
       set((state) => {
+        const filtered = state.rampageSets.filter((item) => item.id !== newSet.id);
         const nextRampageSets = [
           newSet,
-          ...state.rampageSets.filter((rampageSet) => rampageSet.id !== newSet.id),
+          ...filtered.map((item) =>
+            updatedPreviousSet && item.id === updatedPreviousSet.id ? updatedPreviousSet : item
+          ),
         ];
         writeCustomRampageSets(scope, nextRampageSets);
         return {
@@ -1310,6 +1341,14 @@ export const useAppStore = create<AppState>((set, get) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity: 'rampageSet', action: 'save', scope, data: newSet }),
       }).catch(console.error);
+
+      if (updatedPreviousSet) {
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'rampageSet', action: 'save', scope, data: updatedPreviousSet }),
+        }).catch(console.error);
+      }
 
       return newSet;
     },
@@ -1365,10 +1404,23 @@ export const useAppStore = create<AppState>((set, get) => {
       const nextRecent = [id, ...currentRecent.filter((existingId) => existingId !== id)].slice(0, 10);
       writeRecentRampageIds(scope, nextRecent);
 
+      let touchedItem: RampageSet | null = null;
       set((state) => {
-        const nextRampageSets = state.rampageSets.map((item) =>
-          item.id === id ? { ...item, lastPlayedAt: now } : item
-        );
+        const nextRampageSets = state.rampageSets.map((item) => {
+          if (item.id === id) {
+            touchedItem = {
+              ...item,
+              lastPlayedAt: now,
+              affirmations: item.affirmations.map((a) => ({
+                ...a,
+                repeatCount: (a.repeatCount || 0) + 1,
+              })),
+            };
+            return touchedItem;
+          }
+          return item;
+        });
+        writeCustomRampageSets(scope, nextRampageSets);
         return {
           rampageSets: nextRampageSets,
           scopeCollections: {
@@ -1380,6 +1432,14 @@ export const useAppStore = create<AppState>((set, get) => {
           },
         };
       });
+
+      if (touchedItem) {
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'rampageSet', action: 'save', scope, data: touchedItem }),
+        }).catch(console.error);
+      }
     },
 
     deleteRampageSet: async (id) => {

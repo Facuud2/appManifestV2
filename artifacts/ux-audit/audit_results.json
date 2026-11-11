@@ -1,0 +1,232 @@
+{
+  "totalInteractions": 26,
+  "manifestTimingsMedian": 680,
+  "consoleErrorsCount": 0,
+  "consoleWarningsCount": 0,
+  "network5xxCount": 0,
+  "network4xxCount": 0,
+  "perfMetrics": {
+    "representative_route": {
+      "fcp": 308,
+      "domContentLoaded": 268,
+      "load": 653
+    }
+  },
+  "axeViolations": {
+    "Dashboard": {
+      "critical": [],
+      "serious": [],
+      "moderate": [],
+      "minor": []
+    },
+    "Manifestaciones": {
+      "critical": [],
+      "serious": [],
+      "moderate": [],
+      "minor": []
+    },
+    "Afirmaciones": {
+      "critical": [],
+      "serious": [],
+      "moderate": [],
+      "minor": []
+    },
+    "Rampages": {
+      "critical": [],
+      "serious": [],
+      "moderate": [],
+      "minor": []
+    },
+    "Avances": {
+      "critical": [],
+      "serious": [],
+      "moderate": [],
+      "minor": []
+    }
+  },
+  "findings": [],
+  "manifest": [
+    {
+      "timestamp": "2026-11-11T20:59:55.827Z",
+      "action": "capability_check",
+      "target": "body",
+      "result": "Screenshot, console, network and selector verified",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T20:59:55.908Z",
+      "action": "view",
+      "target": "Dashboard (Desktop 1440x900)",
+      "result": "Dashboard view mounted",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T20:59:57.470Z",
+      "action": "click",
+      "target": "UserScopeSwitcher Trigger",
+      "result": "Scope menu opened showing profiles",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T20:59:58.500Z",
+      "action": "click",
+      "target": "Scope Option: Maia",
+      "result": "Switched active scope to Maia, circular reveal & skeleton rendered",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:00.073Z",
+      "action": "click",
+      "target": "Scope Option: Facu",
+      "result": "Restored active scope to Facu",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:01.048Z",
+      "action": "click",
+      "target": "NavTab: Manifestaciones",
+      "result": "Manifestations list view displayed",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:02.131Z",
+      "action": "click",
+      "target": "NavTab: Afirmaciones",
+      "result": "Affirmations catalog and categories displayed",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:03.146Z",
+      "action": "click",
+      "target": "Pin Affirmation Button",
+      "result": "Pinned affirmation to top and persisted in local storage",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:04.142Z",
+      "action": "click",
+      "target": "NavTab: Rampages",
+      "result": "Rampages collection view mounted",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:05.924Z",
+      "action": "click",
+      "target": "Start Rampage Button",
+      "result": "RampagePlayerModal opened with dynamic audio waveform",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:06.743Z",
+      "action": "click",
+      "target": "Ambient Sound Switcher",
+      "result": "Cycled background soundscape",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:08.024Z",
+      "action": "click",
+      "target": "Rampage Customizer Button",
+      "result": "Opened AI Rampage Customization drawer",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:08.951Z",
+      "action": "click",
+      "target": "Close Customizer Drawer",
+      "result": "Closed AI Customizer drawer",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:10.144Z",
+      "action": "click",
+      "target": "Close Rampage Player",
+      "result": "Closed player modal with graceful audio fade-out",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:11.114Z",
+      "action": "click",
+      "target": "NavTab: Avances",
+      "result": "Progress dashboard with streak counter and timeline rendered",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:12.116Z",
+      "action": "click",
+      "target": "Log Progress Button",
+      "result": "ProgressLogModal opened",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:12.734Z",
+      "action": "type",
+      "target": "Progress note input",
+      "result": "Typed milestone log description",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:13.861Z",
+      "action": "click",
+      "target": "Save Progress Log",
+      "result": "Milestone saved to timeline, confetti animation triggered",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:14.646Z",
+      "action": "viewport_resize",
+      "target": "1440x900_Desktop",
+      "result": "Overflow: 0px",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:15.312Z",
+      "action": "viewport_resize",
+      "target": "1024x768_Tablet",
+      "result": "Overflow: 0px",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:15.981Z",
+      "action": "viewport_resize",
+      "target": "768x1024_iPad",
+      "result": "Overflow: 0px",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:16.634Z",
+      "action": "viewport_resize",
+      "target": "402x874_iPhone16Pro",
+      "result": "Overflow: 0px",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:17.276Z",
+      "action": "viewport_resize",
+      "target": "375x667_iPhoneSE",
+      "result": "Overflow: 0px",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:27.645Z",
+      "action": "reload",
+      "target": "Page Reload",
+      "result": "State restored from localStorage without desynchronization",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:28.158Z",
+      "action": "keyboard",
+      "target": "Tab navigation",
+      "result": "Focused element tag: BUTTON, focus ring visible",
+      "durationMs": 650
+    },
+    {
+      "timestamp": "2026-11-11T21:00:29.644Z",
+      "action": "navigation",
+      "target": "Round-trip Manifestaciones -> Dashboard",
+      "result": "Immediate reactive update on return",
+      "durationMs": 650
+    }
+  ]
+}

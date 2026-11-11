@@ -763,7 +763,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => void incrementAffirmationRepeat(pinned.id)}
-                        aria-label={`Repetir decreto fijado. Repetido ${formatRepeatLabel(pinned.repeatCount)}`}
+                        aria-label={`${pinned.repeatCount} repeticiones: pulsar para repetir`}
                         className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-swiss-control px-2.5 py-1 text-xs font-semibold text-swiss-accentText transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-swiss-focus"
                       >
                         <Repeat size={12} aria-hidden="true" />
@@ -937,7 +937,6 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => void incrementAffirmationRepeat(item.id)}
-                        aria-label={`Repetir afirmación. Repetida ${formatRepeatLabel(item.repeatCount)}`}
                         className="swiss-btn-secondary inline-flex min-h-9 items-center gap-1.5 px-3.5 text-xs font-semibold text-swiss-accentText focus-visible:ring-2 focus-visible:ring-swiss-focus"
                       >
                         <Repeat size={13} aria-hidden="true" />
