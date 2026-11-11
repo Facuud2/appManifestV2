@@ -124,6 +124,7 @@ export function useNarrativeOrganizer({
   const isLongPressActiveRef = useRef(false);
   const spacePressTimerRef = useRef<number | null>(null);
   const isSpaceHoldingRef = useRef(false);
+  const ignoreSubmitUntilRef = useRef<number>(0);
 
   const profileIdRef = useRef(profileId);
   const existingContextRef = useRef(existingContext);
@@ -293,6 +294,7 @@ export function useNarrativeOrganizer({
   );
 
   const finishAndSubmit = useCallback(() => {
+    if (Date.now() < ignoreSubmitUntilRef.current) return;
     if (phaseRef.current === 'processing' || phaseRef.current === 'committing') return;
     if (abortRef.current) return;
 
@@ -610,17 +612,23 @@ export function useNarrativeOrganizer({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== ' ' || event.repeat) return;
+      if (event.key !== ' ') return;
       if (isEditableTarget(event.target)) return;
+      event.preventDefault();
+
+      if (event.repeat) return;
       if (isSpaceHoldingRef.current || isOpenRef.current) return;
       isSpaceHoldingRef.current = true;
       spacePressTimerRef.current = window.setTimeout(() => {
+        ignoreSubmitUntilRef.current = Date.now() + 600;
         open();
       }, 300);
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
       if (event.key !== ' ') return;
+      if (isEditableTarget(event.target)) return;
+      event.preventDefault();
       isSpaceHoldingRef.current = false;
       if (spacePressTimerRef.current !== null) {
         window.clearTimeout(spacePressTimerRef.current);

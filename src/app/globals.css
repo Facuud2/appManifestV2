@@ -61,6 +61,15 @@
   --focus-ring: #c8397c;
   --focus-ring-offset: #ffffff;
 
+  /* Liquid Glass & Neon accents (Light mode) */
+  --color-neon-lime: #a3e635;
+  --color-neon-lime-hover: #84cc16;
+  --color-neon-lime-fg: #142900;
+  --color-neon-lime-glow: rgba(163, 230, 53, 0.4);
+  --glass-liquid-bg: rgba(255, 255, 255, 0.72);
+  --glass-liquid-border: rgba(255, 255, 255, 0.85);
+  --glass-liquid-specular: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+
   /* Six candy category pigments. Flat fields only — no gradients. */
   --pastel-sage: #ddf7ec;
   --pastel-sage-ink: #0d6a4c;
@@ -225,6 +234,15 @@
   --color-danger-bg: rgba(255, 140, 133, 0.14);
   --focus-ring: #ff9ec4;
   --focus-ring-offset: #171014;
+
+  /* Liquid Glass & Neon accents (Dark mode) */
+  --color-neon-lime: #ccff00;
+  --color-neon-lime-hover: #b8e600;
+  --color-neon-lime-fg: #0a0d02;
+  --color-neon-lime-glow: rgba(204, 255, 0, 0.5);
+  --glass-liquid-bg: rgba(18, 16, 22, 0.78);
+  --glass-liquid-border: rgba(255, 255, 255, 0.12);
+  --glass-liquid-specular: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 16px 40px 0 rgba(0, 0, 0, 0.6);
 
   --pastel-sage: rgba(126, 224, 190, 0.14);
   --pastel-sage-ink: #8fe6c8;

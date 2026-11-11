@@ -493,3 +493,17 @@ test('16 · si se pulsa en guardar nueva manifestación, la guarda como nueva', 
   });
   expect(Number(total.rows[0]?.total)).toBeGreaterThanOrEqual(2);
 });
+
+test('17 · en PC, mantener espacio abre el organizador y al soltarlo permanece en modo escucha', async ({ page }) => {
+  await boot(page, 'rich_audio');
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(380);
+  await expect(page.getByTestId('narrative-organizer-overlay')).toBeVisible();
+  // El usuario suelta la barra espaciadora
+  await page.keyboard.up('Space');
+  await page.waitForTimeout(400);
+
+  // Permanece en modo escucha, NO se envía automáticamente a revisión ni se corta el audio
+  await expect(page.getByText('Te escucho…')).toBeVisible();
+  await expect(page.getByTestId('narrative-plan-list')).not.toBeVisible();
+});

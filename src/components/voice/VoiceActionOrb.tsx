@@ -27,9 +27,13 @@ export interface VoiceActionOrbProps {
   onDismissResponse?: () => void;
 }
 
+import { LiquidIridescentOrb } from './LiquidIridescentOrb';
+export { LiquidIridescentOrb };
+
 /**
- * Componente SiriOrb: Esfera multicolor de Siri con gradientes fluidos de iOS 18
- * y respuesta acústica en tiempo real basada en Web Audio API AnalyserNode.
+ * Componente SiriOrb: Ahora potenciado por LiquidIridescentOrb,
+ * con la estética viva e iridiscente de mercurio líquido, destellos ópticos 3D
+ * y reactividad acústica continua basada en Web Audio API AnalyserNode.
  */
 export const SiriOrb: React.FC<{
   size?: number;
@@ -39,121 +43,8 @@ export const SiriOrb: React.FC<{
   disabled?: boolean;
   label?: string;
   onClick?: () => void;
-}> = ({
-  size = 104,
-  audioLevel = 0,
-  isProcessing = false,
-  interactive = false,
-  disabled = false,
-  label = 'Orbe de voz',
-  onClick,
-}) => {
-  // Escala reactiva según el volumen vocal con amortiguación
-  const reactiveScale = isProcessing
-    ? 1.05
-    : 1 + Math.min(0.26, audioLevel * 0.42);
-
-  return (
-    <div
-      data-ui="siri-orb"
-      className={`relative flex items-center justify-center select-none ${
-        interactive && !disabled
-          ? 'cursor-pointer active:scale-95 transition-transform duration-150 ease-out'
-          : ''
-      }`}
-      style={{ width: size, height: size }}
-      onClick={interactive && !disabled ? onClick : undefined}
-      onKeyDown={
-        interactive && !disabled
-          ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-                event.preventDefault();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
-      role={interactive ? 'button' : undefined}
-      tabIndex={interactive && !disabled ? 0 : undefined}
-      aria-label={label}
-      aria-disabled={interactive ? disabled : undefined}
-      data-testid="siri-orb"
-    >
-      {/* 1. Halo difuso exterior cromático (Apple Intelligence Ambient Bloom) */}
-      <motion.div
-        animate={{
-          scale: isProcessing ? [1.1, 1.25, 1.1] : [reactiveScale * 1.05, reactiveScale * 1.16, reactiveScale * 1.05],
-          opacity: isProcessing ? [0.65, 0.92, 0.65] : [0.55 + audioLevel * 0.4, 0.72 + audioLevel * 0.4, 0.55 + audioLevel * 0.4],
-        }}
-        transition={{
-          duration: isProcessing ? 1.4 : 2.4,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        className="absolute inset-0 rounded-full blur-2xl pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle, rgba(125,85,255,0.6) 0%, rgba(0,199,190,0.55) 35%, rgba(255,55,95,0.5) 65%, rgba(255,214,10,0.25) 85%, transparent 100%)', /* taste-skill-ignore */
-        }}
-      />
-
-      {/* 2. Esfera base con gradiente multicolor giratorio iOS 18 */}
-      <motion.div
-        animate={{
-          scale: reactiveScale,
-          rotate: 360,
-        }}
-        transition={{
-          scale: { duration: 0.1, ease: 'easeOut' },
-          rotate: {
-            duration: isProcessing ? 1.6 : 8,
-            repeat: Infinity,
-            ease: 'linear',
-          },
-        }}
-        className="relative rounded-full overflow-hidden flex items-center justify-center"
-        style={{
-          width: size,
-          height: size,
-          background: 'conic-gradient(from 0deg, #7D55FF 0%, #00C7BE 22%, #FF375F 45%, #FFD60A 68%, #5856D6 85%, #7D55FF 100%)', /* taste-skill-ignore */
-          boxShadow: '0 0 32px rgba(125,85,255,0.45), inset 0 0 16px rgba(255,255,255,0.4)',
-        }}
-      >
-        {/* Capa de fluido interno difuso con rotación inversa */}
-        <div
-          className="absolute inset-1 rounded-full blur-sm opacity-90"
-          style={{
-            background: 'conic-gradient(from 180deg, #FF375F 0%, #7D55FF 25%, #00C7BE 50%, #FFD60A 75%, #FF375F 100%)', /* taste-skill-ignore */
-            mixBlendMode: 'screen',
-          }}
-        />
-
-        {/* 3. Brillo especular y relieve de cristal 3D (Lente óptica Apple) */}
-        <div
-          className="absolute inset-0 rounded-full pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.2) 35%, transparent 60%)', /* taste-skill-ignore */
-            boxShadow: 'inset 0 -6px 14px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.6)',
-          }}
-        />
-
-        {/* 4. Ondas acústicas concéntricas de vocalización */}
-        {audioLevel > 0.08 && !isProcessing && (
-          <motion.div
-            animate={{
-              scale: [1, 1.25, 1],
-              opacity: [0.7, 0.2, 0.7],
-            }}
-            transition={{
-              duration: 0.8,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-            className="absolute inset-0 rounded-full border border-white/50 pointer-events-none"
-          />
-        )}
-      </motion.div>
-    </div>
-  );
+}> = (props) => {
+  return <LiquidIridescentOrb {...props} />;
 };
 
 export const VoiceActionOrb: React.FC<VoiceActionOrbProps> = ({
