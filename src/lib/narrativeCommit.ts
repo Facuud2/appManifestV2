@@ -5,6 +5,8 @@ import {
   type NarrativeProfileId,
 } from './narrativeOrganizer';
 import { generateCleanTitle, URL_REGEX } from '@/utils/urlParser';
+import { serializeAttachment } from './manifestationAttachments';
+import type { SongAttachment, MediaAttachment } from '@/types';
 
 export interface CommitStatement {
   sql: string;
@@ -95,6 +97,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
     createdAt: string;
     updatedAt: string;
     tempId: string;
+    songAttachment?: SongAttachment | null;
+    mediaAttachment?: MediaAttachment | null;
   }> = [];
 
   plan.manifestations.forEach((item) => {
@@ -136,6 +140,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
       createdAt: now,
       updatedAt: now,
       tempId: item.tempId,
+      songAttachment: item.songAttachment ?? null,
+      mediaAttachment: item.mediaAttachment ?? null,
     });
   });
 
@@ -163,6 +169,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
       : null,
     createdAt: now,
     tempId: item.tempId,
+    songAttachment: item.songAttachment ?? null,
+    mediaAttachment: item.mediaAttachment ?? null,
   }));
 
   // Route any orphan context to a linked progress log so that history/context is preserved
@@ -189,6 +197,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
             : null,
           createdAt: now,
           tempId: `${item.tempId}_ctx`,
+          songAttachment: null,
+          mediaAttachment: null,
         });
       }
     }
@@ -251,6 +261,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
       order: nextOrder++,
       createdAt: now,
       tempId: item.tempId,
+      songAttachment: item.songAttachment ?? null,
+      mediaAttachment: item.mediaAttachment ?? null,
     };
     return [record];
   });
@@ -275,7 +287,7 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
     statements.push({
       sql: `INSERT INTO manifestations
         (id, user_id, author, title, description, sensory_anchor, category, status, target_date, song_attachment, media_attachment, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           user_id = excluded.user_id,
           author = excluded.author,
@@ -284,6 +296,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
           sensory_anchor = excluded.sensory_anchor,
           category = excluded.category,
           status = excluded.status,
+          song_attachment = COALESCE(excluded.song_attachment, manifestations.song_attachment),
+          media_attachment = COALESCE(excluded.media_attachment, manifestations.media_attachment),
           updated_at = excluded.updated_at;`,
       args: [
         item.id,
@@ -294,6 +308,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
         item.sensoryAnchor,
         item.category,
         item.status,
+        serializeAttachment(item.songAttachment),
+        serializeAttachment(item.mediaAttachment),
         item.createdAt,
         item.updatedAt,
       ],
@@ -303,14 +319,16 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
   progressLogs.forEach((item) => {
     statements.push({
       sql: `INSERT INTO manifestation_progress
-        (id, manifestation_id, user_id, note, sign_type, voice_transcript, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (id, manifestation_id, user_id, note, sign_type, voice_transcript, song_attachment, media_attachment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           manifestation_id = excluded.manifestation_id,
           user_id = excluded.user_id,
           note = excluded.note,
           sign_type = excluded.sign_type,
-          voice_transcript = excluded.voice_transcript;`,
+          voice_transcript = excluded.voice_transcript,
+          song_attachment = COALESCE(excluded.song_attachment, manifestation_progress.song_attachment),
+          media_attachment = COALESCE(excluded.media_attachment, manifestation_progress.media_attachment);`,
       args: [
         item.id,
         item.manifestationId,
@@ -318,6 +336,8 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
         item.note,
         item.signType,
         item.voiceTranscript,
+        serializeAttachment(item.songAttachment),
+        serializeAttachment(item.mediaAttachment),
         item.createdAt,
       ],
     });
@@ -361,19 +381,23 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
   affirmations.forEach((item) => {
     statements.push({
       sql: `INSERT INTO affirmations
-        (id, user_id, text, category, repeat_count, pinned, sort_order, created_at)
-        VALUES (?, ?, ?, ?, 0, 0, ?, ?)
+        (id, user_id, text, category, repeat_count, pinned, sort_order, song_attachment, media_attachment, created_at)
+        VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           user_id = excluded.user_id,
           text = excluded.text,
           category = excluded.category,
-          sort_order = excluded.sort_order;`,
+          sort_order = excluded.sort_order,
+          song_attachment = COALESCE(excluded.song_attachment, affirmations.song_attachment),
+          media_attachment = COALESCE(excluded.media_attachment, affirmations.media_attachment);`,
       args: [
         item.id,
         item.userId,
         item.text,
         item.category || null,
         item.order,
+        serializeAttachment(item.songAttachment),
+        serializeAttachment(item.mediaAttachment),
         item.createdAt,
       ],
     });

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
   ChevronRight,
+  CloudRain,
   Feather,
   Footprints,
   Headphones,
@@ -12,11 +13,13 @@ import {
   Pause,
   Play,
   Plus,
+  Radio,
   Repeat,
   Sparkles,
+  VolumeX,
   X,
 } from 'lucide-react';
-import { useAppStore } from '@/store';
+import { useAppStore, readRecentRampageIds } from '@/store';
 import { RampageSet } from '@/types';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { RampageAudioWaveform } from '@/components/goals/RampageAudioWaveform';
@@ -40,6 +43,7 @@ interface DashboardViewProps {
   currentAffirmationText?: string;
   onToggleRampagePlayback?: () => void;
   onRestoreRampage?: () => void;
+  currentPlayingId?: string;
 }
 
 const SKELETON_WAVE_BARS = [12, 22, 30, 16, 26, 14, 24, 18, 28, 14, 20];
@@ -57,6 +61,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   currentAffirmationText = '',
   onToggleRampagePlayback,
   onRestoreRampage,
+  currentPlayingId,
 }) => {
   const {
     activeScope,
@@ -88,6 +93,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const featuredAffirmation =
     affirmations.find((affirmation) => affirmation.pinned) ?? affirmations[0];
   const latestRampage = rampageSets[0];
+
+  const recentRampages = useMemo(() => {
+    const recentIds = readRecentRampageIds(activeScope);
+    const setsMap = new Map(rampageSets.map((s) => [s.id, s]));
+    const matched: RampageSet[] = [];
+
+    // 1. Prioridad: orden de IDs en localStorage
+    for (const id of recentIds) {
+      const found = setsMap.get(id);
+      if (
+        found &&
+        !matched.some(
+          (m) =>
+            m.id === found.id ||
+            m.title.trim().toLowerCase() === found.title.trim().toLowerCase()
+        )
+      ) {
+        matched.push(found);
+      }
+      if (matched.length >= 2) break;
+    }
+
+    // 2. Si faltan, rellenar con sets que tengan lastPlayedAt
+    if (matched.length < 2) {
+      const withTimestamp = rampageSets
+        .filter(
+          (s) =>
+            s.lastPlayedAt &&
+            !matched.some(
+              (m) =>
+                m.id === s.id ||
+                m.title.trim().toLowerCase() === s.title.trim().toLowerCase()
+            )
+        )
+        .sort((a, b) => new Date(b.lastPlayedAt!).getTime() - new Date(a.lastPlayedAt!).getTime());
+      for (const item of withTimestamp) {
+        matched.push(item);
+        if (matched.length >= 2) break;
+      }
+    }
+
+    return matched;
+  }, [activeScope, rampageSets]);
 
   const handleAddQuickAffirmation = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -359,8 +407,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {isCurrentProfileCalibrated ? (
-            <div
-              data-testid="continue-listening-player"
+            <>
+              <div
+                data-testid="continue-listening-player"
               className="glass-panel mt-3.5 flex w-full min-w-0 items-center gap-2.5 rounded-[18px] p-2.5 sm:mt-4 sm:gap-4 sm:rounded-[22px] sm:p-3.5"
             >
               <button
@@ -457,6 +506,92 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <RampageAudioWaveform isPlaying={isRampagePlaying} barCount={13} className="hidden sm:flex" />
               </div>
             </div>
+
+            {/* Sub-bloque: Últimos 2 Rampages Reproducidos */}
+            {recentRampages.length > 0 ? (
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[11px] font-semibold tracking-wider text-swiss-ink-light uppercase">
+                    Últimos reproducidos
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {recentRampages.map((rampage) => {
+                    const isPlayingThis = isRampagePlaying && currentPlayingId === rampage.id;
+                    return (
+                      <div
+                        key={rampage.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onContinueRampage(rampage)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onContinueRampage(rampage);
+                          }
+                        }}
+                        aria-label={`Reproducir ${rampage.title}`}
+                        className={`group flex items-center justify-between gap-3 rounded-[16px] border bg-swiss-surface/80 p-2.5 transition-all cursor-pointer hover:bg-swiss-control ${
+                          isPlayingThis
+                            ? 'border-swiss-accent/60 ring-1 ring-swiss-accent/40 shadow-sm'
+                            : 'border-[color:var(--border-subtle)]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] transition-transform group-hover:scale-105 ${
+                              isPlayingThis
+                                ? 'bg-swiss-accent text-swiss-accentFg'
+                                : 'bg-swiss-control text-swiss-accentText'
+                            }`}
+                          >
+                            {isPlayingThis ? (
+                              <Pause size={15} fill="currentColor" />
+                            ) : (
+                              <Play size={14} fill="currentColor" className="translate-x-[0.5px]" />
+                            )}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-semibold text-swiss-ink">
+                              {rampage.title}
+                            </p>
+                            <p className="truncate text-[11px] text-swiss-ink-muted">
+                              {rampage.affirmations.length} afirmaciones
+                              {rampage.ambientSound === 'astral_rain'
+                                ? ' · Lluvia astral'
+                                : rampage.ambientSound === 'white_noise'
+                                ? ' · Ruido blanco'
+                                : ''}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isPlayingThis && (
+                          <div className="shrink-0 pr-1">
+                            <RampageAudioWaveform isPlaying={true} barCount={6} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center justify-between rounded-xl bg-swiss-surface/60 p-2.5 text-xs text-swiss-ink-muted border border-[color:var(--border-subtle)]">
+                <div className="flex items-center gap-2">
+                  <Headphones size={15} className="text-swiss-accentText shrink-0" />
+                  <span>Aún no tienes rampages reproducidos.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenRampage}
+                  className="text-xs font-semibold text-swiss-accentText hover:underline"
+                >
+                  Probar primer Rampage
+                </button>
+              </div>
+            )}
+          </>
           ) : (
             <div
               data-testid="continue-listening-uncalibrated"

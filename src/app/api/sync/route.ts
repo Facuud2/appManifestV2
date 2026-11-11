@@ -89,6 +89,8 @@ export async function GET(req: NextRequest) {
       note: r.note as string,
       signType: (r.sign_type as string) || undefined,
       voiceTranscript: (r.voice_transcript as string) || undefined,
+      songAttachment: parseAttachmentJson(r.song_attachment, isSongAttachment),
+      mediaAttachment: parseAttachmentJson(r.media_attachment, isMediaAttachment),
       createdAt: r.created_at as string,
     }));
 
@@ -116,6 +118,8 @@ export async function GET(req: NextRequest) {
         r.sort_order !== null && r.sort_order !== undefined
           ? Number(r.sort_order)
           : index,
+      songAttachment: parseAttachmentJson(r.song_attachment, isSongAttachment),
+      mediaAttachment: parseAttachmentJson(r.media_attachment, isMediaAttachment),
       createdAt: r.created_at as string,
     }));
 
@@ -336,8 +340,8 @@ export async function POST(req: NextRequest) {
         const valid = parsed.data;
 
         await turso.execute({
-          sql: `INSERT OR REPLACE INTO manifestation_progress (id, manifestation_id, user_id, note, sign_type, voice_transcript, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?);`,
+          sql: `INSERT OR REPLACE INTO manifestation_progress (id, manifestation_id, user_id, note, sign_type, voice_transcript, song_attachment, media_attachment, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             valid.id,
             valid.manifestationId || null,
@@ -345,6 +349,8 @@ export async function POST(req: NextRequest) {
             valid.note,
             valid.signType || null,
             valid.voiceTranscript || null,
+            serializeAttachment(valid.songAttachment),
+            serializeAttachment(valid.mediaAttachment),
             valid.createdAt || now,
           ],
         });
@@ -384,8 +390,8 @@ export async function POST(req: NextRequest) {
         const valid = parsed.data;
 
         await turso.execute({
-          sql: `INSERT OR REPLACE INTO affirmations (id, user_id, text, category, repeat_count, pinned, sort_order, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+          sql: `INSERT OR REPLACE INTO affirmations (id, user_id, text, category, repeat_count, pinned, sort_order, song_attachment, media_attachment, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             valid.id,
             valid.userId,
@@ -394,6 +400,8 @@ export async function POST(req: NextRequest) {
             valid.repeatCount,
             valid.pinned ? 1 : 0,
             typeof valid.order === 'number' ? valid.order : null,
+            serializeAttachment(valid.songAttachment),
+            serializeAttachment(valid.mediaAttachment),
             valid.createdAt || now,
           ],
         });

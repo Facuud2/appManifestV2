@@ -3,14 +3,14 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "node scripts/migrate.js",
     "db:local": "node scripts/setup-local-db.mjs",
     "db:local:fresh": "node scripts/setup-local-db.mjs --fresh",
-    "dev:local": "TURSO_DATABASE_URL=file:/tmp/manifest-narrative-test.db TURSO_AUTH_TOKEN= AI_SANDBOX=true next dev",
+    "dev:local": "TURSO_DATABASE_URL=file:/tmp/manifest-narrative-test.db TURSO_AUTH_TOKEN= AI_SANDBOX=true next dev -p 5432",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

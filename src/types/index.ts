@@ -83,6 +83,8 @@ export interface Affirmation {
   lastRepeatedAt?: string;
   pinned?: boolean;
   order?: number;
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
 }
 
 export interface RampageAffirmation {
@@ -102,6 +104,7 @@ export interface RampageSet {
   isFavorite?: boolean;
   createdAt: string;
   updatedAt?: string;
+  lastPlayedAt?: string;
 }
 
 export type GoalCategory = 'crecimiento' | 'carrera' | 'bienestar' | 'relaciones' | 'abundancia' | 'creatividad';

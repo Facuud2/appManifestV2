@@ -10,6 +10,12 @@ import {
   EMIL_SHEET_SPRING,
   MODAL_TRANSITION,
 } from '@/lib/iosSprings';
+import { putMedia } from '@/lib/mediaStorage';
+import { stopActivePreview } from '@/lib/audioPreviewBus';
+import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
+import { AttachmentMenu } from './attachments/AttachmentMenu';
+import { AttachmentChipRow } from './attachments/AttachmentChipRow';
+import { MusicSearchSheet } from './attachments/MusicSearchSheet';
 
 interface AffirmationEditorModalProps {
   isOpen: boolean;
@@ -25,8 +31,17 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMobileSheet, setIsMobileSheet] = useState(false);
+  const [isMusicOpen, setIsMusicOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const draft = useAttachmentDraft();
+
+  const handleClose = () => {
+    if (isMusicOpen) return;
+    setIsMusicOpen(false);
+    draft.reset();
+    onClose();
+  };
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 639px)');
@@ -38,7 +53,11 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      draft.reset();
+      setIsMusicOpen(false);
+      return;
+    }
 
     returnFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -47,7 +66,7 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
 
     const frame = window.requestAnimationFrame(() => textareaRef.current?.focus());
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') handleClose();
     };
     document.addEventListener('keydown', closeOnEscape);
 
@@ -56,18 +75,33 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
       document.removeEventListener('keydown', closeOnEscape);
       if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const affirmation = text.trim();
     if (!affirmation || isSubmitting) return;
 
+    const id = `aff_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const songAttachment = draft.song;
+    const draftMedia = draft.media;
+    const mediaAttachment = draft.buildMediaAttachment(id);
+    const blobToPersist = draftMedia?.blob ?? null;
+    const storageKey = mediaAttachment?.storageKey ?? null;
+
     setIsSubmitting(true);
     setError('');
     try {
-      await addAffirmation(affirmation);
-      onClose();
+      if (blobToPersist && storageKey) {
+        await putMedia(storageKey, blobToPersist);
+      }
+
+      await addAffirmation({
+        text: affirmation,
+        songAttachment: songAttachment ?? null,
+        mediaAttachment: mediaAttachment ?? null,
+      });
+      handleClose();
     } catch (submitError) {
       console.error('No se pudo guardar la afirmación.', submitError);
       setError('No se pudo guardar. Inténtalo de nuevo.');
@@ -114,18 +148,20 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
     : MODAL_TRANSITION;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          variants={BACKDROP_TRANSITION}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) onClose();
-          }}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 backdrop-blur-[10px] sm:items-center sm:p-4"
-        >
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            key="affirmation-editor-scrim"
+            variants={BACKDROP_TRANSITION}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) onClose();
+            }}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 backdrop-blur-[10px] sm:items-center sm:p-4"
+          >
           <motion.section
             variants={modalTransition}
             initial="hidden"
@@ -164,7 +200,18 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
               raras.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-5">
+            <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+              <AttachmentChipRow
+                song={draft.song}
+                media={
+                  draft.media
+                    ? { attachment: draft.media.attachment, previewUrl: draft.media.previewUrl }
+                    : null
+                }
+                onRemoveSong={draft.removeSong}
+                onRemoveMedia={draft.removeMedia}
+              />
+
               <label htmlFor="new-affirmation-text" className="sr-only">
                 Escribí una afirmación
               </label>
@@ -178,8 +225,19 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
                   maxLength={500}
                   rows={4}
                   required
-                  className="swiss-input min-h-32 w-full resize-none px-4 py-4 pr-16 text-sm leading-6"
+                  className="swiss-input min-h-32 w-full resize-none px-4 pb-14 pt-4 pr-16 text-sm leading-6"
                 />
+                <div className="absolute bottom-3 left-3">
+                  <AttachmentMenu
+                    disabled={draft.isProcessing || Boolean(draft.song && draft.media)}
+                    onPhoto={draft.attachPhoto}
+                    onVideo={draft.attachVideo}
+                    onSong={() => {
+                      stopActivePreview();
+                      setIsMusicOpen(true);
+                    }}
+                  />
+                </div>
                 <VoiceDictationButton
                   size="md"
                   className="!absolute bottom-3 right-3 h-11 w-11 rounded-xl border-0 bg-swiss-accent text-swiss-accentFg hover:opacity-90"
@@ -189,6 +247,12 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
                   previousTextTail={text}
                 />
               </div>
+
+              {draft.error ? (
+                <p role="alert" className="text-xs leading-5 text-[var(--color-swiss-red)]">
+                  {draft.error}
+                </p>
+              ) : null}
 
               {error && (
                 <p role="alert" className="mt-3 text-sm text-swiss-red">
@@ -209,5 +273,12 @@ export const AffirmationEditorModal: React.FC<AffirmationEditorModalProps> = ({
         </motion.div>
       )}
     </AnimatePresence>
+
+    <MusicSearchSheet
+      isOpen={isMusicOpen}
+      onClose={() => setIsMusicOpen(false)}
+      onSelect={(track) => draft.selectSong(track)}
+    />
+  </>
   );
 };

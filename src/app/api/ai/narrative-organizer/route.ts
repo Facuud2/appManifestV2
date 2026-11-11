@@ -13,7 +13,7 @@ import {
   type NarrativeDraft,
   type NarrativeScenario,
 } from '@/lib/narrativeOrganizer';
-import { analyzeNarrativeWithGemini } from '@/lib/narrativeOrganizerServer';
+import { analyzeNarrativeWithGemini, enrichDraftWithMusic } from '@/lib/narrativeOrganizerServer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -156,6 +156,7 @@ export async function POST(req: NextRequest) {
         existingContext,
         draftId,
       });
+      await enrichDraftWithMusic(draft);
       return NextResponse.json({
         success: true,
         data: draft,

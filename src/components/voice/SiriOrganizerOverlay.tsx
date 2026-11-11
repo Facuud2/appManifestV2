@@ -2,10 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { AlertCircle, Check, Loader2, Mic, X } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Mic, Music2, X } from 'lucide-react';
 import { LiquidIridescentOrb } from './LiquidIridescentOrb';
 import { SiriOrb } from './VoiceActionOrb';
 import { APPLE_ELASTIC_SPRING, EMIL_EASE_OUT } from '@/lib/iosSprings';
+import type { SongAttachment, MediaAttachment } from '@/types';
 import {
   countProposedItems,
   type NarrativeDraft,
@@ -165,6 +166,8 @@ interface PlanItemProps {
   badge?: string | null;
   existingId?: string;
   action?: 'repeat' | 'create_new';
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
   onToggleAction?: () => void;
 }
 
@@ -179,6 +182,8 @@ const PlanItem: React.FC<PlanItemProps> = ({
   badge,
   existingId,
   action,
+  songAttachment,
+  mediaAttachment,
   onToggleAction,
 }) => {
   return (
@@ -208,6 +213,55 @@ const PlanItem: React.FC<PlanItemProps> = ({
           {content}
         </p>
       )}
+
+      {songAttachment && (
+        <div
+          data-testid="plan-item-song"
+          className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/50 bg-white/60 p-2 shadow-sm dark:border-white/10 dark:bg-white/10"
+        >
+          {songAttachment.albumCoverUrl ? (
+            <img
+              src={songAttachment.albumCoverUrl}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-lg object-cover shadow-xs"
+            />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1DB954]/20 text-[#1DB954]">
+              <Music2 size={16} />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-[var(--color-ink)]">
+              {songAttachment.title}
+            </p>
+            <p className="truncate text-[11px] text-[var(--color-ink-muted)]">
+              {songAttachment.artist}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-[#1DB954]/15 px-2 py-0.5 text-[10px] font-bold text-[#0d6d2e] dark:text-[#1DB954]">
+            Spotify
+          </span>
+        </div>
+      )}
+
+      {mediaAttachment && (
+        <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/50 bg-white/60 p-2 shadow-sm dark:border-white/10 dark:bg-white/10">
+          <img
+            src={mediaAttachment.thumbDataUrl}
+            alt=""
+            className="h-9 w-9 shrink-0 rounded-lg object-cover shadow-xs"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-[var(--color-ink)]">
+              {mediaAttachment.kind === 'photo' ? 'Foto adjunta' : 'Video adjunto'}
+            </p>
+            <p className="text-[11px] text-[var(--color-ink-muted)]">
+              {Math.round(mediaAttachment.byteSize / 1024)} KB
+            </p>
+          </div>
+        </div>
+      )}
+
       {existingId && (
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-2 text-[12px]">
           <span className="text-[var(--color-ink-muted)]">
@@ -265,6 +319,8 @@ function renderPlanItems(
         badge={badgeText}
         existingId={item.existingId}
         action={item.action}
+        songAttachment={item.songAttachment}
+        mediaAttachment={item.mediaAttachment}
         onToggleAction={
           onToggleAction ? () => onToggleAction('manifestation', item.tempId) : undefined
         }
@@ -280,6 +336,8 @@ function renderPlanItems(
         title={item.title}
         content={item.content}
         badge={linkBadge(item.link)}
+        songAttachment={item.songAttachment}
+        mediaAttachment={item.mediaAttachment}
       />
     );
   });
@@ -313,6 +371,8 @@ function renderPlanItems(
         badge={badgeText}
         existingId={item.existingId}
         action={item.action}
+        songAttachment={item.songAttachment}
+        mediaAttachment={item.mediaAttachment}
         onToggleAction={
           onToggleAction ? () => onToggleAction('affirmation', item.tempId) : undefined
         }

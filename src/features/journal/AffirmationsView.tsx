@@ -22,10 +22,13 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { Affirmation, AmbientSoundType } from '@/types';
+import { Affirmation, AmbientSoundType, MediaAttachment } from '@/types';
 import { AffirmationQuickAdd, type AffirmationQuickAddHandle } from '@/components/journal/AffirmationQuickAdd';
 import { PinnedRampageModal } from '@/components/journal/PinnedRampageModal';
 import { sortAffirmations } from '@/lib/affirmationEngine';
+import { SpotifyMiniPlayer } from '@/components/journal/attachments/SpotifyMiniPlayer';
+import { MediaPreview } from '@/components/journal/attachments/MediaPreview';
+import { MediaLightbox } from '@/components/journal/attachments/MediaLightbox';
 import {
   EMIL_CARD_TAP,
   POSITION_CHANGE_TRANSITION,
@@ -105,6 +108,7 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
 
   const prefersReducedMotion = useReducedMotion();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [lightboxMedia, setLightboxMedia] = useState<MediaAttachment | null>(null);
   const [internalQuickAddOpen, setInternalQuickAddOpen] = useState(false);
   const isQuickAddOpen = controlledIsQuickAddOpen ?? internalQuickAddOpen;
   const [isPinnedRampageOpen, setIsPinnedRampageOpen] = useState(false);
@@ -622,9 +626,25 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] line-clamp-4 text-sm font-semibold leading-snug text-swiss-ink" title={pinned.text}>
-                        “{pinned.text}”
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words [overflow-wrap:anywhere] line-clamp-4 text-sm font-semibold leading-snug text-swiss-ink" title={pinned.text}>
+                          “{pinned.text}”
+                        </p>
+                        {pinned.mediaAttachment && (
+                          <div className="mt-2.5">
+                            <MediaPreview
+                              media={pinned.mediaAttachment}
+                              onOpen={() => setLightboxMedia(pinned.mediaAttachment ?? null)}
+                            />
+                          </div>
+                        )}
+                        {pinned.songAttachment && (
+                          <SpotifyMiniPlayer
+                            song={pinned.songAttachment}
+                            className="mt-2.5"
+                          />
+                        )}
+                      </div>
 
                       <div className="relative -mr-1 -mt-1 flex shrink-0 items-center gap-1">
                         <button
@@ -887,6 +907,22 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
                       <p className="break-words [overflow-wrap:anywhere] text-[1.0625rem] font-semibold leading-snug tracking-[-0.018em] text-swiss-ink">
                         “{item.text}”
                       </p>
+
+                      {item.mediaAttachment && (
+                        <div className="mt-3">
+                          <MediaPreview
+                            media={item.mediaAttachment}
+                            onOpen={() => setLightboxMedia(item.mediaAttachment ?? null)}
+                          />
+                        </div>
+                      )}
+
+                      {item.songAttachment && (
+                        <SpotifyMiniPlayer
+                          song={item.songAttachment}
+                          className="mt-3"
+                        />
+                      )}
                     </div>
 
                     <div className="mt-4 flex items-center justify-between gap-2 border-t border-swiss-border pt-3.5">
@@ -940,6 +976,12 @@ export const AffirmationsView: React.FC<AffirmationsViewProps> = ({
           )}
         </>
       ) : null}
+
+      <MediaLightbox
+        media={lightboxMedia}
+        isOpen={Boolean(lightboxMedia)}
+        onClose={() => setLightboxMedia(null)}
+      />
     </div>
   );
 };

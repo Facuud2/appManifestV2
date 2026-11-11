@@ -65,6 +65,8 @@ export async function run() {
   };
 
   await ensureColumn('manifestation_progress', 'voice_transcript', 'TEXT');
+  await ensureColumn('manifestation_progress', 'song_attachment', 'TEXT');
+  await ensureColumn('manifestation_progress', 'media_attachment', 'TEXT');
 
   const progressTableInfo = await client.execute('PRAGMA table_info(manifestation_progress);');
   const manifestationIdColumn = progressTableInfo.rows.find(
@@ -174,13 +176,15 @@ export async function run() {
   await ensureColumn('affirmations', 'repeat_count', 'INTEGER DEFAULT 0');
   await ensureColumn('affirmations', 'pinned', 'INTEGER DEFAULT 0');
   await ensureColumn('affirmations', 'sort_order', 'INTEGER');
+  await ensureColumn('affirmations', 'song_attachment', 'TEXT');
+  await ensureColumn('affirmations', 'media_attachment', 'TEXT');
 
   // Insert default profiles if they don't exist
   const now = new Date().toISOString();
   await client.execute({
     sql: `INSERT OR IGNORE INTO profiles (id, name, avatar, has_calibrated_voice, created_at, updated_at) VALUES 
       ('maia', 'Maia', '🌸', 0, ?, ?),
-      ('facu', 'Facu', '⚡', 0, ?, ?),
+      ('facu', 'Facu', '⚡', 1, ?, ?),
       ('shared', 'Ambos Juntos', '✨', 0, ?, ?)
     `,
     args: [now, now, now, now, now, now]

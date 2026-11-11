@@ -7,6 +7,10 @@ import { useAppStore } from '@/store';
 import { EMIL_EASE_OUT, STAGGER_CONTAINER, STAGGER_ITEM } from '@/lib/iosSprings';
 import { splitTextAndUrls, generateCleanTitle, type UrlMetadataHints } from '@/utils/urlParser';
 import { RichLinkPreview } from '@/components/journal/RichLinkPreview';
+import { SpotifyMiniPlayer } from '@/components/journal/attachments/SpotifyMiniPlayer';
+import { MediaPreview } from '@/components/journal/attachments/MediaPreview';
+import { MediaLightbox } from '@/components/journal/attachments/MediaLightbox';
+import type { SongAttachment, MediaAttachment } from '@/types';
 
 type FilterTab = 'todos' | 'sincronias' | 'interior';
 
@@ -29,6 +33,8 @@ interface TimelineDisplayItem {
   manifestationTag?: string;
   manifestationId?: string;
   urls: UrlMetadataHints[];
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
 }
 
 const signToneMap: Record<
@@ -75,6 +81,7 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
     [allManifestations, activeScope]
   );
   const [activeFilter, setActiveFilter] = useState<FilterTab>('todos');
+  const [lightboxMedia, setLightboxMedia] = useState<MediaAttachment | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const formatDateTime = (isoDate: string) => {
@@ -146,6 +153,8 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
         manifestationTag: manif?.title,
         manifestationId: manif?.id || log.manifestationId,
         urls,
+        songAttachment: log.songAttachment,
+        mediaAttachment: log.mediaAttachment,
       };
     });
   }, [progressLogs, manifestations]);
@@ -316,6 +325,22 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
                           </p>
                         )}
 
+                        {item.mediaAttachment && (
+                          <div className="mt-3">
+                            <MediaPreview
+                              media={item.mediaAttachment}
+                              onOpen={() => setLightboxMedia(item.mediaAttachment ?? null)}
+                            />
+                          </div>
+                        )}
+
+                        {item.songAttachment && (
+                          <SpotifyMiniPlayer
+                            song={item.songAttachment}
+                            className="mt-3"
+                          />
+                        )}
+
                         {item.urls.map((u) => (
                           <RichLinkPreview key={u.cleanUrl} url={u.cleanUrl} />
                         ))}
@@ -481,6 +506,12 @@ export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({
           </div>
         </div>
       )}
+
+      <MediaLightbox
+        media={lightboxMedia}
+        isOpen={Boolean(lightboxMedia)}
+        onClose={() => setLightboxMedia(null)}
+      />
     </section>
   );
 };

@@ -8,6 +8,12 @@ import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { BACKDROP_TRANSITION, MODAL_TRANSITION } from '@/lib/iosSprings';
 import { extractUrls } from '@/utils/urlParser';
 import { RichLinkPreview } from '@/components/journal/RichLinkPreview';
+import { putMedia } from '@/lib/mediaStorage';
+import { stopActivePreview } from '@/lib/audioPreviewBus';
+import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
+import { AttachmentMenu } from '@/components/journal/attachments/AttachmentMenu';
+import { AttachmentChipRow } from '@/components/journal/attachments/AttachmentChipRow';
+import { MusicSearchSheet } from '@/components/journal/attachments/MusicSearchSheet';
 
 interface ProgressLogModalProps {
   isOpen: boolean;
@@ -41,10 +47,23 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
   const [newStatus, setNewStatus] = useState<ManifestationItem['status']>('alineacion');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [isMusicOpen, setIsMusicOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const draft = useAttachmentDraft();
+
+  const handleClose = () => {
+    if (isMusicOpen) return;
+    setIsMusicOpen(false);
+    draft.reset();
+    onClose();
+  };
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      draft.reset();
+      setIsMusicOpen(false);
+      return;
+    }
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const root = document.documentElement;
@@ -94,14 +113,27 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
     event.preventDefault();
     if (!note.trim() || isSubmitting) return;
 
+    const id = `prog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const songAttachment = draft.song;
+    const draftMedia = draft.media;
+    const mediaAttachment = draft.buildMediaAttachment(id);
+    const blobToPersist = draftMedia?.blob ?? null;
+    const storageKey = mediaAttachment?.storageKey ?? null;
+
     setIsSubmitting(true);
     setSaveError(false);
     try {
+      if (blobToPersist && storageKey) {
+        await putMedia(storageKey, blobToPersist);
+      }
+
       await addProgressLog({
         manifestationId: selectedManifId || undefined,
         userId: activeScope,
         note: note.trim(),
         signType,
+        songAttachment: songAttachment ?? null,
+        mediaAttachment: mediaAttachment ?? null,
       });
 
       if (selectedManifId) {
@@ -109,7 +141,7 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
       }
 
       setNote('');
-      onClose();
+      handleClose();
     } catch (error) {
       console.warn('[ProgressLog] Error:', error);
       setSaveError(true);
@@ -119,32 +151,34 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          variants={BACKDROP_TRANSITION}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) onClose();
-          }}
-          className="progress-composer-scrim fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6"
-        >
+    <>
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
-            ref={dialogRef}
-            variants={MODAL_TRANSITION}
+            key="progress-log-scrim"
+            variants={BACKDROP_TRANSITION}
             initial="hidden"
             animate="visible"
             exit="exit"
-            onKeyDown={handleDialogKeyDown}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="progress-log-title"
-            aria-describedby="progress-log-description"
-            tabIndex={-1}
-            className="progress-composer swiss-modal relative w-full max-w-[26.5rem] p-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:p-6 sm:pb-6"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) onClose();
+            }}
+            className="progress-composer-scrim fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6"
           >
+            <motion.div
+              ref={dialogRef}
+              variants={MODAL_TRANSITION}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              onKeyDown={handleDialogKeyDown}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="progress-log-title"
+              aria-describedby="progress-log-description"
+              tabIndex={-1}
+              className="progress-composer swiss-modal relative w-full max-w-[26.5rem] p-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:p-6 sm:pb-6"
+            >
             <header className="mb-4 flex items-start justify-between gap-4 sm:mb-3">
               <div className="min-w-0">
                 <p className="progress-composer-eyebrow mb-1.5">Nuevo registro</p>
@@ -166,6 +200,17 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
             </header>
 
             <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-3">
+              <AttachmentChipRow
+                song={draft.song}
+                media={
+                  draft.media
+                    ? { attachment: draft.media.attachment, previewUrl: draft.media.previewUrl }
+                    : null
+                }
+                onRemoveSong={draft.removeSong}
+                onRemoveMedia={draft.removeMedia}
+              />
+
               <div className="progress-composer-field relative">
                 <label htmlFor="progress-log-note" className="sr-only">
                   ¿Qué cambió hoy?
@@ -180,6 +225,17 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
                   maxLength={3000}
                   className="swiss-composer-field h-[8.5rem] min-h-[8.5rem] w-full resize-none rounded-[12px] px-4 pb-14 pt-4 text-sm leading-6"
                 />
+                <div className="absolute bottom-3 left-3">
+                  <AttachmentMenu
+                    disabled={draft.isProcessing || Boolean(draft.song && draft.media)}
+                    onPhoto={draft.attachPhoto}
+                    onVideo={draft.attachVideo}
+                    onSong={() => {
+                      stopActivePreview();
+                      setIsMusicOpen(true);
+                    }}
+                  />
+                </div>
                 <VoiceDictationButton
                   size="lg"
                   className="progress-composer-mic absolute bottom-3 right-3 h-11 w-11 rounded-xl border-0"
@@ -187,6 +243,12 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
                   previousTextTail={note}
                 />
               </div>
+
+              {draft.error ? (
+                <p role="alert" className="text-xs leading-5 text-[var(--color-swiss-red)]">
+                  {draft.error}
+                </p>
+              ) : null}
 
               {(() => {
                 const detected = extractUrls(note);
@@ -296,5 +358,12 @@ export const ProgressLogModal: React.FC<ProgressLogModalProps> = ({
         </motion.div>
       )}
     </AnimatePresence>
+
+    <MusicSearchSheet
+      isOpen={isMusicOpen}
+      onClose={() => setIsMusicOpen(false)}
+      onSelect={(track) => draft.selectSong(track)}
+    />
+  </>
   );
 };

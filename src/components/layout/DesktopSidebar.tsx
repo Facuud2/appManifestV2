@@ -2,7 +2,7 @@
 
 import React, { useRef } from 'react';
 import { NavTab } from './BottomNavigation';
-import { Feather, Footprints, LayoutGrid, Mic, Quote, Sparkles } from 'lucide-react';
+import { Feather, Footprints, Headphones, LayoutGrid, Mic, Quote, Sparkles } from 'lucide-react';
 import { useAppStore } from '@/store';
 
 interface DesktopSidebarProps {
@@ -23,6 +23,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     affirmations: allAffirmations,
     progressLogs: allProgressLogs,
     successStories: allSuccessStories,
+    rampageSets: allRampageSets,
     activeScope,
     isFacuCalibrated,
     isMaiaCalibrated,
@@ -36,6 +37,16 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const affirmations = allAffirmations.filter((item) => item.userId === activeScope);
   const progressLogs = allProgressLogs.filter((item) => item.userId === activeScope);
   const successStories = allSuccessStories.filter((item) => item.userId === activeScope);
+  const rampageSets = React.useMemo(() => {
+    const scoped = allRampageSets.filter((item) => item.userId === activeScope);
+    const seenTitles = new Set<string>();
+    return scoped.filter((s) => {
+      const normalizedTitle = s.title.trim().toLowerCase();
+      if (seenTitles.has(normalizedTitle)) return false;
+      seenTitles.add(normalizedTitle);
+      return true;
+    });
+  }, [allRampageSets, activeScope]);
 
   const isCurrentCalibrated =
     activeScope === 'maia'
@@ -51,6 +62,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       label: 'Afirmaciones',
       icon: Quote,
       badge: affirmations.length,
+    },
+    {
+      id: 'rampage' as NavTab,
+      label: 'Rampages',
+      icon: Headphones,
+      badge: rampageSets.length,
     },
     {
       id: 'manifestations' as NavTab,

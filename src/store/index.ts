@@ -48,6 +48,8 @@ export interface ProgressLog {
   note: string;
   signType?: string;
   voiceTranscript?: string;
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
   createdAt: string;
 }
 
@@ -119,6 +121,55 @@ const writeLocalAffirmationOrder = (scope: UserScope, items: Affirmation[]) => {
       };
     });
     window.localStorage.setItem(getAffirmationOrderStorageKey(scope), JSON.stringify(map));
+  } catch {
+    // Ignore storage quota errors
+  }
+};
+
+const getRecentRampagesStorageKey = (scope: UserScope) =>
+  `manifest_recent_rampages_${scope}`;
+
+export const readRecentRampageIds = (scope: UserScope): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(getRecentRampagesStorageKey(scope));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export const writeRecentRampageIds = (scope: UserScope, ids: string[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(getRecentRampagesStorageKey(scope), JSON.stringify(ids.slice(0, 10)));
+  } catch {
+    // Ignore storage quota errors
+  }
+};
+
+const getCustomRampagesStorageKey = (scope: UserScope) =>
+  `manifest_custom_rampage_sets_${scope}`;
+
+export const readCustomRampageSets = (scope: UserScope): RampageSet[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(getCustomRampagesStorageKey(scope));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export const writeCustomRampageSets = (scope: UserScope, sets: RampageSet[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const customOnly = sets.filter((s) => !s.id.startsWith('default_set_'));
+    window.localStorage.setItem(getCustomRampagesStorageKey(scope), JSON.stringify(customOnly));
   } catch {
     // Ignore storage quota errors
   }
@@ -240,7 +291,16 @@ interface AppState {
   addSuccessStory: (story: Omit<SuccessStory, 'id' | 'createdAt'>) => Promise<SuccessStory>;
   deleteSuccessStory: (id: string) => Promise<void>;
 
-  addAffirmation: (text: string) => Promise<Affirmation>;
+  addAffirmation: (
+    input:
+      | string
+      | {
+          text: string;
+          category?: string;
+          songAttachment?: SongAttachment | null;
+          mediaAttachment?: MediaAttachment | null;
+        }
+  ) => Promise<Affirmation>;
   togglePinAffirmation: (id: string) => Promise<void>;
   reorderAffirmations: (activeId: string, overId: string) => void;
   moveAffirmation: (id: string, direction: 'up' | 'down') => Promise<void>;
@@ -252,7 +312,12 @@ interface AppState {
     rampage: Omit<RampageSet, 'id' | 'createdAt'> &
       Partial<Pick<RampageSet, 'id' | 'createdAt'>>
   ) => Promise<RampageSet>;
+  updateRampageSet: (
+    id: string,
+    updates: Partial<Omit<RampageSet, 'id' | 'userId'>>
+  ) => Promise<RampageSet | null>;
   deleteRampageSet: (id: string) => Promise<void>;
+  touchRampageLastPlayed: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -466,10 +531,14 @@ export const useAppStore = create<AppState>((set, get) => {
           scope
         );
 
-        const mergedRampageSets = mergeDefaultRampageSets(
-          (json.data.rampageSets || []).filter((item: RampageSet) => item.userId === scope),
-          scope
-        );
+        const localCustomSets = readCustomRampageSets(scope);
+        const remoteSets = (json.data.rampageSets || []).filter((item: RampageSet) => item.userId === scope);
+        const remoteIds = new Set(remoteSets.map((s: RampageSet) => s.id));
+        const combinedScoped = [
+          ...remoteSets,
+          ...localCustomSets.filter((s) => !remoteIds.has(s.id)),
+        ];
+        const mergedRampageSets = mergeDefaultRampageSets(combinedScoped, scope);
 
         set((state) => ({
           manifestations: scopedManifestations,
@@ -538,7 +607,11 @@ export const useAppStore = create<AppState>((set, get) => {
 
         const manifestations = mergeById(
           previous.manifestations,
-          result.manifestations.map(({ tempId: _tempId, ...item }) => item)
+          result.manifestations.map(({ tempId: _tempId, ...item }) => ({
+            ...item,
+            songAttachment: item.songAttachment ?? null,
+            mediaAttachment: item.mediaAttachment ?? null,
+          }))
         );
 
         const progressLogs = mergeById(
@@ -548,6 +621,8 @@ export const useAppStore = create<AppState>((set, get) => {
             manifestationId: item.manifestationId ?? undefined,
             signType: item.signType ?? undefined,
             voiceTranscript: item.voiceTranscript ?? undefined,
+            songAttachment: item.songAttachment ?? null,
+            mediaAttachment: item.mediaAttachment ?? null,
           }))
         );
 
@@ -562,7 +637,11 @@ export const useAppStore = create<AppState>((set, get) => {
         const affirmations = sortAffirmations(
           mergeById(
             previous.affirmations,
-            result.affirmations.map(({ tempId: _tempId, ...item }) => item)
+            result.affirmations.map(({ tempId: _tempId, ...item }) => ({
+              ...item,
+              songAttachment: item.songAttachment ?? null,
+              mediaAttachment: item.mediaAttachment ?? null,
+            }))
           )
         );
 
@@ -835,6 +914,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     deleteProgressLog: async (id) => {
       const scope = get().activeScope;
+      const target = get().progressLogs.find((p) => p.id === id);
       set((state) => {
         const nextProgressLogs = state.progressLogs.filter((p) => p.id !== id);
         return {
@@ -854,6 +934,10 @@ export const useAppStore = create<AppState>((set, get) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity: 'progress', action: 'delete', scope, id }),
       }).catch(console.error);
+
+      if (target?.mediaAttachment?.storageKey) {
+        void deleteMedia(target.mediaAttachment.storageKey);
+      }
     },
 
     addSuccessStory: async (story) => {
@@ -923,7 +1007,13 @@ export const useAppStore = create<AppState>((set, get) => {
       }).catch(console.error);
     },
 
-    addAffirmation: async (text) => {
+    addAffirmation: async (input) => {
+      const isObj = typeof input === 'object' && input !== null;
+      const text = isObj ? input.text : input;
+      const category = isObj ? input.category : undefined;
+      const songAttachment = isObj ? input.songAttachment : undefined;
+      const mediaAttachment = isObj ? input.mediaAttachment : undefined;
+
       const id = `aff_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const now = new Date().toISOString();
       const scope = get().activeScope;
@@ -940,6 +1030,9 @@ export const useAppStore = create<AppState>((set, get) => {
         userId: scope,
         author,
         text,
+        category,
+        songAttachment: songAttachment ?? null,
+        mediaAttachment: mediaAttachment ?? null,
         repeatCount: 0,
         pinned: false,
         order: pinnedItems.length,
@@ -1157,6 +1250,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     deleteAffirmation: async (id) => {
       const scope = get().activeScope;
+      const target = get().affirmations.find((a) => a.id === id);
       set((state) => {
         const nextAffirmations = state.affirmations.filter((a) => a.id !== id);
         return {
@@ -1176,6 +1270,10 @@ export const useAppStore = create<AppState>((set, get) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity: 'affirmation', action: 'delete', scope, id }),
       }).catch(console.error);
+
+      if (target?.mediaAttachment?.storageKey) {
+        void deleteMedia(target.mediaAttachment.storageKey);
+      }
     },
 
     saveRampageSet: async (rampage) => {
@@ -1194,6 +1292,7 @@ export const useAppStore = create<AppState>((set, get) => {
           newSet,
           ...state.rampageSets.filter((rampageSet) => rampageSet.id !== newSet.id),
         ];
+        writeCustomRampageSets(scope, nextRampageSets);
         return {
           rampageSets: nextRampageSets,
           scopeCollections: {
@@ -1215,10 +1314,82 @@ export const useAppStore = create<AppState>((set, get) => {
       return newSet;
     },
 
+    updateRampageSet: async (id, updates) => {
+      const scope = get().activeScope;
+      const now = new Date().toISOString();
+      let updatedItem: RampageSet | null = null;
+
+      set((state) => {
+        const nextRampageSets = state.rampageSets.map((set) => {
+          if (set.id === id) {
+            updatedItem = {
+              ...set,
+              ...updates,
+              updatedAt: now,
+            };
+            return updatedItem;
+          }
+          return set;
+        });
+        writeCustomRampageSets(scope, nextRampageSets);
+
+        return {
+          rampageSets: nextRampageSets,
+          scopeCollections: {
+            ...state.scopeCollections,
+            [scope]: {
+              ...state.scopeCollections[scope],
+              rampageSets: nextRampageSets,
+            },
+          },
+        };
+      });
+
+      if (updatedItem) {
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'rampageSet', action: 'save', scope, data: updatedItem }),
+        }).catch(console.error);
+      }
+
+      return updatedItem;
+    },
+
+    touchRampageLastPlayed: (id: string) => {
+      const scope = get().activeScope;
+      const now = new Date().toISOString();
+
+      // Guardar en localStorage para acceso inmediato y resistente a refrescos
+      const currentRecent = readRecentRampageIds(scope);
+      const nextRecent = [id, ...currentRecent.filter((existingId) => existingId !== id)].slice(0, 10);
+      writeRecentRampageIds(scope, nextRecent);
+
+      set((state) => {
+        const nextRampageSets = state.rampageSets.map((item) =>
+          item.id === id ? { ...item, lastPlayedAt: now } : item
+        );
+        return {
+          rampageSets: nextRampageSets,
+          scopeCollections: {
+            ...state.scopeCollections,
+            [scope]: {
+              ...state.scopeCollections[scope],
+              rampageSets: nextRampageSets,
+            },
+          },
+        };
+      });
+    },
+
     deleteRampageSet: async (id) => {
       const scope = get().activeScope;
+      const currentRecent = readRecentRampageIds(scope);
+      writeRecentRampageIds(scope, currentRecent.filter((existingId) => existingId !== id));
+
       set((state) => {
         const nextRampageSets = state.rampageSets.filter((r) => r.id !== id);
+        writeCustomRampageSets(scope, nextRampageSets);
         return {
           rampageSets: nextRampageSets,
           scopeCollections: {

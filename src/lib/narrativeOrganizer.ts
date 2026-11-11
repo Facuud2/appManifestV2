@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { findPoeticTerm } from './affirmationEngine';
 import { generateCleanTitle, URL_REGEX } from '@/utils/urlParser';
+import type { SongAttachment, MediaAttachment } from '@/types';
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -18,6 +19,7 @@ export const NARRATIVE_SCENARIOS = [
   'unclear',
   'repeat_affirmation',
   'repeat_manifestation',
+  'song_attachment',
 ] as const;
 export type NarrativeScenario = (typeof NARRATIVE_SCENARIOS)[number];
 
@@ -53,6 +55,9 @@ export interface ProposedManifestation {
   status: ManifestationStatus;
   existingId?: string;
   action?: 'repeat' | 'create_new';
+  songQuery?: string;
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
 }
 
 export interface ProposedProgress {
@@ -61,6 +66,9 @@ export interface ProposedProgress {
   content: string;
   link: NarrativeLink;
   signType?: string;
+  songQuery?: string;
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
 }
 
 export interface ProposedSuccess {
@@ -77,6 +85,9 @@ export interface ProposedAffirmation {
   category?: string;
   existingId?: string;
   action?: 'repeat' | 'create_new';
+  songQuery?: string;
+  songAttachment?: SongAttachment | null;
+  mediaAttachment?: MediaAttachment | null;
 }
 
 export interface ProposedRampage {
@@ -116,6 +127,8 @@ export interface NarrativeCommitResult {
     createdAt: string;
     updatedAt: string;
     tempId: string;
+    songAttachment?: SongAttachment | null;
+    mediaAttachment?: MediaAttachment | null;
   }>;
   progressLogs: Array<{
     id: string;
@@ -126,6 +139,8 @@ export interface NarrativeCommitResult {
     voiceTranscript: string | null;
     createdAt: string;
     tempId: string;
+    songAttachment?: SongAttachment | null;
+    mediaAttachment?: MediaAttachment | null;
   }>;
   successStories: Array<{
     id: string;
@@ -150,6 +165,8 @@ export interface NarrativeCommitResult {
     order: number;
     createdAt: string;
     tempId: string;
+    songAttachment?: SongAttachment | null;
+    mediaAttachment?: MediaAttachment | null;
   }>;
   skippedAffirmations: string[];
   repeatedAffirmations?: Array<{ id: string; repeatCount: number }>;
@@ -249,6 +266,42 @@ function normalizeStatus(value: unknown): ManifestationStatus {
   return typeof value === 'string' && MANIFESTATION_STATUSES.has(value as ManifestationStatus)
     ? (value as ManifestationStatus)
     : 'semilla';
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Song natural language extraction & cleanup                                */
+/* -------------------------------------------------------------------------- */
+
+export function extractSongIntent(text: string): { cleanText: string; songQuery?: string } {
+  if (!text || typeof text !== 'string') return { cleanText: '' };
+
+  // 1. Spotify track URL anywhere in text
+  const spotifyMatch = text.match(/(?:https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/[A-Za-z0-9]{22}|spotify:track:[A-Za-z0-9]{22})/i);
+  if (spotifyMatch) {
+    const songQuery = spotifyMatch[0];
+    const cleanText = text.replace(spotifyMatch[0], '').replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+    return { cleanText, songQuery };
+  }
+
+  // 2. Command phrases: "Agregué/agregá/poné/con la canción X de Spotify (a este momento/avance/...)"
+  const commandRegex = /(?:[\.\,\;\!]|\b)?\s*(?:(?:he\s+)?agreg(?:u[ée]|ar|o|a)?|pon(?:[ée]|er|go)?|met(?:[íi]|er|e)?|sum(?:[ée]|ar|o)?|adjunt(?:[ée]|ar|o|a)?|vincul(?:[ée]|ar|o|a)?|escuch(?:ando|[ée]|aba))\s+(?:la\s+canci[oó]n|el\s+tema|el\s+track)\s+["'«]?([^"'\n\.\,«»]+?)["'»]?\s+(?:de\s+Spotify|en\s+Spotify)(?:\s+(?:a|en)\s+(?:este\s+momento|esta\s+manifestaci[oó]n|este\s+avance|esta\s+afirmaci[oó]n|esto))?[\.\!]?/i;
+  const match = text.match(commandRegex);
+  if (match && match[1]?.trim()) {
+    const songQuery = match[1].trim();
+    const cleanText = text.replace(match[0], '').replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+    return { cleanText, songQuery };
+  }
+
+  // 3. Simpler phrasing: "... la canción X de Spotify"
+  const simpleSpotifyRegex = /(?:[\.\,\;\!]|\b)?\s*(?:con\s+)?(?:la\s+canci[oó]n|el\s+tema)\s+["'«]?([^"'\n\.\,«»]+?)["'»]?\s+(?:de\s+Spotify|en\s+Spotify)[\.\!]?/i;
+  const matchSimple = text.match(simpleSpotifyRegex);
+  if (matchSimple && matchSimple[1]?.trim()) {
+    const songQuery = matchSimple[1].trim();
+    const cleanText = text.replace(matchSimple[0], '').replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+    return { cleanText, songQuery };
+  }
+
+  return { cleanText: text };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -446,6 +499,24 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
       rawTitle = rawTitle.replace(URL_REGEX, '').replace(/https?:\/\/\S*/gi, '').trim();
       rawTitle = rawTitle.replace(/^\([^\)]+\)\s*-\s*/, '').trim();
     }
+
+    let rawSongQuery = readString(record.songQuery);
+    if (!rawSongQuery) {
+      const extracted = extractSongIntent(cleanContent);
+      if (extracted.songQuery) {
+        cleanContent = extracted.cleanText;
+        rawSongQuery = extracted.songQuery;
+      }
+    }
+    const songAttachment =
+      record.songAttachment && typeof record.songAttachment === 'object'
+        ? (record.songAttachment as SongAttachment)
+        : null;
+    const mediaAttachment =
+      record.mediaAttachment && typeof record.mediaAttachment === 'object'
+        ? (record.mediaAttachment as MediaAttachment)
+        : null;
+
     const derivedTitle = generateCleanTitle(cleanContent) || `Manifestación ${index + 1}`;
     let title = clipText(rawTitle || derivedTitle, NARRATIVE_LIMITS.title);
     title = title.replace(URL_REGEX, '').replace(/https?:\/\/\S*/gi, '').trim() || derivedTitle;
@@ -476,6 +547,9 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
       status: normalizeStatus(record.status),
       existingId: matchedExistingManId || undefined,
       action,
+      songQuery: rawSongQuery || undefined,
+      songAttachment,
+      mediaAttachment,
     });
   });
 
@@ -497,7 +571,24 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
         existingIds,
         tempManifestationIds
       );
-      const content = clipText(item.content ?? item.note, NARRATIVE_LIMITS.content);
+      let content = clipText(item.content ?? item.note, NARRATIVE_LIMITS.content);
+      let rawSongQuery = readString(item.songQuery);
+      if (!rawSongQuery) {
+        const extracted = extractSongIntent(content);
+        if (extracted.songQuery) {
+          content = extracted.cleanText;
+          rawSongQuery = extracted.songQuery;
+        }
+      }
+      const songAttachment =
+        item.songAttachment && typeof item.songAttachment === 'object'
+          ? (item.songAttachment as SongAttachment)
+          : null;
+      const mediaAttachment =
+        item.mediaAttachment && typeof item.mediaAttachment === 'object'
+          ? (item.mediaAttachment as MediaAttachment)
+          : null;
+
       const title =
         clipText(item.title, NARRATIVE_LIMITS.title) ||
         content.split(/[.!?\n]/)[0]?.trim().slice(0, NARRATIVE_LIMITS.title) ||
@@ -510,6 +601,9 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
           content,
           link,
           signType: SIGN_TYPES.has(signType) ? signType : undefined,
+          songQuery: rawSongQuery || undefined,
+          songAttachment,
+          mediaAttachment,
         },
       ];
     });
@@ -582,12 +676,33 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
         }
       }
 
+      let cleanText = text;
+      let rawSongQuery = readString(record.songQuery);
+      if (!rawSongQuery) {
+        const extracted = extractSongIntent(cleanText);
+        if (extracted.songQuery) {
+          cleanText = extracted.cleanText;
+          rawSongQuery = extracted.songQuery;
+        }
+      }
+      const songAttachment =
+        record.songAttachment && typeof record.songAttachment === 'object'
+          ? (record.songAttachment as SongAttachment)
+          : null;
+      const mediaAttachment =
+        record.mediaAttachment && typeof record.mediaAttachment === 'object'
+          ? (record.mediaAttachment as MediaAttachment)
+          : null;
+
       affirmations.push({
         tempId: sanitizeIdFragment(readString(record.tempId) || `a_${index + 1}`),
-        text,
+        text: cleanText,
         category: clipText(record.category, NARRATIVE_LIMITS.category) || undefined,
         existingId: matchedExistingAffId || undefined,
         action,
+        songQuery: rawSongQuery || undefined,
+        songAttachment,
+        mediaAttachment,
       });
     });
 
@@ -896,6 +1011,36 @@ export function buildSandboxNarrativeDraft(options: SandboxOptions): NarrativeDr
       return draft;
     }
 
+    case 'song_attachment': {
+      const draft = emptyNarrativeDraft(draftId);
+      draft.userTranscript =
+        options.spokenText ||
+        'Hoy le marqué que no había ido a comprar y le di a entender que la extrañaba. Agregué la canción El muelle de San Blas de Spotify a este momento.';
+      draft.siriResponse =
+        'Anoté tu avance y anexé la canción El muelle de San Blas de Spotify.';
+      draft.proposedPlan.progressLogs = [
+        {
+          tempId: 'p_song_1',
+          title: 'Nos dimos a entender que nos extrañábamos',
+          content:
+            'Hoy le marqué que no había ido a comprar y le di a entender que la extrañaba, y ella también me dio a entender que me extrañaba.',
+          link: { kind: 'none' },
+          signType: 'coincidence',
+          songQuery: 'El muelle de San Blas Mana',
+          songAttachment: {
+            id: 'spotify:el_muelle_de_san_blas',
+            title: 'El Muelle de San Blas',
+            artist: 'Maná',
+            albumCoverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80',
+            spotifyUrl: 'https://open.spotify.com/track/4jV3c5V8hGjVl7m6bZ4xYQ',
+            previewAudioUrl: null,
+            provider: 'spotify',
+          },
+        },
+      ];
+      return draft;
+    }
+
     case 'sabrina_initial':
     default:
       return baseSabrinaDraft(draftId);
@@ -1029,6 +1174,12 @@ REGLAS PROHIBIDAS:
   * Por predeterminado debe repetirla, a no ser que el usuario elija guardarla como nueva (action: "create_new").
   * En "siriResponse", indicá con amabilidad que ya se encuentra presente y que por defecto se repetirá, salvo que elija guardarla como nueva.
 
+## CANCIONES DE SPOTIFY Y ADJUNTOS CON LENGUAJE NATURAL
+- Si el usuario menciona una canción (ej: "agregué la canción El muelle de San Blas de Spotify a este momento", "poné la canción Yellow de Coldplay", "con el tema Luna de Zoé", o un enlace de Spotify):
+  * Extraé el nombre de la canción y el artista (o la URL de Spotify) en el campo "songQuery": "El muelle de San Blas Maná" en el ítem correspondiente (manifestations, progressLogs o affirmations).
+  * REGLA OBLIGATORIA DE LIMPIEZA DE TEXTO: NUNCA dejes la frase de la orden dentro de "content", "title" o "note". Está TERMINANTEMENTE PROHIBIDO dejar frases como "Agregué la canción El muelle de San Blas de Spotify a este momento" en el texto. Remové esa frase del relato; el relato debe conservar exclusivamente lo vivido en primera persona.
+  * En "siriResponse", confirmá con calidez que anexaste la canción solicitada.
+
 ## FORMATO DE SALIDA
 Devolvé ÚNICAMENTE este JSON, sin texto extra ni code fences:
 {
@@ -1041,14 +1192,16 @@ Devolvé ÚNICAMENTE este JSON, sin texto extra ni code fences:
       "title": "afirmación en presente de 3 a 6 palabras (ej: 'Salgo con Brisa')",
       "content": "oración directa en presente de 6 a 18 palabras (1 solo párrafo, sin \\n\\n)",
       "category": "relaciones | abundancia | crecimiento | bienestar | carrera | creatividad",
-      "status": "semilla | alineacion | evidencia | materializado"
+      "status": "semilla | alineacion | evidencia | materializado",
+      "songQuery": "opcional: título y artista si pidió anexar una canción"
     }],
     "progressLogs": [{
       "tempId": "p_1",
       "title": "título breve en primera persona (máximo 280 caracteres)",
-      "content": "contexto histórico / qué ocurrió en primera persona (ej: 'La conocí por Tinder hace una semana y me propuso vernos este jueves o viernes')",
+      "content": "contexto histórico / qué ocurrió en primera persona (sin frases de comando de canciones)",
       "link": { "kind": "temp", "id": "m_1" },
-      "signType": "coincidence | angel_number | dream | intuitive | encounter | symbol"
+      "signType": "coincidence | angel_number | dream | intuitive | encounter | symbol",
+      "songQuery": "opcional: título y artista si pidió anexar una canción a este momento"
     }],
     "successStories": [{
       "tempId": "s_1",
@@ -1057,7 +1210,12 @@ Devolvé ÚNICAMENTE este JSON, sin texto extra ni code fences:
       "link": { "kind": "existing", "id": "id_real" },
       "manifestedDate": "YYYY-MM-DD"
     }],
-    "affirmations": [{ "tempId": "a_1", "text": "afirmación en primera persona presente simple", "category": "Vínculos" }],
+    "affirmations": [{
+      "tempId": "a_1",
+      "text": "afirmación en primera persona presente simple",
+      "category": "Vínculos",
+      "songQuery": "opcional: título y artista si pidió anexar una canción"
+    }],
     "rampageToStart": null
   }
 }

@@ -12,6 +12,8 @@ import {
   type NarrativeDraft,
   type NarrativeProfileId,
 } from './narrativeOrganizer';
+import { searchMusicTracks, resolveSpotifyTrackUrl } from './musicProviders';
+import type { SongAttachment } from '@/types';
 
 const NARRATIVE_TIMEOUT_MS = 45_000;
 const PRIMARY_MODEL = 'gemini-3.5-flash';
@@ -81,6 +83,83 @@ async function generateJson(options: {
   return response.text || '';
 }
 
+export async function enrichDraftWithMusic(draft: NarrativeDraft): Promise<NarrativeDraft> {
+  const plan = draft.proposedPlan;
+  const itemsWithQuery: Array<{ songQuery: string; attach: (song: SongAttachment) => void }> = [];
+
+  for (const item of plan.manifestations) {
+    if (item.songQuery && !item.songAttachment) {
+      itemsWithQuery.push({
+        songQuery: item.songQuery,
+        attach: (song) => { item.songAttachment = song; },
+      });
+    }
+  }
+
+  for (const item of plan.progressLogs) {
+    if (item.songQuery && !item.songAttachment) {
+      itemsWithQuery.push({
+        songQuery: item.songQuery,
+        attach: (song) => { item.songAttachment = song; },
+      });
+    }
+  }
+
+  for (const item of plan.affirmations) {
+    if (item.songQuery && !item.songAttachment) {
+      itemsWithQuery.push({
+        songQuery: item.songQuery,
+        attach: (song) => { item.songAttachment = song; },
+      });
+    }
+  }
+
+  if (itemsWithQuery.length === 0) return draft;
+
+  await Promise.all(
+    itemsWithQuery.map(async ({ songQuery, attach }) => {
+      try {
+        if (songQuery.includes('open.spotify.com') || songQuery.startsWith('spotify:track:')) {
+          const res = await resolveSpotifyTrackUrl(songQuery);
+          if (res?.tracks[0]) {
+            const t = res.tracks[0];
+            attach({
+              id: t.id,
+              title: t.title,
+              artist: t.artist,
+              albumCoverUrl: t.albumCoverUrl,
+              spotifyUrl: t.spotifyUrl,
+              previewAudioUrl: t.previewAudioUrl,
+              provider: t.provider,
+              providerTrackId: t.providerTrackId,
+            });
+            return;
+          }
+        }
+
+        const res = await searchMusicTracks(songQuery);
+        if (res?.tracks && res.tracks.length > 0) {
+          const t = res.tracks[0];
+          attach({
+            id: t.id,
+            title: t.title,
+            artist: t.artist,
+            albumCoverUrl: t.albumCoverUrl,
+            spotifyUrl: t.spotifyUrl,
+            previewAudioUrl: t.previewAudioUrl,
+            provider: t.provider,
+            providerTrackId: t.providerTrackId,
+          });
+        }
+      } catch (err) {
+        console.error('[enrichDraftWithMusic] Error resolving song query:', songQuery, err);
+      }
+    })
+  );
+
+  return draft;
+}
+
 export async function analyzeNarrativeWithGemini(options: {
   audioBuffer: Buffer;
   mimeType: string;
@@ -138,6 +217,7 @@ Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.${options
       existingAffirmations: options.existingAffirmations,
       allowLegacy: true,
     });
+    await enrichDraftWithMusic(draft);
     return { draft, source: 'GEMINI_LIVE', quotaUsedToday, warnings };
   } catch (parseError) {
     console.error('[NarrativeOrganizer] Could not parse model JSON:', parseError);

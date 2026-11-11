@@ -12,9 +12,15 @@ import { DashboardView } from '@/features/dashboard/DashboardView';
 import { DashboardSkeleton } from '@/features/dashboard/DashboardSkeleton';
 import { ManifestationsView } from '@/features/journal/ManifestationsView';
 import { AffirmationsView } from '@/features/journal/AffirmationsView';
+import { RampagesView } from '@/features/rampages/RampagesView';
 import { ProgressView } from '@/features/tracking/ProgressView';
 import { VoiceCalibrationModal } from '@/components/voice/VoiceCalibrationModal';
-import { RampagePlayerModal, DirectRampagePayload } from '@/components/goals/RampagePlayerModal';
+import {
+  RampagePlayerModal,
+  DirectRampagePayload,
+  RampageSessionControls,
+} from '@/components/goals/RampagePlayerModal';
+import { RampageGuardModal } from '@/components/goals/RampageGuardModal';
 import { ManifestationEditorModal } from '@/components/journal/ManifestationEditorModal';
 import { AffirmationEditorModal } from '@/components/journal/AffirmationEditorModal';
 import { ProgressLogModal } from '@/components/goals/ProgressLogModal';
@@ -79,6 +85,14 @@ export default function HomePage() {
   const [isRampagePlaying, setIsRampagePlaying] = useState(false);
   const [currentRampageAffirmation, setCurrentRampageAffirmation] = useState('');
   const toggleRampagePlaybackRef = useRef<(() => void) | null>(null);
+  const rampageSessionControlsRef = useRef<RampageSessionControls | null>(null);
+  const [currentPlayingRampageId, setCurrentPlayingRampageId] = useState<string | undefined>();
+  const [isGuardOpen, setIsGuardOpen] = useState(false);
+  const [pendingRampageAction, setPendingRampageAction] = useState<(() => void) | null>(null);
+  const [guardDetails, setGuardDetails] = useState<{ title: string; count: number }>({
+    title: '',
+    count: 0,
+  });
   const [isNewManifestationOpen, setIsNewManifestationOpen] = useState(false);
   const [isNewAffirmationOpen, setIsNewAffirmationOpen] = useState(false);
   const [quickAddSection, setQuickAddSection] = useState<
@@ -276,12 +290,54 @@ export default function HomePage() {
     setIsCreateMenuOpen(false);
   }, []);
 
-  const handleOpenNewRampage = useCallback(() => {
-    setRampageToResume(null);
-    setDirectRampagePayload(null);
-    setRampageOpenMode('new');
+  const executeWithRampageGuard = useCallback((action: () => void) => {
+    if (rampageSessionControlsRef.current?.hasUnsavedSession()) {
+      const details = rampageSessionControlsRef.current.getActiveDetails();
+      setGuardDetails(details);
+      setPendingRampageAction(() => action);
+      setIsGuardOpen(true);
+      return;
+    }
+    action();
+  }, []);
+
+  const handleGuardConfirmSave = useCallback(async () => {
+    setIsGuardOpen(false);
+    if (rampageSessionControlsRef.current) {
+      await rampageSessionControlsRef.current.saveAndReset();
+    }
+    if (pendingRampageAction) {
+      pendingRampageAction();
+      setPendingRampageAction(null);
+    }
+  }, [pendingRampageAction]);
+
+  const handleGuardDiscard = useCallback(() => {
+    setIsGuardOpen(false);
+    if (rampageSessionControlsRef.current) {
+      rampageSessionControlsRef.current.discardAndReset();
+    }
+    if (pendingRampageAction) {
+      pendingRampageAction();
+      setPendingRampageAction(null);
+    }
+  }, [pendingRampageAction]);
+
+  const handleGuardCancel = useCallback(() => {
+    setIsGuardOpen(false);
+    setPendingRampageAction(null);
     setIsRampageOpen(true);
   }, []);
+
+  const handleOpenNewRampage = useCallback(() => {
+    executeWithRampageGuard(() => {
+      setCurrentPlayingRampageId(undefined);
+      setRampageToResume(null);
+      setDirectRampagePayload(null);
+      setRampageOpenMode('new');
+      setIsRampageOpen(true);
+    });
+  }, [executeWithRampageGuard]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -298,28 +354,42 @@ export default function HomePage() {
 
   const handleStartPinnedRampage = useCallback(
     (affirmations: string[], ambientSound: AmbientSoundType = 'astral_rain') => {
-      void audioEngine?.unlock();
-      setRampageToResume(null);
-      setDirectRampagePayload({
-        title: 'Decretos fijados',
-        affirmations,
-        ambientSound,
-        requestId: Date.now(),
+      executeWithRampageGuard(() => {
+        void audioEngine?.unlock();
+        setCurrentPlayingRampageId(undefined);
+        setRampageToResume(null);
+        setDirectRampagePayload({
+          title: 'Decretos fijados',
+          affirmations,
+          ambientSound,
+          requestId: Date.now(),
+        });
+        setRampageOpenMode('pinned');
+        setIsRampageOpen(true);
       });
-      setRampageOpenMode('pinned');
-      setIsRampageOpen(true);
     },
-    []
+    [executeWithRampageGuard]
   );
 
-  const handleContinueRampage = useCallback((rampage: RampageSet) => {
-    void audioEngine?.unlock();
-    setRampageToResume(rampage);
-    setResumeRequestId((requestId) => requestId + 1);
-  }, []);
+  const handleContinueRampage = useCallback(
+    (rampage: RampageSet) => {
+      executeWithRampageGuard(() => {
+        void audioEngine?.unlock();
+        setCurrentPlayingRampageId(rampage.id);
+        setRampageToResume(rampage);
+        setResumeRequestId((requestId) => requestId + 1);
+        setIsRampageOpen(true);
+      });
+    },
+    [executeWithRampageGuard]
+  );
 
   const handleRegisterTogglePlayback = useCallback((fn: () => void) => {
     toggleRampagePlaybackRef.current = fn;
+  }, []);
+
+  const handleRegisterSessionControls = useCallback((controls: RampageSessionControls) => {
+    rampageSessionControlsRef.current = controls;
   }, []);
 
   const handlePlaybackChange = useCallback((isPlaying: boolean, currentAffirmation?: string) => {
@@ -352,12 +422,9 @@ export default function HomePage() {
     } else if (action === 'affirmation') {
       setIsNewAffirmationOpen(true);
     } else {
-      setRampageToResume(null);
-      setDirectRampagePayload(null);
-      setRampageOpenMode('new');
-      setIsRampageOpen(true);
+      handleOpenNewRampage();
     }
-  }, []);
+  }, [handleOpenNewRampage]);
 
   const handleCloseAffirmation = useCallback(() => {
     setIsNewAffirmationOpen(false);
@@ -826,6 +893,16 @@ export default function HomePage() {
                     currentAffirmationText={currentRampageAffirmation}
                     onToggleRampagePlayback={handleToggleRampagePlayback}
                     onRestoreRampage={handleRestoreRampage}
+                    currentPlayingId={currentPlayingRampageId}
+                  />
+                )}
+
+                {activeTab === 'rampage' && (
+                  <RampagesView
+                    onOpenNewRampage={handleOpenNewRampage}
+                    onPlayRampage={handleContinueRampage}
+                    isRampagePlaying={isRampagePlaying}
+                    currentPlayingId={currentPlayingRampageId}
                   />
                 )}
 
@@ -926,9 +1003,20 @@ export default function HomePage() {
         resumeRampage={rampageToResume}
         resumeRequestId={resumeRequestId}
         directRampage={directRampagePayload}
+        executeWithGuard={executeWithRampageGuard}
         onPlaybackChange={handlePlaybackChange}
         registerTogglePlayback={handleRegisterTogglePlayback}
+        registerSessionControls={handleRegisterSessionControls}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
+      />
+
+      <RampageGuardModal
+        isOpen={isGuardOpen}
+        activeTitle={guardDetails.title}
+        affirmationCount={guardDetails.count}
+        onConfirmSave={handleGuardConfirmSave}
+        onDiscard={handleGuardDiscard}
+        onCancel={handleGuardCancel}
       />
 
       <ManifestationEditorModal

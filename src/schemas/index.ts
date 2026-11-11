@@ -76,6 +76,8 @@ export const AffirmationSchema = z.object({
   repeatCount: z.number().int().min(0).max(100000000).default(0),
   pinned: z.boolean().default(false),
   order: z.number().int().optional(),
+  songAttachment: z.any().optional(),
+  mediaAttachment: z.any().optional(),
   createdAt: z.string().max(100),
 });
 
@@ -93,6 +95,8 @@ export const RampageSetSchema = z.object({
   ambientSound: AmbientSoundEnum.default('astral_rain'),
   isFavorite: z.boolean().default(false),
   createdAt: z.string().max(100),
+  updatedAt: z.string().max(100).optional(),
+  lastPlayedAt: z.string().max(100).optional(),
 });
 
 export const ManifestationMutationSchema = z.object({
@@ -119,6 +123,8 @@ export const ProgressMutationSchema = z.object({
   note: z.string().max(10000).default(''),
   signType: z.string().max(100).nullable().optional(),
   voiceTranscript: z.string().max(10000).nullable().optional(),
+  songAttachment: z.any().optional(),
+  mediaAttachment: z.any().optional(),
   createdAt: z.string().max(100).optional(),
 });
 

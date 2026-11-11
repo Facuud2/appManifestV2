@@ -122,8 +122,8 @@ export const SuccessStoryModal: React.FC<SuccessStoryModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          key="success-story-scrim"
           variants={BACKDROP_TRANSITION}
-          initial="hidden"
           animate="visible"
           exit="exit"
           onClick={onClose}

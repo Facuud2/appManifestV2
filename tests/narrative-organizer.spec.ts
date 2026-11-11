@@ -507,3 +507,36 @@ test('17 · en PC, mantener espacio abre el organizador y al soltarlo permanece 
   await expect(page.getByText('Te escucho…')).toBeVisible();
   await expect(page.getByTestId('narrative-plan-list')).not.toBeVisible();
 });
+
+test('18 · anexa canción de Spotify por lenguaje natural y persiste song_attachment en DB sin texto de comando residual', async ({ page }) => {
+  await boot(page, 'song_attachment');
+  await openOrganizer(page);
+  await submitListening(page);
+  await waitForReview(page);
+
+  // Verificamos que la tarjeta de avance en la revisión muestre la canción de Spotify
+  const progressCard = page.getByTestId('narrative-card-progress');
+  await expect(progressCard).toBeVisible();
+  await expect(progressCard).toContainText('El Muelle de San Blas');
+  await expect(progressCard).toContainText('Maná');
+  // Y el texto no debe contener el comando crudo
+  await expect(progressCard).not.toContainText('Agregué la canción El muelle de San Blas de Spotify');
+
+  // Confirmar
+  const { data } = await confirmAndCapture(page);
+  expect(data.progressLogs).toHaveLength(1);
+  const progId = data.progressLogs[0].id;
+
+  // Verificar en base de datos que se haya persistido song_attachment
+  const row = await db.execute({
+    sql: 'SELECT song_attachment, note FROM manifestation_progress WHERE id = ?;',
+    args: [progId],
+  });
+  expect(row.rows).toHaveLength(1);
+  const savedAttachment = JSON.parse(String(row.rows[0].song_attachment));
+  expect(savedAttachment.title).toBe('El Muelle de San Blas');
+  expect(savedAttachment.artist).toBe('Maná');
+  expect(savedAttachment.provider).toBe('spotify');
+  expect(String(row.rows[0].note)).not.toContain('Agregué la canción');
+});
+

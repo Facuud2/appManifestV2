@@ -60,6 +60,13 @@ export interface DirectRampagePayload {
   saveToSanctuary?: boolean;
 }
 
+export interface RampageSessionControls {
+  saveAndReset: () => Promise<RampageSet | null>;
+  discardAndReset: () => void;
+  hasUnsavedSession: () => boolean;
+  getActiveDetails: () => { title: string; count: number };
+}
+
 interface RampagePlayerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,8 +76,10 @@ interface RampagePlayerModalProps {
   resumeRequestId: number;
   directRampage?: DirectRampagePayload | null;
   centralTheme?: string;
+  executeWithGuard?: (action: () => void) => void;
   onPlaybackChange?: (isPlaying: boolean, currentAffirmation?: string) => void;
   registerTogglePlayback?: (toggleFn: () => void) => void;
+  registerSessionControls?: (controls: RampageSessionControls) => void;
   onOpenCalibration?: () => void;
 }
 
@@ -148,8 +157,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   resumeRequestId,
   directRampage = null,
   centralTheme = '',
+  executeWithGuard,
   onPlaybackChange,
   registerTogglePlayback,
+  registerSessionControls,
   onOpenCalibration,
 }) => {
   const {
@@ -166,6 +177,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     incrementAiRequestsToday,
     saveRampageSet,
     deleteRampageSet,
+    touchRampageLastPlayed,
   } = useAppStore();
 
   const [selectedCount, setSelectedCount] = useState<RampageLoopCount>(11);
@@ -188,6 +200,11 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isSaveDecisionOpen, setIsSaveDecisionOpen] = useState(false);
   const [isSavedToSanctuary, setIsSavedToSanctuary] = useState(false);
+  const isSavedToSanctuaryRef = useRef(false);
+  const updateIsSavedToSanctuary = useCallback((val: boolean) => {
+    isSavedToSanctuaryRef.current = val;
+    setIsSavedToSanctuary(val);
+  }, []);
   const [saveToSanctuary, setSaveToSanctuary] = useState(readSaveSetPreference);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [loopModeIndex, setLoopModeIndex] = useState(0);
@@ -202,6 +219,21 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     ],
     []
   );
+
+  const handleToggleSaveToSanctuary = useCallback(() => {
+    setSaveToSanctuary((prev) => {
+      const next = !prev;
+      saveToSanctuaryRef.current = next;
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(SAVE_SET_PREFERENCE_KEY, String(next));
+        } catch {
+          // ignore quota
+        }
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     saveToSanctuaryRef.current = saveToSanctuary;
@@ -391,6 +423,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const resumeAutoPlayRef = useRef(false);
   const nextAffirmationTimerRef = useRef<number | null>(null);
   const isNewSessionRef = useRef(false);
+
+  const hasStartedRef = useRef(false);
+  hasStartedRef.current = hasStarted;
 
   const isPlayingRef = useRef(false);
   isPlayingRef.current = isPlaying;
@@ -614,7 +649,15 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       });
 
       const result = await response.json();
-      if (!response.ok || !result.success || !Array.isArray(result.data?.affirmations)) {
+      const rawList = Array.isArray(result.affirmations)
+        ? result.affirmations
+        : Array.isArray(result.data?.affirmations)
+          ? result.data.affirmations
+          : Array.isArray(result.data)
+            ? result.data
+            : null;
+
+      if (!response.ok || !result.success || !rawList) {
         throw new Error(result.error || 'No se pudieron generar las afirmaciones del Rampage.');
       }
 
@@ -622,7 +665,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         setAiRequestsToday(result.meta.aiUsageToday);
       }
 
-      const generated: string[] = result.data.affirmations
+      const generated: string[] = rawList
         .filter((item: unknown): item is string => typeof item === 'string')
         .map((item: string) => item.trim())
         .filter(Boolean)
@@ -639,31 +682,38 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
       setCompletedCyclesCount(0);
       setPhrasesHeardCount(0);
 
-      // Persist set in Turso/store so it is immediately available; Paso 3 modal lets user keep or discard
+      const targetTitle =
+        activeRampageRef.current.title?.trim() ||
+        draftTitle?.trim().replace(/\n+/g, ' · ') ||
+        'Rampage Personal';
+
       if (saveToSanctuaryRef.current) {
-        const savedSet = await saveRampageSet({
-          userId: activeRampageScopeRef.current,
+        const saved = await saveRampageSet({
+          userId: activeRampageScopeRef.current || activeScope,
           author:
             activeRampageScopeRef.current === 'maia'
               ? 'Maia'
               : activeRampageScopeRef.current === 'facu'
                 ? 'Facu'
                 : 'Juntos',
-          title: activeRampageRef.current.title,
+          title: targetTitle,
           affirmations: generated.map((text, index) => ({
             id: `${Date.now()}_${index}`,
-            text,
+            text: typeof text === 'string' ? text : String(text),
             repeatCount: 0,
           })),
           ambientSound,
           isFavorite: false,
         });
-        activeRampageSetRef.current = savedSet;
-        setIsSavedToSanctuary(true);
+        activeRampageSetRef.current = saved;
+        updateIsSavedToSanctuary(true);
       } else {
         activeRampageSetRef.current = null;
-        setIsSavedToSanctuary(false);
+        updateIsSavedToSanctuary(false);
       }
+
+      isNewSessionRef.current = true;
+      setHasStarted(true);
 
       // Preload first 3 immediately, then remaining in background (max 2 concurrent)
       await preloadSetStaggered(generated);
@@ -840,7 +890,8 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     baseAffirmationsRef.current = initialQueue;
     setAffirmationQueue(initialQueue);
     setCurrentAffirmationIndex(0);
-    setHasStarted(true);
+    setHasStarted(Boolean(resumeRampage));
+    updateIsSavedToSanctuary(Boolean(resumeRampage));
     setIsPlaying(false);
     isPlayingRef.current = false;
     setCurrentVoiceSpeaker(getSpeakerForText(initialQueue[0] || '', 0));
@@ -879,7 +930,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     baseAffirmationsRef.current = affirmations;
     affirmationQueueRef.current = affirmations;
     isNewSessionRef.current = false;
-    setIsSavedToSanctuary(true);
+    updateIsSavedToSanctuary(true);
     setAffirmationQueue(affirmations);
     setCurrentAffirmationIndex(0);
     setPhrasesHeardCount(0);
@@ -896,8 +947,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     isPlayingRef.current = true;
     resumeAutoPlayRef.current = true;
     setCurrentVoiceSpeaker(getSpeakerForText(affirmations[0] || '', 0));
+    touchRampageLastPlayed(resumeRampage.id);
     void preloadSetStaggered(affirmations);
-  }, [getSpeakerForText, preloadSetStaggered, resumeRampage, resumeRequestId]);
+  }, [getSpeakerForText, preloadSetStaggered, resumeRampage, resumeRequestId, touchRampageLastPlayed]);
 
   useEffect(() => {
     if (!directRampage || directRampage.requestId === 0) return;
@@ -957,7 +1009,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     void (async () => {
       if (!shouldSaveToSanctuary) {
         activeRampageSetRef.current = null;
-        setIsSavedToSanctuary(false);
+        updateIsSavedToSanctuary(false);
         return;
       }
       try {
@@ -979,7 +1031,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
           isFavorite: false,
         });
         activeRampageSetRef.current = savedSet;
-        setIsSavedToSanctuary(true);
+        updateIsSavedToSanctuary(true);
       } catch (err) {
         console.warn('Could not save pinned rampage set to store:', err);
       }
@@ -1214,6 +1266,104 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     });
   }, [registerTogglePlayback]);
 
+  const handleSaveCurrentSession = async () => {
+    if (isSavedToSanctuaryRef.current) return;
+    const affirmations = affirmationQueueRef.current;
+    if (affirmations.length === 0) return;
+
+    const title =
+      activeRampageRef.current.title?.trim() ||
+      draftTitle?.trim().replace(/\n+/g, ' · ') ||
+      'Rampage Personal';
+
+    const savedSet = await saveRampageSet({
+      userId: activeRampageScopeRef.current || activeScope,
+      author:
+        activeRampageScopeRef.current === 'maia'
+          ? 'Maia'
+          : activeRampageScopeRef.current === 'facu'
+            ? 'Facu'
+            : 'Juntos',
+      title,
+      affirmations: affirmations.map((text, index) => ({
+        id: `${Date.now()}_${index}`,
+        text: typeof text === 'string' ? text : String(text),
+        repeatCount: 0,
+      })),
+      ambientSound,
+      isFavorite: false,
+    });
+
+    activeRampageSetRef.current = savedSet;
+    updateIsSavedToSanctuary(true);
+  };
+
+  useEffect(() => {
+    registerSessionControls?.({
+      hasUnsavedSession: () => {
+        if (!hasStartedRef.current) {
+          return false;
+        }
+        if (affirmationQueueRef.current.length === 0) {
+          return false;
+        }
+        if (isSavedToSanctuaryRef.current || activeRampageSetRef.current !== null) {
+          return false;
+        }
+        return true;
+      },
+      getActiveDetails: () => ({
+        title:
+          activeRampageRef.current.title?.trim() ||
+          draftTitle?.trim().replace(/\n+/g, ' · ') ||
+          'Rampage Personal',
+        count: affirmationQueueRef.current.length,
+      }),
+      saveAndReset: async () => {
+        let savedSet: RampageSet | null = null;
+        const affirmations = affirmationQueueRef.current;
+        if (affirmations.length > 0) {
+          const title =
+            activeRampageRef.current.title?.trim() ||
+            draftTitle?.trim().replace(/\n+/g, ' · ') ||
+            'Rampage Personal';
+
+          savedSet = await saveRampageSet({
+            userId: activeRampageScopeRef.current || activeScope,
+            author:
+              activeRampageScopeRef.current === 'maia'
+                ? 'Maia'
+                : activeRampageScopeRef.current === 'facu'
+                  ? 'Facu'
+                  : 'Juntos',
+            title,
+            affirmations: affirmations.map((text, index) => ({
+              id: `${Date.now()}_${index}`,
+              text: typeof text === 'string' ? text : String(text),
+              repeatCount: 0,
+            })),
+            ambientSound,
+            isFavorite: false,
+          });
+        }
+        updateIsSavedToSanctuary(true);
+        handleStopBackgroundPlayback();
+        return savedSet;
+      },
+      discardAndReset: () => {
+        updateIsSavedToSanctuary(true);
+        void handleDiscardSet();
+      },
+    });
+  }, [
+    registerSessionControls,
+    updateIsSavedToSanctuary,
+    draftTitle,
+    ambientSound,
+    activeScope,
+    saveRampageSet,
+  ]);
+
   useEffect(() => {
     onPlaybackChange?.(isPlaying, affirmationQueue[currentAffirmationIndex]);
   }, [isPlaying, currentAffirmationIndex, affirmationQueue, onPlaybackChange]);
@@ -1254,7 +1404,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   };
 
   const handleStartRampage = async () => {
-    const title = draftTitle.trim();
+    const title = draftTitle.trim().replace(/\n+/g, ' · ');
     if (!title) {
       setSetupError('Escribí o dictá un tema central para iniciar tu Rampage.');
       return;
@@ -1334,7 +1484,10 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
               : activeRampageScopeRef.current === 'facu'
                 ? 'Facu'
                 : 'Juntos',
-          title: activeRampageRef.current.title || 'Rampage Nocturno',
+          title:
+            activeRampageRef.current.title?.trim() ||
+            draftTitle?.trim().replace(/\n+/g, ' · ') ||
+            'Rampage Personal',
           affirmations: affirmations.map((text, index) => ({
             id: `${Date.now()}_${index}`,
             text,
@@ -1346,7 +1499,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         activeRampageSetRef.current = savedSet;
       }
     }
-    setIsSavedToSanctuary(true);
+    updateIsSavedToSanctuary(true);
     setIsSaveDecisionOpen(false);
     handleStopBackgroundPlayback();
   }
@@ -1456,6 +1609,19 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveCurrentSession}
+                    aria-label={isSavedToSanctuary ? 'Set guardado en Santuario' : 'Guardar set en Santuario'}
+                    className={`flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all active:scale-95 shadow-sm ${
+                      isSavedToSanctuary
+                        ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
+                        : 'border-white/15 bg-white/10 text-white/90 hover:bg-white/20'
+                    }`}
+                  >
+                    <BookmarkCheck size={13} className={isSavedToSanctuary ? 'text-emerald-400' : 'text-amber-300'} />
+                    <span>{isSavedToSanctuary ? 'Guardado' : 'Guardar'}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1714,7 +1880,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                           role="switch"
                           aria-checked={saveToSanctuary}
                           data-testid="rampage-save-toggle"
-                          onClick={() => setSaveToSanctuary((previous) => !previous)}
+                          onClick={handleToggleSaveToSanctuary}
                           className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2 text-left"
                         >
                           <span className="min-w-0">
@@ -1751,8 +1917,22 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                               return;
                             }
                             setSetupError('');
-                            setIsCustomizerOpen(false);
-                            await handleStartRampage();
+                            const proceed = async () => {
+                              setIsCustomizerOpen(false);
+                              await handleStartRampage();
+                            };
+                            if (
+                              executeWithGuard &&
+                              hasStartedRef.current &&
+                              affirmationQueueRef.current.length > 0 &&
+                              !isSavedToSanctuaryRef.current &&
+                              activeRampageSetRef.current === null
+                            ) {
+                              setIsCustomizerOpen(false);
+                              executeWithGuard(proceed);
+                              return;
+                            }
+                            await proceed();
                           }}
                           className={`w-full py-2.5 rounded-full ${profileTheme.playBtnBg} text-xs font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all mt-2`}
                         >

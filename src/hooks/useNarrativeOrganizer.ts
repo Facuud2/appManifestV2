@@ -10,6 +10,7 @@ import {
 import { useAppStore } from '@/store';
 import {
   countProposedItems,
+  NARRATIVE_SCENARIOS,
   type ExistingContextItem,
   type ExistingAffirmationItem,
   type NarrativeCommitResult,
@@ -55,17 +56,8 @@ function readSandboxScenario(): NarrativeScenario | undefined {
     const fromStorage = window.localStorage.getItem('manifest_narrative_scenario');
     const fromUrl = new URLSearchParams(window.location.search).get('narrativeScenario');
     const scenario = fromUrl || fromStorage;
-    if (
-      scenario === 'sabrina_initial' ||
-      scenario === 'sabrina_add_age' ||
-      scenario === 'sabrina_homonym' ||
-      scenario === 'sabrina_unlink' ||
-      scenario === 'sabrina_rampage' ||
-      scenario === 'repeat_affirmation' ||
-      scenario === 'repeat_manifestation' ||
-      scenario === 'unclear'
-    ) {
-      return scenario;
+    if (scenario && (NARRATIVE_SCENARIOS as readonly string[]).includes(scenario)) {
+      return scenario as NarrativeScenario;
     }
   } catch {
     // ignore

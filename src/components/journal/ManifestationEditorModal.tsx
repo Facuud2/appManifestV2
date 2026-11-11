@@ -146,6 +146,7 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
       <AnimatePresence>
         {isOpen && (
         <motion.div
+          key="manifestation-editor-scrim"
           variants={BACKDROP_TRANSITION}
           initial="hidden"
           animate="visible"
