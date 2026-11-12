@@ -13,6 +13,8 @@ import {
   NARRATIVE_SCENARIOS,
   type ExistingContextItem,
   type ExistingAffirmationItem,
+  type ExistingRampageItem,
+  type ExistingSuccessStoryItem,
   type NarrativeCommitResult,
   type NarrativeDraft,
   type NarrativeScenario,
@@ -33,6 +35,8 @@ interface UseNarrativeOrganizerProps {
   profileId: string;
   existingContext: ExistingContextItem[];
   existingAffirmations?: ExistingAffirmationItem[];
+  existingRampages?: ExistingRampageItem[];
+  existingSuccessStories?: ExistingSuccessStoryItem[];
   isSandboxMode?: boolean;
   onOpenManualCreate: () => void;
   onCommitted?: (
@@ -78,6 +82,8 @@ export function useNarrativeOrganizer({
   profileId,
   existingContext,
   existingAffirmations,
+  existingRampages,
+  existingSuccessStories,
   isSandboxMode = false,
   onOpenManualCreate,
   onCommitted,
@@ -121,6 +127,8 @@ export function useNarrativeOrganizer({
   const profileIdRef = useRef(profileId);
   const existingContextRef = useRef(existingContext);
   const existingAffirmationsRef = useRef(existingAffirmations);
+  const existingRampagesRef = useRef(existingRampages);
+  const existingSuccessStoriesRef = useRef(existingSuccessStories);
   const callbacksRef = useRef({ onOpenManualCreate, onCommitted, onClosed });
   const isSandboxRef = useRef(isSandboxMode);
 
@@ -128,9 +136,21 @@ export function useNarrativeOrganizer({
     profileIdRef.current = profileId;
     existingContextRef.current = existingContext;
     existingAffirmationsRef.current = existingAffirmations;
+    existingRampagesRef.current = existingRampages;
+    existingSuccessStoriesRef.current = existingSuccessStories;
     callbacksRef.current = { onOpenManualCreate, onCommitted, onClosed };
     isSandboxRef.current = isSandboxMode;
-  }, [profileId, existingContext, existingAffirmations, isSandboxMode, onOpenManualCreate, onCommitted, onClosed]);
+  }, [
+    profileId,
+    existingContext,
+    existingAffirmations,
+    existingRampages,
+    existingSuccessStories,
+    isSandboxMode,
+    onOpenManualCreate,
+    onCommitted,
+    onClosed,
+  ]);
 
   const setPhaseSafe = useCallback((next: NarrativePhase) => {
     phaseRef.current = next;
@@ -223,6 +243,12 @@ export function useNarrativeOrganizer({
         formData.append('existingContext', JSON.stringify(existingContextRef.current));
         if (existingAffirmationsRef.current) {
           formData.append('existingAffirmations', JSON.stringify(existingAffirmationsRef.current));
+        }
+        if (existingRampagesRef.current) {
+          formData.append('existingRampages', JSON.stringify(existingRampagesRef.current));
+        }
+        if (existingSuccessStoriesRef.current) {
+          formData.append('existingSuccessStories', JSON.stringify(existingSuccessStoriesRef.current));
         }
         if (draftRef.current) {
           formData.append('currentDraft', JSON.stringify(draftRef.current));

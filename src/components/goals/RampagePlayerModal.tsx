@@ -49,6 +49,7 @@ import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { RampageAudioWaveform } from './RampageAudioWaveform';
 
 export interface DirectRampagePayload {
+  id?: string;
   title: string;
   affirmations: string[];
   ambientSound: AmbientSoundType;
@@ -1038,6 +1039,14 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         return;
       }
       try {
+        if (directRampage.id) {
+          const matched = userRampageSetsRef.current.find((s) => s.id === directRampage.id);
+          if (matched) {
+            activeRampageSetRef.current = matched;
+            updateIsSavedToSanctuary(true);
+            return;
+          }
+        }
         const savedSet = await saveRampageSet({
           userId: activeScope,
           author:

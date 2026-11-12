@@ -9,6 +9,8 @@ import {
   normalizeNarrativeDraft,
   type ExistingContextItem,
   type ExistingAffirmationItem,
+  type ExistingRampageItem,
+  type ExistingSuccessStoryItem,
   type NarrativeDraft,
   type NarrativeProfileId,
 } from './narrativeOrganizer';
@@ -168,6 +170,8 @@ export async function analyzeNarrativeWithGemini(options: {
   currentDraft: NarrativeDraft | null;
   existingContext: ExistingContextItem[];
   existingAffirmations?: ExistingAffirmationItem[];
+  existingRampages?: ExistingRampageItem[];
+  existingSuccessStories?: ExistingSuccessStoryItem[];
 }): Promise<NarrativeAnalysisResult> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
@@ -177,6 +181,8 @@ export async function analyzeNarrativeWithGemini(options: {
   const systemInstruction = buildNarrativeOrganizerSystemPrompt({
     existingContext: options.existingContext,
     existingAffirmations: options.existingAffirmations,
+    existingRampages: options.existingRampages,
+    existingSuccessStories: options.existingSuccessStories,
     currentDraft: options.currentDraft,
   });
 
@@ -215,6 +221,8 @@ Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.${options
       draftId: options.draftId,
       existingContext: options.existingContext,
       existingAffirmations: options.existingAffirmations,
+      existingRampages: options.existingRampages,
+      existingSuccessStories: options.existingSuccessStories,
       allowLegacy: true,
     });
     await enrichDraftWithMusic(draft);

@@ -656,6 +656,37 @@ export const useAppStore = create<AppState>((set, get) => {
           });
         }
 
+        if (result.updatedAffirmations && result.updatedAffirmations.length > 0) {
+          const updatedAffMap = new Map(result.updatedAffirmations.map((a) => [a.id, a]));
+          finalAffirmations = finalAffirmations.map((a) => {
+            const upd = updatedAffMap.get(a.id);
+            if (upd) {
+              return {
+                ...a,
+                text: upd.text,
+                category: upd.category || a.category,
+              };
+            }
+            return a;
+          });
+        }
+
+        let finalSuccessStories = successStories;
+        if (result.updatedSuccessStories && result.updatedSuccessStories.length > 0) {
+          const updatedStoryMap = new Map(result.updatedSuccessStories.map((s) => [s.id, s]));
+          finalSuccessStories = finalSuccessStories.map((s) => {
+            const upd = updatedStoryMap.get(s.id);
+            if (upd) {
+              return {
+                ...s,
+                title: upd.title,
+                story: upd.story,
+              };
+            }
+            return s;
+          });
+        }
+
         // A success story marks its manifestation as materialized.
         const materializedIds = new Set(
           result.successStories
@@ -685,12 +716,68 @@ export const useAppStore = create<AppState>((set, get) => {
           });
         }
 
+        if (result.updatedManifestations && result.updatedManifestations.length > 0) {
+          const updatedManMap = new Map(result.updatedManifestations.map((m) => [m.id, m]));
+          nextManifestations = nextManifestations.map((m) => {
+            const upd = updatedManMap.get(m.id);
+            if (upd) {
+              return {
+                ...m,
+                title: upd.title,
+                description: upd.description,
+                status: upd.status,
+                category: upd.category || m.category,
+                updatedAt: upd.updatedAt,
+              };
+            }
+            return m;
+          });
+        }
+
+        let nextRampageSets = previous.rampageSets;
+        if (result.updatedRampages && result.updatedRampages.length > 0) {
+          const updatedRampageMap = new Map(result.updatedRampages.map((r) => [r.id, r]));
+          nextRampageSets = nextRampageSets.map((r) => {
+            const upd = updatedRampageMap.get(r.id);
+            if (upd) {
+              return {
+                ...r,
+                title: upd.title,
+                affirmations: upd.affirmations,
+                ambientSound: upd.ambientSound as AmbientSoundType,
+                updatedAt: upd.updatedAt,
+              };
+            }
+            return r;
+          });
+          result.updatedRampages.forEach((upd) => {
+            if (!nextRampageSets.some((r) => r.id === upd.id)) {
+              nextRampageSets = [
+                {
+                  id: upd.id,
+                  userId: scope,
+                  author: scope === 'maia' ? 'Maia' : scope === 'facu' ? 'Facu' : 'Juntos',
+                  title: upd.title,
+                  category: 'Alineación',
+                  affirmations: upd.affirmations,
+                  ambientSound: upd.ambientSound as AmbientSoundType,
+                  createdAt: upd.updatedAt,
+                  updatedAt: upd.updatedAt,
+                },
+                ...nextRampageSets,
+              ];
+            }
+          });
+          writeCustomRampageSets(scope, nextRampageSets);
+        }
+
         const nextCollections: ProfileCollections = {
           ...previous,
           manifestations: nextManifestations,
           progressLogs,
-          successStories,
+          successStories: finalSuccessStories,
           affirmations: finalAffirmations,
+          rampageSets: nextRampageSets,
         };
 
         const isActive = state.activeScope === scope;
@@ -706,6 +793,7 @@ export const useAppStore = create<AppState>((set, get) => {
                 progressLogs: nextCollections.progressLogs,
                 successStories: nextCollections.successStories,
                 affirmations: nextCollections.affirmations,
+                rampageSets: nextCollections.rampageSets,
               }
             : {}),
         };

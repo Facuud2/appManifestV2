@@ -10,6 +10,8 @@ import {
   resolveNarrativeProfileId,
   type ExistingContextItem,
   type ExistingAffirmationItem,
+  type ExistingRampageItem,
+  type ExistingSuccessStoryItem,
   type NarrativeDraft,
   type NarrativeScenario,
 } from '@/lib/narrativeOrganizer';
@@ -51,6 +53,40 @@ function sanitizeExistingAffirmations(value: unknown): ExistingAffirmationItem[]
     });
 }
 
+function sanitizeExistingRampages(value: unknown): ExistingRampageItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 30).flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === 'string' ? record.id.trim() : '';
+    const title = typeof record.title === 'string' ? record.title.trim() : '';
+    if (!id || !title) return [];
+    const category = typeof record.category === 'string' ? record.category.slice(0, 100) : undefined;
+    const affirmations = Array.isArray(record.affirmations)
+      ? record.affirmations
+          .filter((a): a is string => typeof a === 'string')
+          .slice(0, 50)
+      : [];
+    const ambientSound = typeof record.ambientSound === 'string' ? record.ambientSound : undefined;
+    return [{ id, title: title.slice(0, 200), category, affirmations, ambientSound }];
+  });
+}
+
+function sanitizeExistingSuccessStories(value: unknown): ExistingSuccessStoryItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 30).flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === 'string' ? record.id.trim() : '';
+    const title = typeof record.title === 'string' ? record.title.trim() : '';
+    if (!id || !title) return [];
+    const story = typeof record.story === 'string' ? record.story.slice(0, 1000) : '';
+    const manifestedDate = typeof record.manifestedDate === 'string' ? record.manifestedDate : undefined;
+    const manifestationId = typeof record.manifestationId === 'string' ? record.manifestationId : null;
+    return [{ id, title: title.slice(0, 280), story, manifestedDate, manifestationId }];
+  });
+}
+
 function sanitizeExistingContext(value: unknown): ExistingContextItem[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -84,6 +120,8 @@ export async function POST(req: NextRequest) {
     let currentDraftRaw: unknown = null;
     let existingContextRaw: unknown = [];
     let existingAffirmationsRaw: unknown = [];
+    let existingRampagesRaw: unknown = [];
+    let existingSuccessStoriesRaw: unknown = [];
     let sandbox = false;
     let spokenText = '';
     let scenario: NarrativeScenario | undefined;
@@ -95,6 +133,8 @@ export async function POST(req: NextRequest) {
       currentDraftRaw = json.currentDraft ?? null;
       existingContextRaw = json.existingContext ?? [];
       existingAffirmationsRaw = json.existingAffirmations ?? [];
+      existingRampagesRaw = json.existingRampages ?? [];
+      existingSuccessStoriesRaw = json.existingSuccessStories ?? [];
       sandbox = Boolean(json.sandbox);
       spokenText = typeof json.spokenText === 'string' ? json.spokenText : '';
       scenario = typeof json.scenario === 'string' ? (json.scenario as NarrativeScenario) : undefined;
@@ -114,6 +154,8 @@ export async function POST(req: NextRequest) {
       currentDraftRaw = parseJsonField(formData.get('currentDraft'), null);
       existingContextRaw = parseJsonField(formData.get('existingContext'), []);
       existingAffirmationsRaw = parseJsonField(formData.get('existingAffirmations'), []);
+      existingRampagesRaw = parseJsonField(formData.get('existingRampages'), []);
+      existingSuccessStoriesRaw = parseJsonField(formData.get('existingSuccessStories'), []);
       sandbox = formData.get('sandbox') === 'true';
       spokenText = (formData.get('spokenText') as string) || '';
       const rawScenario = formData.get('scenario');
@@ -134,12 +176,16 @@ export async function POST(req: NextRequest) {
 
     const existingContext = sanitizeExistingContext(existingContextRaw);
     const existingAffirmations = sanitizeExistingAffirmations(existingAffirmationsRaw);
+    const existingRampages = sanitizeExistingRampages(existingRampagesRaw);
+    const existingSuccessStories = sanitizeExistingSuccessStories(existingSuccessStoriesRaw);
 
     const currentDraftNormalized: NarrativeDraft | null = currentDraftRaw
       ? normalizeNarrativeDraft(currentDraftRaw, {
           draftId,
           existingContext,
           existingAffirmations,
+          existingRampages,
+          existingSuccessStories,
           allowLegacy: true,
         }).draft
       : null;
@@ -154,6 +200,9 @@ export async function POST(req: NextRequest) {
         spokenText,
         currentDraft: currentDraftNormalized,
         existingContext,
+        existingAffirmations,
+        existingRampages,
+        existingSuccessStories,
         draftId,
       });
       await enrichDraftWithMusic(draft);
@@ -205,6 +254,8 @@ export async function POST(req: NextRequest) {
         currentDraft: currentDraftNormalized,
         existingContext,
         existingAffirmations,
+        existingRampages,
+        existingSuccessStories,
       });
 
       return NextResponse.json({

@@ -73,6 +73,14 @@ export async function POST(req: NextRequest) {
             sql: 'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM affirmations WHERE user_id = ? AND pinned = 0;',
             args: [profileId],
           }),
+          turso.execute({
+            sql: 'SELECT id, title, theme, affirmations_json, ambient_sound FROM rampage_sets WHERE user_id = ?;',
+            args: [profileId],
+          }).catch(() => ({ rows: [] })),
+          turso.execute({
+            sql: 'SELECT id, title, story, manifested_date, manifestation_id FROM success_stories WHERE user_id = ?;',
+            args: [profileId],
+          }).catch(() => ({ rows: [] })),
         ]);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -94,13 +102,21 @@ export async function POST(req: NextRequest) {
               sql: 'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM affirmations WHERE user_id = ? AND pinned = 0;',
               args: [profileId],
             }),
+            turso.execute({
+              sql: 'SELECT id, title, theme, affirmations_json, ambient_sound FROM rampage_sets WHERE user_id = ?;',
+              args: [profileId],
+            }).catch(() => ({ rows: [] })),
+            turso.execute({
+              sql: 'SELECT id, title, story, manifested_date, manifestation_id FROM success_stories WHERE user_id = ?;',
+              args: [profileId],
+            }).catch(() => ({ rows: [] })),
           ]);
         }
         throw err;
       }
     };
 
-    const [manifestationsRes, affirmationsRes, maxOrderRes] = await runQuery();
+    const [manifestationsRes, affirmationsRes, maxOrderRes, rampagesRes, successStoriesRes] = await runQuery();
 
     const validExistingIds = manifestationsRes.rows
       .map((row) => row.id)
@@ -118,6 +134,33 @@ export async function POST(req: NextRequest) {
     const existingAffirmationTexts = existingAffirmations.map((a) => a.text);
     const baseSortOrder = Number(maxOrderRes.rows[0]?.max_order ?? -1) + 1;
 
+    const existingRampages = (rampagesRes?.rows || []).map((row) => {
+      let affirmations: string[] = [];
+      try {
+        const parsed = JSON.parse(String(row.affirmations_json || '[]'));
+        affirmations = Array.isArray(parsed)
+          ? parsed.map((item) => (typeof item === 'string' ? item : item?.text || '')).filter(Boolean)
+          : [];
+      } catch {
+        // ignore
+      }
+      return {
+        id: String(row.id),
+        title: String(row.title || ''),
+        category: typeof row.theme === 'string' ? row.theme : undefined,
+        affirmations,
+        ambientSound: typeof row.ambient_sound === 'string' ? row.ambient_sound : undefined,
+      };
+    });
+
+    const existingSuccessStories = (successStoriesRes?.rows || []).map((row) => ({
+      id: String(row.id),
+      title: String(row.title || ''),
+      story: String(row.story || ''),
+      manifestedDate: typeof row.manifested_date === 'string' ? row.manifested_date : undefined,
+      manifestationId: typeof row.manifestation_id === 'string' ? row.manifestation_id : null,
+    }));
+
     // Re-normalize server-side: never trust the client payload.
     const { draft } = normalizeNarrativeDraft(body.currentDraft as NarrativeDraft, {
       draftId,
@@ -130,6 +173,8 @@ export async function POST(req: NextRequest) {
         repeatCount: m.repeatCount,
       })),
       existingAffirmations,
+      existingRampages,
+      existingSuccessStories,
       allowLegacy: true,
     });
 

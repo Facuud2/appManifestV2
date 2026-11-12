@@ -33,7 +33,12 @@ import type { VoiceActionToastState } from '@/components/voice/VoiceActionToast'
 import { useVoiceActionRouter } from '@/hooks/useVoiceActionRouter';
 import { useNarrativeOrganizer } from '@/hooks/useNarrativeOrganizer';
 import { SiriOrganizerOverlay } from '@/components/voice/SiriOrganizerOverlay';
-import { extractPersonNames, type ExistingContextItem } from '@/lib/narrativeOrganizer';
+import {
+  extractPersonNames,
+  type ExistingContextItem,
+  type ExistingRampageItem,
+  type ExistingSuccessStoryItem,
+} from '@/lib/narrativeOrganizer';
 import type { VoiceCommandResult } from '@/lib/gemini';
 
 const SCOPE_REGENERATION_MIN_MS = 320;
@@ -53,6 +58,7 @@ export default function HomePage() {
     setScopeRegenerating,
     manifestations,
     affirmations,
+    successStories,
     addManifestation,
     deleteManifestation,
     incrementManifestationRepeat,
@@ -729,6 +735,32 @@ export default function HomePage() {
       }));
   }, [affirmations, activeScope]);
 
+  const existingNarrativeRampages = useMemo<ExistingRampageItem[]>(() => {
+    return rampageSets
+      .filter((set) => set.userId === activeScope)
+      .slice(0, 30)
+      .map((set) => ({
+        id: set.id,
+        title: set.title,
+        category: set.category,
+        affirmations: set.affirmations.map((a) => a.text),
+        ambientSound: set.ambientSound,
+      }));
+  }, [rampageSets, activeScope]);
+
+  const existingNarrativeSuccessStories = useMemo<ExistingSuccessStoryItem[]>(() => {
+    return successStories
+      .filter((s) => s.userId === activeScope)
+      .slice(0, 30)
+      .map((s) => ({
+        id: s.id,
+        title: s.title,
+        story: s.story,
+        manifestedDate: s.manifestedDate,
+        manifestationId: s.manifestationId,
+      }));
+  }, [successStories, activeScope]);
+
   const voiceRouter = useVoiceActionRouter({
     enabled: false,
     onOpenManualCreate: () => {
@@ -761,6 +793,8 @@ export default function HomePage() {
     profileId: activeScope,
     existingContext: existingNarrativeContext,
     existingAffirmations: existingNarrativeAffirmations,
+    existingRampages: existingNarrativeRampages,
+    existingSuccessStories: existingNarrativeSuccessStories,
     isSandboxMode,
     onOpenManualCreate: () => {
       const trigger =
@@ -776,6 +810,7 @@ export default function HomePage() {
       void audioEngine?.unlock();
       setRampageToResume(null);
       setDirectRampagePayload({
+        id: rampage.existingId,
         title: rampage.title,
         affirmations: rampage.affirmations,
         ambientSound: rampage.ambientSound,

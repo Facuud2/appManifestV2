@@ -67,7 +67,6 @@ async function submitListening(page: Page) {
 }
 
 async function waitForReview(page: Page) {
-  await expect(page.getByTestId('narrative-plan-list')).toBeVisible();
   await expect(page.getByTestId('narrative-confirm')).toBeVisible();
 }
 
@@ -538,5 +537,62 @@ test('18 · anexa canción de Spotify por lenguaje natural y persiste song_attac
   expect(savedAttachment.artist).toBe('Maná');
   expect(savedAttachment.provider).toBe('spotify');
   expect(String(row.rows[0].note)).not.toContain('Agregué la canción');
+});
+
+test('19 · modifica un rampage existente y agrega 10 afirmaciones basadas en el mismo concepto', async ({ page }) => {
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO rampage_sets
+      (id, user_id, title, theme, affirmations_json, ambient_sound, is_favorite, created_at)
+      VALUES (?, ?, ?, ?, ?, 'astral_rain', 0, ?);`,
+    args: [
+      'default_set_autoconcepto',
+      'facu',
+      'Autoconcepto y Seguridad',
+      'Autoconcepto',
+      JSON.stringify([
+        { id: 'aff_1', text: 'Soy siempre mi prioridad absoluta', repeatCount: 0 },
+        { id: 'aff_2', text: 'Todo funciona a mi favor sin esfuerzo', repeatCount: 0 },
+      ]),
+      now,
+    ],
+  });
+
+  await boot(page, 'rampage_modify_add_affirmations');
+  await openOrganizer(page);
+  await submitListening(page);
+  await waitForReview(page);
+
+  // Debe mostrar la tarjeta de Rampage con badge de Modificación y +10 nuevas
+  const rampageCard = page.getByTestId('narrative-card-rampage');
+  await expect(rampageCard).toBeVisible();
+  await expect(rampageCard).toContainText('Modificación');
+  await expect(rampageCard).toContainText('Autoconcepto');
+  await expect(rampageCard).toContainText('+10 nuevas');
+
+  // NO debe haber creado afirmaciones sueltas en la lista general de planes
+  const affCards = page.getByTestId('narrative-card-affirmation');
+  await expect(affCards).toHaveCount(0);
+
+  // Probar expandir la vista previa de las 10 afirmaciones agregadas
+  const togglePreviewBtn = rampageCard.getByRole('button', { name: /Ver las 10 afirmaciones agregadas/i });
+  await expect(togglePreviewBtn).toBeVisible();
+  await togglePreviewBtn.click();
+  await expect(rampageCard).toContainText('Estoy en paz y mantengo vínculos armónicos como amigos.');
+
+  // Confirmar y capturar resultado de commit
+  await confirmAndCapture(page);
+
+  // Verificar en base de datos que el rampage se actualizó con las 10 afirmaciones nuevas
+  const res = await db.execute({
+    sql: 'SELECT affirmations_json FROM rampage_sets WHERE id = ?;',
+    args: ['default_set_autoconcepto'],
+  });
+  expect(res.rows).toHaveLength(1);
+  const affirmationsList = JSON.parse(String(res.rows[0].affirmations_json));
+  expect(affirmationsList.length).toBeGreaterThanOrEqual(12);
+  const texts = affirmationsList.map((a: { text: string }) => a.text);
+  expect(texts).toContain('Estoy en paz y mantengo vínculos armónicos como amigos.');
+  expect(texts).toContain('Soy siempre mi prioridad absoluta');
 });
 

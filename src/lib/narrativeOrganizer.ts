@@ -20,6 +20,7 @@ export const NARRATIVE_SCENARIOS = [
   'repeat_affirmation',
   'repeat_manifestation',
   'song_attachment',
+  'rampage_modify_add_affirmations',
 ] as const;
 export type NarrativeScenario = (typeof NARRATIVE_SCENARIOS)[number];
 
@@ -38,6 +39,22 @@ export interface ExistingAffirmationItem {
   repeatCount?: number;
 }
 
+export interface ExistingRampageItem {
+  id: string;
+  title: string;
+  category?: string;
+  affirmations: string[];
+  ambientSound?: string;
+}
+
+export interface ExistingSuccessStoryItem {
+  id: string;
+  title: string;
+  story: string;
+  manifestedDate?: string;
+  manifestationId?: string | null;
+}
+
 export type NarrativeLink =
   | { kind: 'existing'; id: string }
   | { kind: 'temp'; id: string }
@@ -54,7 +71,7 @@ export interface ProposedManifestation {
   category?: string;
   status: ManifestationStatus;
   existingId?: string;
-  action?: 'repeat' | 'create_new';
+  action?: 'repeat' | 'create_new' | 'update';
   songQuery?: string;
   songAttachment?: SongAttachment | null;
   mediaAttachment?: MediaAttachment | null;
@@ -77,6 +94,8 @@ export interface ProposedSuccess {
   content: string;
   link: NarrativeLink;
   manifestedDate: string;
+  existingId?: string;
+  action?: 'create' | 'update';
 }
 
 export interface ProposedAffirmation {
@@ -84,7 +103,7 @@ export interface ProposedAffirmation {
   text: string;
   category?: string;
   existingId?: string;
-  action?: 'repeat' | 'create_new';
+  action?: 'repeat' | 'create_new' | 'update';
   songQuery?: string;
   songAttachment?: SongAttachment | null;
   mediaAttachment?: MediaAttachment | null;
@@ -92,9 +111,13 @@ export interface ProposedAffirmation {
 
 export interface ProposedRampage {
   title: string;
-  count: 5 | 11 | 15;
+  count: number;
   affirmations: string[];
   ambientSound: 'white_noise' | 'astral_rain' | 'none';
+  existingId?: string;
+  action?: 'create' | 'update';
+  addedAffirmationsCount?: number;
+  newAffirmations?: string[];
 }
 
 export interface NarrativeProposedPlan {
@@ -171,6 +194,33 @@ export interface NarrativeCommitResult {
   skippedAffirmations: string[];
   repeatedAffirmations?: Array<{ id: string; repeatCount: number }>;
   repeatedManifestations?: Array<{ id: string; repeatCount: number }>;
+  updatedRampages?: Array<{
+    id: string;
+    title: string;
+    affirmations: Array<{ id: string; text: string; repeatCount: number }>;
+    ambientSound: 'white_noise' | 'astral_rain' | 'none';
+    updatedAt: string;
+  }>;
+  updatedManifestations?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: ManifestationStatus;
+    category?: string;
+    updatedAt: string;
+  }>;
+  updatedAffirmations?: Array<{
+    id: string;
+    text: string;
+    category?: string;
+    updatedAt: string;
+  }>;
+  updatedSuccessStories?: Array<{
+    id: string;
+    title: string;
+    story: string;
+    updatedAt: string;
+  }>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -437,6 +487,8 @@ interface NormalizeOptions {
   draftId: string;
   existingContext?: ExistingContextItem[];
   existingAffirmations?: ExistingAffirmationItem[];
+  existingRampages?: ExistingRampageItem[];
+  existingSuccessStories?: ExistingSuccessStoryItem[];
   existingManifestationIds?: string[];
   /** When true, legacy `linkedToId` is accepted and migrated to `link`. */
   allowLegacy?: boolean;
@@ -524,9 +576,16 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
     const isNewPerson = Boolean(record.isNewPersonWithSameName);
 
     let matchedExistingManId = readString(record.existingId);
-    let action: 'repeat' | 'create_new' | undefined = undefined;
+    let action: 'repeat' | 'create_new' | 'update' | undefined = undefined;
 
-    if (record.action === 'create_new') {
+    if (record.action === 'update') {
+      action = 'update';
+      if (!matchedExistingManId && options.existingContext) {
+        const normTitle = normalizeForCompare(title);
+        const matched = options.existingContext.find((ctx) => normalizeForCompare(ctx.title) === normTitle);
+        if (matched) matchedExistingManId = matched.id;
+      }
+    } else if (record.action === 'create_new') {
       action = 'create_new';
     } else if (record.action === 'repeat' || matchedExistingManId) {
       action = 'repeat';
@@ -625,6 +684,16 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
         clipText(item.title, NARRATIVE_LIMITS.title) ||
         content.split(/[.!?\n]/)[0]?.trim().slice(0, NARRATIVE_LIMITS.title) ||
         `Historia de éxito ${index + 1}`;
+      let matchedExistingStoryId = readString(item.existingId);
+      const action = item.action === 'update' ? 'update' : undefined;
+      if (action === 'update' && !matchedExistingStoryId && options.existingSuccessStories) {
+        const normTitle = normalizeForCompare(title);
+        const matched = options.existingSuccessStories.find(
+          (s) => normalizeForCompare(s.title) === normTitle
+        );
+        if (matched) matchedExistingStoryId = matched.id;
+      }
+
       return [
         {
           tempId: sanitizeIdFragment(readString(item.tempId) || `s_${index + 1}`),
@@ -632,6 +701,8 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
           content,
           link,
           manifestedDate: normalizeDate(item.manifestedDate),
+          existingId: matchedExistingStoryId || undefined,
+          action,
         },
       ];
     });
@@ -660,9 +731,19 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
       seenAffirmations.add(key);
 
       let matchedExistingAffId = readString(record.existingId);
-      let action: 'repeat' | 'create_new' | undefined = undefined;
+      let action: 'repeat' | 'create_new' | 'update' | undefined = undefined;
 
-      if (record.action === 'create_new') {
+      if (record.action === 'update') {
+        action = 'update';
+        if (!matchedExistingAffId && options.existingAffirmations) {
+          const matched = options.existingAffirmations.find(
+            (ea) => normalizeForCompare(ea.text) === key
+          );
+          if (matched) {
+            matchedExistingAffId = matched.id;
+          }
+        }
+      } else if (record.action === 'create_new') {
         action = 'create_new';
       } else if (record.action === 'repeat' || matchedExistingAffId) {
         action = 'repeat';
@@ -710,8 +791,6 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
   let rampageToStart: ProposedRampage | null = null;
   const rawRampage = planSource.rampageToStart;
   if (isRecord(rawRampage)) {
-    const rawCount = Number(rawRampage.count);
-    const count: 5 | 11 | 15 = rawCount === 5 || rawCount === 15 ? rawCount : 11;
     const rawAffirmations = asArray(rawRampage.affirmations)
       .map((entry) => (isRecord(entry) ? readString(entry.text) : readString(entry)))
       .filter(Boolean);
@@ -719,21 +798,69 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
       (text) => !findPoeticTerm(text)
     );
 
+    const rawCount = Number(rawRampage.count);
+    const count = Number.isFinite(rawCount) && rawCount > 0 ? rawCount : unique.length;
+
     const ambientRaw = readString(rawRampage.ambientSound);
     const ambientSound =
       ambientRaw === 'none' || ambientRaw === 'white_noise' || ambientRaw === 'astral_rain'
         ? ambientRaw
         : 'astral_rain';
 
-    if (unique.length >= count) {
+    let existingRampageId = readString(rawRampage.existingId);
+    let rampageAction: 'create' | 'update' = rawRampage.action === 'update' ? 'update' : 'create';
+
+    const rawTitle = clipText(rawRampage.title, 200) || 'Rampage organizado por voz';
+
+    // Match with existing rampages
+    let matchedExistingRampage: ExistingRampageItem | undefined = undefined;
+    if (options.existingRampages && options.existingRampages.length > 0) {
+      if (existingRampageId) {
+        matchedExistingRampage = options.existingRampages.find((r) => r.id === existingRampageId);
+      }
+      if (!matchedExistingRampage && (rampageAction === 'update' || rawTitle)) {
+        const normTitle = normalizeForCompare(rawTitle);
+        matchedExistingRampage = options.existingRampages.find((r) => {
+          const rNorm = normalizeForCompare(r.title);
+          return rNorm === normTitle || rNorm.includes(normTitle) || normTitle.includes(rNorm);
+        });
+        if (matchedExistingRampage) {
+          existingRampageId = matchedExistingRampage.id;
+          rampageAction = 'update';
+        }
+      }
+    }
+
+    let newAffirmations: string[] = [];
+    if (matchedExistingRampage) {
+      const existingSet = new Set(
+        matchedExistingRampage.affirmations.map((a) => normalizeForCompare(a))
+      );
+      newAffirmations = unique.filter((a) => !existingSet.has(normalizeForCompare(a)));
+    } else if (asArray(rawRampage.newAffirmations).length > 0) {
+      newAffirmations = asArray(rawRampage.newAffirmations)
+        .map((entry) => (isRecord(entry) ? readString(entry.text) : readString(entry)))
+        .filter(Boolean);
+    }
+
+    const addedAffirmationsCount =
+      typeof rawRampage.addedAffirmationsCount === 'number'
+        ? rawRampage.addedAffirmationsCount
+        : newAffirmations.length;
+
+    if (unique.length > 0) {
       rampageToStart = {
-        title: clipText(rawRampage.title, 200) || 'Rampage organizado por voz',
-        count,
-        affirmations: unique.slice(0, count).map((text) => clipText(text, NARRATIVE_LIMITS.affirmation)),
+        title: rawTitle,
+        count: Math.max(count, unique.length),
+        affirmations: unique.map((text) => clipText(text, NARRATIVE_LIMITS.affirmation)),
         ambientSound,
+        existingId: existingRampageId || undefined,
+        action: rampageAction,
+        addedAffirmationsCount: addedAffirmationsCount > 0 ? addedAffirmationsCount : undefined,
+        newAffirmations: newAffirmations.length > 0 ? newAffirmations : undefined,
       };
-    } else if (unique.length > 0) {
-      warnings.push('El Rampage propuesto no tenía suficientes afirmaciones válidas.');
+    } else {
+      warnings.push('El Rampage propuesto no tenía afirmaciones válidas.');
     }
   }
 
@@ -808,6 +935,9 @@ interface SandboxOptions {
   spokenText?: string;
   currentDraft?: NarrativeDraft | null;
   existingContext?: ExistingContextItem[];
+  existingAffirmations?: ExistingAffirmationItem[];
+  existingRampages?: ExistingRampageItem[];
+  existingSuccessStories?: ExistingSuccessStoryItem[];
   draftId: string;
 }
 
@@ -856,10 +986,72 @@ function baseSabrinaDraft(draftId: string): NarrativeDraft {
 }
 
 export function buildSandboxNarrativeDraft(options: SandboxOptions): NarrativeDraft {
-  const scenario = (options.scenario || 'sabrina_initial') as NarrativeScenario;
+  let scenario = (options.scenario || 'sabrina_initial') as NarrativeScenario;
   const draftId = options.draftId;
 
+  const spokenLower = (options.spokenText || '').toLowerCase();
+  if (
+    scenario === 'sabrina_initial' &&
+    spokenLower.includes('rampage') &&
+    (spokenLower.includes('modific') ||
+      spokenLower.includes('agreg') ||
+      spokenLower.includes('sum') ||
+      spokenLower.includes('10 afirmacion') ||
+      spokenLower.includes('afirmaciones'))
+  ) {
+    scenario = 'rampage_modify_add_affirmations';
+  }
+
   switch (scenario) {
+    case 'rampage_modify_add_affirmations': {
+      const draft = emptyNarrativeDraft(draftId);
+      const text =
+        options.spokenText ||
+        'Modificá el rampage de Autoconcepto y agregale 10 afirmaciones más basadas en el mismo concepto.';
+      draft.userTranscript = text;
+
+      // Find rampage from existingRampages or use default Autoconcepto
+      const existing =
+        options.existingRampages?.find((r) => /autoconcepto/i.test(r.title)) ||
+        options.existingRampages?.[0] || {
+          id: 'default_set_autoconcepto',
+          title: 'Autoconcepto',
+          category: 'Autoconcepto',
+          affirmations: [
+            'Soy siempre mi prioridad absoluta',
+            'Todo funciona a mi favor sin esfuerzo',
+          ],
+          ambientSound: 'astral_rain',
+        };
+
+      const newAffirmations = [
+        'Estoy en paz y mantengo vínculos armónicos como amigos.',
+        'Siento total tranquilidad y paz en todas mis relaciones.',
+        'Amo a todos como a mí mismo.',
+        'Mi valor intrínseco es pleno, incondicional y absoluto.',
+        'Me elijo a mí mismo con amor y total certidumbre.',
+        'Inspiro seguridad, afecto genuino y calma donde voy.',
+        'Tengo lo mejor de la vida y lo disfruto con naturalidad.',
+        'Estoy en completa armonía con mis deseos y mi realidad.',
+        'Mi palabra tiene poder y mi presencia es un regalo.',
+        'Vivo en plenitud, gozo y profunda serenidad.',
+      ];
+
+      const combined = [...existing.affirmations, ...newAffirmations];
+
+      draft.siriResponse = `Modifiqué tu rampage "${existing.title}" agregando 10 nuevas afirmaciones en la misma sintonía (ahora tiene ${combined.length} en total).`;
+      draft.proposedPlan.rampageToStart = {
+        title: existing.title,
+        existingId: existing.id,
+        action: 'update',
+        count: combined.length,
+        affirmations: combined,
+        newAffirmations,
+        addedAffirmationsCount: 10,
+        ambientSound: (existing.ambientSound as 'astral_rain') || 'astral_rain',
+      };
+      return draft;
+    }
     case 'unclear':
       return {
         draftId,
@@ -1067,15 +1259,82 @@ export function readSandboxScenarioFromSearch(search: string): NarrativeScenario
 export function buildNarrativeOrganizerSystemPrompt(options: {
   existingContext: ExistingContextItem[];
   existingAffirmations?: ExistingAffirmationItem[];
+  existingRampages?: ExistingRampageItem[];
+  existingSuccessStories?: ExistingSuccessStoryItem[];
   currentDraft: NarrativeDraft | null;
 }): string {
   const contextJson = JSON.stringify(options.existingContext || [], null, 2);
   const affirmationsJson = JSON.stringify(options.existingAffirmations || [], null, 2);
+  const rampagesJson = JSON.stringify(options.existingRampages || [], null, 2);
+  const successStoriesJson = JSON.stringify(options.existingSuccessStories || [], null, 2);
   const draftJson = options.currentDraft
     ? JSON.stringify(options.currentDraft.proposedPlan, null, 2)
     : 'null';
 
-  return `Sos el organizador narrativo de Manifest. Escuchás un relato libre en español rioplatense y lo separás en registros para el santuario personal del usuario. No inventás datos: si algo no fue dicho, no existe.
+  return `Sos el asistente inteligente y organizador narrativo de Manifest. Escuchás un relato o pedido libre en español rioplatense y lo procesás para el santuario personal del usuario. No inventás datos: si algo no fue dicho o solicitado, no existe.
+
+## CAPACIDADES CLAVE DE ASISTENTE REAL (MODIFICACIONES DIRECTAS POR VOZ)
+Sos un verdadero asistente personal y activo. Cuando el usuario te hable solicitando crear, MODIFICAR, EDITAR o AMPLIAR elementos existentes en su santuario (rampages, afirmaciones, manifestaciones o historias de éxito), debes ejecutar la modificación correspondiente:
+
+### 1. MODIFICACIÓN Y AMPLIACIÓN DE RAMPAGES (REGLA FUNDAMENTAL):
+- Si el usuario te pide modificar, ampliar o agregar afirmaciones a un rampage existente (ejemplos: "modificá mi rampage de autoconcepto y agregale 10 afirmaciones más", "sumale 10 afirmaciones al rampage de relaciones", "agregale 10 afirmaciones más al rampage", "modificá el rampage X"):
+  * Busca en ## RAMPAGES EXISTENTES el rampage que coincida con el título, categoría o concepto mencionado (o si tiene uno solo, o el más afín).
+  * DEBES COMPRENDER DE FORMA IMPLÍCITA EL CONCEPTO Y VIBRACIÓN DEL RAMPAGE a partir de su título, su temática y las afirmaciones que ya tiene.
+  * MANTÉN LAS AFIRMACIONES EXISTENTES intactas (a menos que pida reemplazarlas) y GENERA LAS NUEVAS AFIRMACIONES solicitadas (ej: 10 afirmaciones nuevas) que continúen exactamente con ese mismo concepto y energía.
+  * Todas las afirmaciones deben estar en primera persona ("yo"), directas, sentidas y sin términos poéticos prohibidos.
+  * Devolvé en "rampageToStart":
+    {
+      "title": "[título del rampage existente]",
+      "existingId": "[id del rampage en RAMPAGES EXISTENTES]",
+      "action": "update",
+      "count": [total de afirmaciones: existentes + nuevas agregadas],
+      "affirmations": [array completo: las que ya tenía + las nuevas generadas],
+      "newAffirmations": [solo las nuevas afirmaciones generadas],
+      "addedAffirmationsCount": [cantidad de nuevas afirmaciones agregadas, ej: 10],
+      "ambientSound": "astral_rain | white_noise | none"
+    }
+  * PROHIBIDO: NO agregues estas afirmaciones en "proposedPlan.affirmations". Si el pedido fue modificar o sumar afirmaciones a un RAMPAGE, pertenecen y deben devolverse ÚNICAMENTE dentro de "rampageToStart" con action: "update".
+  * En "siriResponse", confirmá con calidez: ej. "Modifiqué tu rampage [Título] agregando 10 nuevas afirmaciones en la misma sintonía (ahora tiene [Total] afirmaciones en total)."
+
+### 2. MODIFICACIÓN DE AFIRMACIONES EXISTENTES:
+- Si el usuario pide cambiar, editar o modificar una afirmación que ya existe en su santuario (ej: "modificá la afirmación X para que diga Y", "cambiá la categoría de la afirmación X a..."):
+  * Busca en ## AFIRMACIONES EXISTENTES.
+  * Devolvé en "proposedPlan.affirmations":
+    {
+      "tempId": "a_mod_1",
+      "existingId": "[id de la afirmación en AFIRMACIONES EXISTENTES]",
+      "action": "update",
+      "text": "nuevo texto de la afirmación en primera persona",
+      "category": "categoría"
+    }
+  * En "siriResponse", confirmá amablemente la actualización.
+
+### 3. MODIFICACIÓN DE MANIFESTACIONES EXISTENTES:
+- Si el usuario pide actualizar, modificar o cambiar una manifestación existente (su texto, título o pasarla de status):
+  * Busca en ## CONTEXTO EXISTENTE.
+  * Devolvé en "proposedPlan.manifestations":
+    {
+      "tempId": "m_mod_1",
+      "existingId": "[id de la manifestación en CONTEXTO EXISTENTE]",
+      "action": "update",
+      "title": "título en presente de 3 a 6 palabras",
+      "content": "oración directa en presente de 6 a 18 palabras",
+      "status": "semilla | alineacion | evidencia | materializado"
+    }
+  * En "siriResponse", confirmá la actualización.
+
+### 4. MODIFICACIÓN DE HISTORIAS DE ÉXITO EXISTENTES:
+- Si el usuario pide modificar o ampliar una historia de éxito existente:
+  * Busca en ## HISTORIAS DE ÉXITO EXISTENTES.
+  * Devolvé en "proposedPlan.successStories":
+    {
+      "tempId": "s_mod_1",
+      "existingId": "[id en HISTORIAS DE ÉXITO EXISTENTES]",
+      "action": "update",
+      "title": "título breve",
+      "content": "historia en primera persona"
+    }
+  * En "siriResponse", confirmá la actualización.
 
 ## VOZ Y PERSPECTIVA OBLIGATORIA (DIARIO PERSONAL EN PRIMERA PERSONA)
 - Estás redactando las notas del diario íntimo del usuario. TODO el contenido (manifestaciones, avances, éxitos, afirmaciones) debe estar redactado ESTRICTAMENTE EN PRIMERA PERSONA ("yo" / "nosotros").
@@ -1225,6 +1484,12 @@ ${contextJson}
 
 ## AFIRMACIONES EXISTENTES (IDs y textos del perfil)
 ${affirmationsJson}
+
+## RAMPAGES EXISTENTES (IDs, títulos y afirmaciones)
+${rampagesJson}
+
+## HISTORIAS DE ÉXITO EXISTENTES (IDs y relatos)
+${successStoriesJson}
 
 ## BORRADOR ACTUAL (si no es null, es lo que venís proponiendo)
 ${draftJson}`;

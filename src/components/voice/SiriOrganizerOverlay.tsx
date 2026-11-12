@@ -165,7 +165,7 @@ interface PlanItemProps {
   content: string;
   badge?: string | null;
   existingId?: string;
-  action?: 'repeat' | 'create_new';
+  action?: 'repeat' | 'create_new' | 'update';
   songAttachment?: SongAttachment | null;
   mediaAttachment?: MediaAttachment | null;
   onToggleAction?: () => void;
@@ -262,7 +262,7 @@ const PlanItem: React.FC<PlanItemProps> = ({
         </div>
       )}
 
-      {existingId && (
+      {existingId && action !== 'update' && (
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-2 text-[12px]">
           <span className="text-[var(--color-ink-muted)]">
             {action === 'create_new' ? 'Se guardará como nueva' : 'Por defecto se repetirá'}
@@ -302,13 +302,16 @@ function renderPlanItems(
 
   plan.manifestations.forEach((item) => {
     const isRepeated = Boolean(item.existingId);
-    const badgeText = isRepeated
-      ? item.action === 'create_new'
-        ? 'Nueva manifestación'
-        : 'Repetir · ya presente'
-      : item.isNewPersonWithSameName
-        ? 'Persona nueva · mismo nombre'
-        : 'Nueva';
+    const badgeText =
+      item.action === 'update'
+        ? 'Modificación'
+        : isRepeated
+          ? item.action === 'create_new'
+            ? 'Nueva manifestación'
+            : 'Repetir · ya presente'
+          : item.isNewPersonWithSameName
+            ? 'Persona nueva · mismo nombre'
+            : 'Nueva';
 
     items.push(
       <PlanItem
@@ -349,18 +352,21 @@ function renderPlanItems(
         kind="success"
         title={item.title}
         content={item.content}
-        badge={linkBadge(item.link)}
+        badge={item.action === 'update' ? 'Modificación' : linkBadge(item.link)}
       />
     );
   });
 
   plan.affirmations.forEach((item) => {
     const isRepeated = Boolean(item.existingId);
-    const badgeText = isRepeated
-      ? item.action === 'create_new'
-        ? 'Nueva afirmación'
-        : 'Repetir · ya presente'
-      : item.category || 'Afirmación';
+    const badgeText =
+      item.action === 'update'
+        ? 'Modificación'
+        : isRepeated
+          ? item.action === 'create_new'
+            ? 'Nueva afirmación'
+            : 'Repetir · ya presente'
+          : item.category || 'Afirmación';
 
     items.push(
       <PlanItem
@@ -404,15 +410,16 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   const audioLevel = useOrbLevel(analyserNode, orbActive);
 
   const [saveRampage, setSaveRampage] = useState(true);
+  const [showAffirmationsPreview, setShowAffirmationsPreview] = useState(false);
 
-  const itemCount = draft ? countProposedItems(draft.proposedPlan) : 0;
   const plan = draft?.proposedPlan;
-  const showPlan = Boolean(plan) && itemCount > 0;
+  const itemCount = draft ? countProposedItems(draft.proposedPlan) : 0;
 
   const planItems = useMemo(
     () => (plan ? renderPlanItems(plan, onToggleItemAction) : []),
     [plan, onToggleItemAction]
   );
+  const showPlan = Boolean(plan) && planItems.length > 0;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -703,14 +710,27 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--color-accent-text)]">
-                            Rampage
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--color-accent-text)]">
+                              Rampage
+                            </p>
+                            {plan.rampageToStart.action === 'update' && (
+                              <span className="rounded-full border border-white/50 bg-white/60 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-ink)] shadow-xs dark:border-white/10 dark:bg-white/10">
+                                Modificación
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-1 break-words text-[15px] font-semibold tracking-[-0.01em] text-[var(--color-ink)]">
                             {plan.rampageToStart.title}
                           </p>
                           <p className="text-[13px] text-[var(--color-ink-muted)]">
-                            {plan.rampageToStart.count} afirmaciones para escuchar
+                            {plan.rampageToStart.action === 'update'
+                              ? `${plan.rampageToStart.count} afirmaciones en total (${
+                                  plan.rampageToStart.addedAffirmationsCount
+                                    ? `+${plan.rampageToStart.addedAffirmationsCount} nuevas agregadas`
+                                    : 'actualizado'
+                                })`
+                              : `${plan.rampageToStart.count} afirmaciones para escuchar`}
                           </p>
                         </div>
 
@@ -742,6 +762,41 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                           </span>
                         </button>
                       </div>
+
+                      {/* Preview of newly added affirmations if modifying a rampage */}
+                      {plan.rampageToStart.newAffirmations &&
+                        plan.rampageToStart.newAffirmations.length > 0 && (
+                          <div className="mt-3 border-t border-black/5 dark:border-white/10 pt-2.5">
+                            <button
+                              type="button"
+                              onClick={() => setShowAffirmationsPreview((prev) => !prev)}
+                              className="flex items-center justify-between w-full text-[12px] font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors py-1"
+                            >
+                              <span>
+                                {showAffirmationsPreview ? 'Ocultar' : 'Ver'} las{' '}
+                                {plan.rampageToStart.newAffirmations.length} afirmaciones agregadas
+                              </span>
+                              <span className="text-[11px] font-mono text-[var(--color-accent-text)]">
+                                {showAffirmationsPreview ? '▲' : '▼'}
+                              </span>
+                            </button>
+                            {showAffirmationsPreview && (
+                              <ul className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-left">
+                                {plan.rampageToStart.newAffirmations.map((aff, i) => (
+                                  <li
+                                    key={i}
+                                    className="text-[12px] leading-relaxed text-[var(--color-ink)] bg-white/50 dark:bg-white/[0.04] p-2 rounded-xl border border-white/40 dark:border-white/[0.06] shadow-2xs"
+                                  >
+                                    <span className="text-[var(--color-accent-text)] mr-1.5 font-bold">
+                                      •
+                                    </span>
+                                    {aff}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
                     </div>
                   )}
 
