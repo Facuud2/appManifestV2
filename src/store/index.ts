@@ -168,7 +168,7 @@ export const readCustomRampageSets = (scope: UserScope): RampageSet[] => {
 export const writeCustomRampageSets = (scope: UserScope, sets: RampageSet[]) => {
   if (typeof window === 'undefined') return;
   try {
-    const customOnly = sets.filter((s) => !s.id.startsWith('default_set_'));
+    const customOnly = sets.filter((s) => s.userId === scope && !s.id.startsWith('default_set_'));
     window.localStorage.setItem(getCustomRampagesStorageKey(scope), JSON.stringify(customOnly));
   } catch {
     // Ignore storage quota errors
@@ -1297,7 +1297,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
       let updatedPreviousSet: RampageSet | null = null;
       if (previousSet) {
-        const prevRepeats = previousSet.affirmations.map((a) => ({
+        const prevRepeats = (previousSet.affirmations || []).map((a) => ({
           ...a,
           repeatCount: Math.max(1, (a.repeatCount || 0) + (previousSet.lastPlayedAt ? 0 : 1)),
         }));
@@ -1309,8 +1309,16 @@ export const useAppStore = create<AppState>((set, get) => {
 
         const currentRecent = readRecentRampageIds(scope);
         const nextRecent = [
+          newSet.id,
           previousSet.id,
-          ...currentRecent.filter((existingId) => existingId !== previousSet.id),
+          ...currentRecent.filter((existingId) => existingId !== previousSet.id && existingId !== newSet.id),
+        ].slice(0, 10);
+        writeRecentRampageIds(scope, nextRecent);
+      } else {
+        const currentRecent = readRecentRampageIds(scope);
+        const nextRecent = [
+          newSet.id,
+          ...currentRecent.filter((existingId) => existingId !== newSet.id),
         ].slice(0, 10);
         writeRecentRampageIds(scope, nextRecent);
       }
@@ -1330,7 +1338,7 @@ export const useAppStore = create<AppState>((set, get) => {
             ...state.scopeCollections,
             [scope]: {
               ...state.scopeCollections[scope],
-              rampageSets: nextRampageSets,
+              rampageSets: nextRampageSets.filter((item) => item.userId === scope),
             },
           },
         };
@@ -1378,7 +1386,7 @@ export const useAppStore = create<AppState>((set, get) => {
             ...state.scopeCollections,
             [scope]: {
               ...state.scopeCollections[scope],
-              rampageSets: nextRampageSets,
+              rampageSets: nextRampageSets.filter((s) => s.userId === scope),
             },
           },
         };
@@ -1427,7 +1435,7 @@ export const useAppStore = create<AppState>((set, get) => {
             ...state.scopeCollections,
             [scope]: {
               ...state.scopeCollections[scope],
-              rampageSets: nextRampageSets,
+              rampageSets: nextRampageSets.filter((s) => s.userId === scope),
             },
           },
         };
@@ -1456,7 +1464,7 @@ export const useAppStore = create<AppState>((set, get) => {
             ...state.scopeCollections,
             [scope]: {
               ...state.scopeCollections[scope],
-              rampageSets: nextRampageSets,
+              rampageSets: nextRampageSets.filter((s) => s.userId === scope),
             },
           },
         };

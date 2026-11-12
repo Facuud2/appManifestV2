@@ -340,19 +340,7 @@ export async function generateRampageWithGemini(
 
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    const affirmations = buildDirectAssumptionAffirmations({
-      centralTheme,
-      nuances: additionalDetails,
-      scope: userScope,
-      count,
-    });
-    const quotaUsedToday = await getDailyAiUsage();
-    return {
-      affirmations,
-      source: 'LOCAL_FALLBACK',
-      totalTokens: 0,
-      quotaUsedToday,
-    };
+    throw new Error('Servicio de IA no disponible: falta configurar la clave de API.');
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -471,24 +459,27 @@ Devuelve únicamente el JSON válido: { "affirmations": ["..."] } con exactament
       totalTokens,
       quotaUsedToday,
     };
-  } catch (error) {
-    console.warn(
-      '[Gemini Rampage] Fallback a generador directo de Ley de la Asunción por límite o red:',
+  } catch (error: any) {
+    console.error(
+      '[Gemini Rampage] Error en generación con Gemini:',
       error
     );
-    const affirmations = buildDirectAssumptionAffirmations({
-      centralTheme,
-      nuances: additionalDetails,
-      scope: userScope,
-      count,
-    });
-    const quotaUsedToday = await getDailyAiUsage();
-    return {
-      affirmations,
-      source: 'LOCAL_FALLBACK',
-      totalTokens: 0,
-      quotaUsedToday,
-    };
+    const errorMessage = error?.message || '';
+    const isQuota =
+      error?.status === 429 ||
+      errorMessage.includes('429') ||
+      errorMessage.includes('quota') ||
+      errorMessage.includes('RESOURCE_EXHAUSTED') ||
+      errorMessage.includes('Resource has been exhausted');
+
+    if (isQuota) {
+      throw new Error(
+        'Has alcanzado el límite de solicitudes de la IA. Por favor, intentá nuevamente más tarde o cuando se renueve tu cuota.'
+      );
+    }
+    throw new Error(
+      error instanceof Error ? error.message : 'Error al conectar con el servicio de IA.'
+    );
   }
 }
 

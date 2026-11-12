@@ -623,7 +623,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
    * Requests all N (5, 11, or 15) affirmations in ONE single JSON call.
    * Never makes infinite requests while the user sleeps.
    */
-  const generateSingleRampageSet = useCallback(async () => {
+  const generateSingleRampageSet = useCallback(async (): Promise<boolean> => {
     batchAbortRef.current?.abort();
     const controller = new AbortController();
     batchAbortRef.current = controller;
@@ -729,18 +729,20 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         }
         resumeAutoPlayRef.current = true;
       }
+      return true;
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setGenerationError(
-        error instanceof Error ? error.message : 'Error al generar el set de Rampage.'
-      );
+      if (error instanceof DOMException && error.name === 'AbortError') return false;
+      const msg =
+        error instanceof Error ? error.message : 'Error al generar el set de Rampage.';
+      setGenerationError(msg);
+      throw error;
     } finally {
       if (batchAbortRef.current === controller) {
         batchAbortRef.current = null;
         setIsLoadingBatch(false);
       }
     }
-  }, [ambientSound, isSandboxMode, preloadSetStaggered, saveRampageSet, setAiRequestsToday]);
+  }, [ambientSound, draftTitle, isSandboxMode, preloadSetStaggered, saveRampageSet, setAiRequestsToday, updateIsSavedToSanctuary]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1435,16 +1437,18 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
   };
 
-  const handleStartRampage = async () => {
+  const handleStartRampage = async (): Promise<boolean> => {
     const title = draftTitle.trim().replace(/\n+/g, ' · ');
     if (!title) {
       setSetupError('Escribí o dictá un tema central para iniciar tu Rampage.');
-      return;
+      return false;
     }
 
     if (audioEngine) {
       await audioEngine.unlock(); // taste-skill-ignore: Unlock WebKit AudioContext on user gesture
     }
+
+    saveToSanctuaryRef.current = saveToSanctuary;
 
     activeRampageRef.current = {
       title: title.slice(0, 120),
@@ -1461,25 +1465,19 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
     if (!isCurrentProfileCalibrated) {
       setIsAwaitingVoiceCalibration(true);
-      return;
+      return false;
     }
 
     setIsAwaitingVoiceCalibration(false);
-    setHasStarted(true);
-    setCurrentAffirmationIndex(0);
-    setPlaybackError('');
-    setGenerationError('');
-    void generateSingleRampageSet();
+    return await generateSingleRampageSet();
   };
 
   useEffect(() => {
     if (!isOpen || !isAwaitingVoiceCalibration || !isCurrentProfileCalibrated) return;
     setIsAwaitingVoiceCalibration(false);
-    setHasStarted(true);
-    setCurrentAffirmationIndex(0);
     setPlaybackError('');
     setGenerationError('');
-    void generateSingleRampageSet();
+    void generateSingleRampageSet().catch(() => {});
   }, [generateSingleRampageSet, isAwaitingVoiceCalibration, isCurrentProfileCalibrated, isOpen]);
 
   function handleClose() {
@@ -1748,6 +1746,12 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                   </span>
                 </div>
 
+                {generationError && (
+                  <div className="mt-3 max-w-sm mx-auto rounded-xl border border-rose-500/30 bg-rose-500/20 px-3 py-2 text-center text-xs font-medium text-rose-200">
+                    {generationError}
+                  </div>
+                )}
+
                 {/* Circular Play / Pause Button */}
                 <motion.button
                   type="button"
@@ -1944,8 +1948,15 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                           </span>
                         </button>
 
+                        {setupError && (
+                          <div className="rounded-xl border border-rose-500/30 bg-rose-500/20 px-3 py-2 text-xs text-rose-200 font-medium">
+                            {setupError}
+                          </div>
+                        )}
+
                         <button
                           type="button"
+                          disabled={isLoadingBatch}
                           onClick={async () => {
                             if (!draftTitle.trim()) {
                               setSetupError('Escribí o dictá un tema central para iniciar tu Rampage.');
@@ -1953,8 +1964,14 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                             }
                             setSetupError('');
                             const proceed = async () => {
-                              setIsCustomizerOpen(false);
-                              await handleStartRampage();
+                              try {
+                                const ok = await handleStartRampage();
+                                if (ok) {
+                                  setIsCustomizerOpen(false);
+                                }
+                              } catch (err: any) {
+                                setSetupError(err?.message || 'Error al generar el set de Rampage.');
+                              }
                             };
                             if (
                               executeWithGuard &&
@@ -1969,9 +1986,9 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                             }
                             await proceed();
                           }}
-                          className={`w-full py-2.5 rounded-full ${profileTheme.playBtnBg} text-xs font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all mt-2`}
+                          className={`w-full py-2.5 rounded-full ${profileTheme.playBtnBg} text-xs font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                          Generar con IA y Reproducir
+                          {isLoadingBatch ? 'Generando afirmaciones con IA…' : 'Generar con IA y Reproducir'}
                         </button>
                       </div>
                     </motion.div>

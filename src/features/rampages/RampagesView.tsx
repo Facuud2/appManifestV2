@@ -93,17 +93,11 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
   const rampageSets = useMemo(() => {
     const scoped = allRampageSets.filter((item) => item.userId === activeScope);
     const seenIds = new Set<string>();
-    const seenTitles = new Set<string>();
     const deduplicated: RampageSet[] = [];
 
     for (const set of scoped) {
       if (seenIds.has(set.id)) continue;
       seenIds.add(set.id);
-
-      const normalizedTitle = set.title.trim().toLowerCase();
-      if (seenTitles.has(normalizedTitle)) continue;
-      seenTitles.add(normalizedTitle);
-
       deduplicated.push(set);
     }
     return deduplicated;

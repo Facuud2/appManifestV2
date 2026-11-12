@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateRampageWithGemini } from '@/lib/gemini';
+import { generateRampageWithGemini, getDailyAiUsage, TIER_1_DAILY_LIMIT } from '@/lib/gemini';
 import { UserScope } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -95,6 +95,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!sandbox) {
+      const dailyUsage = await getDailyAiUsage();
+      if (dailyUsage >= TIER_1_DAILY_LIMIT) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Has alcanzado el límite diario de solicitudes IA (${TIER_1_DAILY_LIMIT} RPD). El límite se renueva a la medianoche UTC.`,
+            code: 'DAILY_QUOTA_EXCEEDED',
+            meta: { aiUsageToday: dailyUsage, aiDailyLimit: TIER_1_DAILY_LIMIT },
+          },
+          { status: 429 }
+        );
+      }
+    }
+
     const result = await generateRampageWithGemini(
       centralTheme || 'Mi identidad',
       userScope,
@@ -113,13 +128,19 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('[API /api/ai/rampage] Error:', error);
+    const msg =
+      error instanceof Error ? error.message : 'Error en generación de rampage';
+    const isQuota =
+      msg.includes('límite') ||
+      msg.includes('cuota') ||
+      msg.includes('429') ||
+      msg.includes('RESOURCE_EXHAUSTED');
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : 'Error en generación de rampage',
+        error: msg,
       },
-      { status: 500 }
+      { status: isQuota ? 429 : 500 }
     );
   }
 }
