@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
+import { motion, AnimatePresence, LayoutGroup, useReducedMotion } from 'framer-motion';
 import {
   Headphones,
   Play,
@@ -70,6 +70,15 @@ const QUICK_INSPIRATION_TITLES = [
   '🔥 Magnetismo Personal',
 ];
 
+// Apple critically-damped spring (damping 1.0, response 0.35s) for interruptible layout & expand/collapse
+const APPLE_FLUID_SPRING = {
+  type: 'spring' as const,
+  bounce: 0,
+  duration: 0.35,
+};
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 export const RampagesView: React.FC<RampagesViewProps> = ({
   onOpenNewRampage,
   onPlayRampage,
@@ -104,6 +113,20 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
   }, [allRampageSets, activeScope]);
 
   const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
+  const [isTwoColumn, setIsTwoColumn] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+
+  useIsomorphicLayoutEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsTwoColumn(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  const toggleExpandedSet = useCallback((id: string) => {
+    setExpandedSetId((prev) => (prev === id ? null : id));
+  }, []);
 
   // Estados para modal de confirmación de eliminación
   const [setToDelete, setSetToDelete] = useState<RampageSet | null>(null);
@@ -329,145 +352,194 @@ export const RampagesView: React.FC<RampagesViewProps> = ({
           </div>
         </div>
       ) : (
-        <motion.div
-          variants={STAGGER_CONTAINER}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 gap-4 md:grid-cols-2"
-        >
-          {rampageSets.map((rampage) => {
-            const isPlayingThis = isRampagePlaying && currentPlayingId === rampage.id;
-            const isExpanded = expandedSetId === rampage.id;
+        <LayoutGroup>
+          {(() => {
+            const renderRampageCard = (rampage: RampageSet) => {
+              const isPlayingThis = isRampagePlaying && currentPlayingId === rampage.id;
+              const isExpanded = expandedSetId === rampage.id;
 
-            return (
-              <motion.article
-                key={rampage.id}
-                variants={STAGGER_ITEM}
-                className={`glass-panel relative flex flex-col justify-between rounded-[22px] p-5 transition-all ${
-                  isPlayingThis ? 'ring-2 ring-swiss-accent/60 shadow-lg' : ''
-                }`}
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-swiss-ink-muted">
-                          {rampage.ambientSound === 'white_noise' ? (
-                            <>
-                              <Radio size={12} /> Ruido blanco
-                            </>
-                          ) : rampage.ambientSound === 'astral_rain' ? (
-                            <>
-                              <CloudRain size={12} /> Lluvia astral
-                            </>
-                          ) : (
-                            <>
-                              <VolumeX size={12} /> Sin sonido ambiente
-                            </>
-                          )}
-                        </span>
-                        <span className="text-[11px] text-swiss-ink-light">·</span>
-                        <span className="text-[11px] font-medium text-swiss-accentText">
-                          {rampage.affirmations.length} decretos
-                        </span>
+              return (
+                <motion.article
+                  key={rampage.id}
+                  layout={shouldReduceMotion ? false : 'position'}
+                  variants={STAGGER_ITEM}
+                  transition={{ layout: APPLE_FLUID_SPRING }}
+                  className={`glass-panel relative flex flex-col rounded-[22px] p-5 transition-shadow duration-200 ${
+                    isPlayingThis ? 'ring-2 ring-swiss-accent/60 shadow-lg' : ''
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-swiss-ink-muted">
+                            {rampage.ambientSound === 'white_noise' ? (
+                              <>
+                                <Radio size={12} /> Ruido blanco
+                              </>
+                            ) : rampage.ambientSound === 'astral_rain' ? (
+                              <>
+                                <CloudRain size={12} /> Lluvia astral
+                              </>
+                            ) : (
+                              <>
+                                <VolumeX size={12} /> Sin sonido ambiente
+                              </>
+                            )}
+                          </span>
+                          <span className="text-[11px] text-swiss-ink-light">·</span>
+                          <span className="text-[11px] font-medium text-swiss-accentText tabular-nums">
+                            {rampage.affirmations.length} decretos
+                          </span>
+                        </div>
+                        <h3 className="mt-1.5 text-base font-semibold leading-snug tracking-[-0.015em] text-swiss-ink">
+                          {rampage.title}
+                        </h3>
                       </div>
-                      <h3 className="mt-1.5 text-base font-semibold leading-snug text-swiss-ink">
-                        {rampage.title}
-                      </h3>
+
+                      <motion.button
+                        type="button"
+                        onClick={() => onPlayRampage(rampage)}
+                        whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+                        transition={{ duration: 0.1 }}
+                        aria-label={isPlayingThis ? 'Pausar rampage' : `Reproducir ${rampage.title}`}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-opacity hover:opacity-90"
+                      >
+                        {isPlayingThis ? (
+                          <Pause size={18} fill="currentColor" />
+                        ) : (
+                          <Play size={18} fill="currentColor" className="translate-x-[1px]" />
+                        )}
+                      </motion.button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onPlayRampage(rampage)}
-                      aria-label={isPlayingThis ? 'Pausar rampage' : `Reproducir ${rampage.title}`}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-swiss-accent text-swiss-accentFg shadow-sm transition-transform hover:opacity-90 active:scale-95"
-                    >
-                      {isPlayingThis ? (
-                        <Pause size={18} fill="currentColor" />
-                      ) : (
-                        <Play size={18} fill="currentColor" className="translate-x-[1px]" />
+                    {/* Onda o extracto de afirmación */}
+                    <div className="mt-3.5 flex items-center justify-between rounded-xl bg-swiss-surface px-3 py-2 text-xs text-swiss-ink-muted">
+                      <p className="truncate italic">
+                        &ldquo;{rampage.affirmations[0]?.text || 'Sin afirmaciones'}&rdquo;
+                      </p>
+                      {isPlayingThis && (
+                        <span className="ml-2 shrink-0">
+                          <RampageAudioWaveform isPlaying={true} barCount={6} />
+                        </span>
                       )}
-                    </button>
+                    </div>
+
+                    {/* Frases desplegables con resorte críticamente amortiguado e interrumpible */}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, height: 'auto' }}
+                          exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                          transition={
+                            shouldReduceMotion
+                              ? { duration: 0.15 }
+                              : {
+                                  height: APPLE_FLUID_SPRING,
+                                  opacity: { duration: 0.2, ease: EMIL_EASE_OUT },
+                                }
+                          }
+                          className="overflow-hidden pt-3"
+                        >
+                          <div className="space-y-1.5 border-t border-[color:var(--border-subtle)] pt-3">
+                            <p className="text-[11px] font-semibold text-swiss-ink-light uppercase tracking-wider">
+                              Afirmaciones del Set:
+                            </p>
+                            <ul className="space-y-1 text-xs text-swiss-ink leading-relaxed max-h-48 overflow-y-auto pr-1">
+                              {rampage.affirmations.map((aff, i) => (
+                                <li key={aff.id || i} className="flex items-start gap-2">
+                                  <span className="font-semibold text-swiss-accentText text-[10px] mt-0.5 tabular-nums">
+                                    {i + 1}.
+                                  </span>
+                                  <span>{aff.text}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
-                  {/* Onda o extracto de afirmación */}
-                  <div className="mt-3.5 flex items-center justify-between rounded-xl bg-swiss-surface px-3 py-2 text-xs text-swiss-ink-muted">
-                    <p className="truncate italic">
-                      &ldquo;{rampage.affirmations[0]?.text || 'Sin afirmaciones'}&rdquo;
-                    </p>
-                    {isPlayingThis && (
-                      <span className="ml-2 shrink-0">
-                        <RampageAudioWaveform isPlaying={true} barCount={6} />
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Frases desplegables */}
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: EMIL_EASE_OUT }}
-                        className="overflow-hidden pt-3"
+                  {/* Acciones del set */}
+                  <div className="mt-4 flex items-center justify-between border-t border-[color:var(--border-subtle)] pt-3 text-xs">
+                    <motion.button
+                      type="button"
+                      onClick={() => toggleExpandedSet(rampage.id)}
+                      whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
+                      transition={{ duration: 0.1 }}
+                      aria-expanded={isExpanded}
+                      className="inline-flex items-center gap-1 text-swiss-ink-muted hover:text-swiss-ink transition-colors"
+                    >
+                      <span>{isExpanded ? 'Ocultar afirmaciones' : 'Ver afirmaciones'}</span>
+                      <motion.span
+                        animate={{ rotate: isExpanded ? 180 : 0 }}
+                        transition={shouldReduceMotion ? { duration: 0.12 } : APPLE_FLUID_SPRING}
+                        className="inline-flex items-center"
                       >
-                        <div className="space-y-1.5 border-t border-[color:var(--border-subtle)] pt-3">
-                          <p className="text-[11px] font-semibold text-swiss-ink-light uppercase tracking-wider">
-                            Afirmaciones del Set:
-                          </p>
-                          <ul className="space-y-1 text-xs text-swiss-ink leading-relaxed max-h-48 overflow-y-auto pr-1">
-                            {rampage.affirmations.map((aff, i) => (
-                              <li key={aff.id || i} className="flex items-start gap-2">
-                                <span className="font-semibold text-swiss-accentText text-[10px] mt-0.5">
-                                  {i + 1}.
-                                </span>
-                                <span>{aff.text}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                        <ChevronDown size={14} />
+                      </motion.span>
+                    </motion.button>
 
-                {/* Acciones del set */}
-                <div className="mt-4 flex items-center justify-between border-t border-[color:var(--border-subtle)] pt-3 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedSetId(isExpanded ? null : rampage.id)}
-                    className="inline-flex items-center gap-1 text-swiss-ink-muted hover:text-swiss-ink transition-colors"
-                  >
-                    <span>{isExpanded ? 'Ocultar afirmaciones' : 'Ver afirmaciones'}</span>
-                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditSet(rampage)}
-                      aria-label={`Editar ${rampage.title}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink transition-colors"
-                      title="Editar set"
-                    >
-                      <Edit3 size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDeleteModal(rampage)}
-                      aria-label={`Eliminar ${rampage.title}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500/70 hover:bg-red-500/10 hover:text-red-600 transition-colors"
-                      title="Eliminar set"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <motion.button
+                        type="button"
+                        onClick={() => handleOpenEditSet(rampage)}
+                        whileTap={shouldReduceMotion ? undefined : { scale: 0.92 }}
+                        transition={{ duration: 0.1 }}
+                        aria-label={`Editar ${rampage.title}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-swiss-ink-muted hover:bg-swiss-control hover:text-swiss-ink transition-colors"
+                        title="Editar set"
+                      >
+                        <Edit3 size={15} />
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={() => handleOpenDeleteModal(rampage)}
+                        whileTap={shouldReduceMotion ? undefined : { scale: 0.92 }}
+                        transition={{ duration: 0.1 }}
+                        aria-label={`Eliminar ${rampage.title}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500/70 hover:bg-red-500/10 hover:text-red-600 transition-colors"
+                        title="Eliminar set"
+                      >
+                        <Trash2 size={15} />
+                      </motion.button>
+                    </div>
                   </div>
-                </div>
-              </motion.article>
+                </motion.article>
+              );
+            };
+
+            if (!isTwoColumn) {
+              return (
+                <motion.div
+                  variants={STAGGER_CONTAINER}
+                  initial="hidden"
+                  animate="show"
+                  className="flex flex-col gap-4"
+                >
+                  {rampageSets.map(renderRampageCard)}
+                </motion.div>
+              );
+            }
+
+            const leftColumn = rampageSets.filter((_, idx) => idx % 2 === 0);
+            const rightColumn = rampageSets.filter((_, idx) => idx % 2 === 1);
+
+            return (
+              <motion.div
+                variants={STAGGER_CONTAINER}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 items-start gap-4"
+              >
+                <div className="flex flex-col gap-4">{leftColumn.map(renderRampageCard)}</div>
+                <div className="flex flex-col gap-4">{rightColumn.map(renderRampageCard)}</div>
+              </motion.div>
             );
-          })}
-        </motion.div>
+          })()}
+        </LayoutGroup>
       )}
 
       {/* Modal para Crear / Editar Set de Rampage */}

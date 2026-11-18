@@ -60,7 +60,7 @@ function sanitizeExistingAffirmations(value: unknown): ExistingAffirmationItem[]
 
 function sanitizeExistingRampages(value: unknown): ExistingRampageItem[] {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 30).flatMap((item) => {
+  return value.slice(0, 50).flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
     const record = item as Record<string, unknown>;
     const id = typeof record.id === 'string' ? record.id.trim() : '';
@@ -70,7 +70,7 @@ function sanitizeExistingRampages(value: unknown): ExistingRampageItem[] {
     const affirmations = Array.isArray(record.affirmations)
       ? record.affirmations
           .filter((a): a is string => typeof a === 'string')
-          .slice(0, 50)
+          .slice(0, 100)
       : [];
     const ambientSound = typeof record.ambientSound === 'string' ? record.ambientSound : undefined;
     return [{ id, title: title.slice(0, 200), category, affirmations, ambientSound }];

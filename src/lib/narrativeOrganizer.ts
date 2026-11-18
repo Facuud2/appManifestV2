@@ -302,6 +302,84 @@ function normalizeForCompare(value: string): string {
     .trim();
 }
 
+const RAMPAGE_TITLE_STOPWORDS = new Set([
+  'de',
+  'del',
+  'la',
+  'el',
+  'los',
+  'las',
+  'con',
+  'en',
+  'y',
+  'o',
+  'a',
+  'al',
+  'para',
+  'por',
+  'mi',
+  'mis',
+  'tu',
+  'tus',
+  'un',
+  'una',
+  'rampage',
+  'set',
+]);
+
+function tokenizeRampageTitle(title: string): string[] {
+  return normalizeForCompare(title)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !RAMPAGE_TITLE_STOPWORDS.has(token));
+}
+
+function findMatchingExistingRampage(
+  existingRampages: ExistingRampageItem[] | undefined,
+  existingId: string,
+  title: string
+): ExistingRampageItem | undefined {
+  if (!existingRampages || existingRampages.length === 0) return undefined;
+
+  if (existingId) {
+    const byId = existingRampages.find((r) => r.id === existingId);
+    if (byId) return byId;
+  }
+
+  const normTitle = normalizeForCompare(title);
+  if (!normTitle) return undefined;
+
+  const byExactOrSubstring = existingRampages.find((r) => {
+    const rNorm = normalizeForCompare(r.title);
+    return rNorm === normTitle || rNorm.includes(normTitle) || normTitle.includes(rNorm);
+  });
+  if (byExactOrSubstring) return byExactOrSubstring;
+
+  const queryTokens = tokenizeRampageTitle(title);
+  if (queryTokens.length === 0) return undefined;
+  const querySet = new Set(queryTokens);
+
+  let bestMatch: ExistingRampageItem | undefined;
+  let bestScore = 0;
+
+  for (const candidate of existingRampages) {
+    const candidateTokens = tokenizeRampageTitle(candidate.title);
+    if (candidateTokens.length === 0) continue;
+    let shared = 0;
+    for (const token of candidateTokens) {
+      if (querySet.has(token)) shared += 1;
+    }
+    const minTokens = Math.min(queryTokens.length, candidateTokens.length);
+    const minRequired = minTokens === 1 ? 1 : 2;
+    if (shared >= minRequired && shared > bestScore) {
+      bestScore = shared;
+      bestMatch = candidate;
+    }
+  }
+
+  return bestMatch;
+}
+
 function sanitizeIdFragment(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'item';
 }
@@ -810,8 +888,50 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
     const rawAffirmations = asArray(rawRampage.affirmations)
       .map((entry) => (isRecord(entry) ? readString(entry.text) : readString(entry)))
       .filter(Boolean);
-    const unique = [...new Set(rawAffirmations.map((text) => text.trim()))].filter(
-      (text) => !findPoeticTerm(text)
+    const rawNewAffirmations = asArray(rawRampage.newAffirmations)
+      .map((entry) => (isRecord(entry) ? readString(entry.text) : readString(entry)))
+      .filter(Boolean);
+
+    let existingRampageId = readString(rawRampage.existingId);
+    let rampageAction: 'create' | 'update' = rawRampage.action === 'update' ? 'update' : 'create';
+    const rawTitleInput = clipText(rawRampage.title, 200);
+
+    const matchedExistingRampage = findMatchingExistingRampage(
+      options.existingRampages,
+      existingRampageId,
+      rawTitleInput
+    );
+
+    if (matchedExistingRampage) {
+      existingRampageId = matchedExistingRampage.id;
+      rampageAction = 'update';
+    } else if (options.existingRampages && options.existingRampages.length > 0) {
+      // Avoid keeping a hallucinated existingId that doesn't exist in the profile's rampages
+      existingRampageId = '';
+      if (rampageAction === 'update') {
+        rampageAction = 'create';
+      }
+    }
+
+    const rawTitle =
+      (matchedExistingRampage && (!rawTitleInput || rawTitleInput === 'Rampage organizado por voz')
+        ? matchedExistingRampage.title
+        : rawTitleInput) ||
+      matchedExistingRampage?.title ||
+      'Rampage organizado por voz';
+
+    const combinedSourceAffirmations =
+      rawAffirmations.length > 0
+        ? rawAffirmations
+        : matchedExistingRampage && rampageAction === 'update' && rawNewAffirmations.length > 0
+          ? [...matchedExistingRampage.affirmations, ...rawNewAffirmations]
+          : rawNewAffirmations;
+
+    const existingNormSet = new Set(
+      (matchedExistingRampage?.affirmations || []).map((a) => normalizeForCompare(a))
+    );
+    const unique = [...new Set(combinedSourceAffirmations.map((text) => text.trim()))].filter(
+      (text) => existingNormSet.has(normalizeForCompare(text)) || !findPoeticTerm(text)
     );
 
     const rawCount = Number(rawRampage.count);
@@ -821,31 +941,11 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
     const ambientSound =
       ambientRaw === 'none' || ambientRaw === 'white_noise' || ambientRaw === 'astral_rain'
         ? ambientRaw
-        : 'astral_rain';
-
-    let existingRampageId = readString(rawRampage.existingId);
-    let rampageAction: 'create' | 'update' = rawRampage.action === 'update' ? 'update' : 'create';
-
-    const rawTitle = clipText(rawRampage.title, 200) || 'Rampage organizado por voz';
-
-    // Match with existing rampages
-    let matchedExistingRampage: ExistingRampageItem | undefined = undefined;
-    if (options.existingRampages && options.existingRampages.length > 0) {
-      if (existingRampageId) {
-        matchedExistingRampage = options.existingRampages.find((r) => r.id === existingRampageId);
-      }
-      if (!matchedExistingRampage && (rampageAction === 'update' || rawTitle)) {
-        const normTitle = normalizeForCompare(rawTitle);
-        matchedExistingRampage = options.existingRampages.find((r) => {
-          const rNorm = normalizeForCompare(r.title);
-          return rNorm === normTitle || rNorm.includes(normTitle) || normTitle.includes(rNorm);
-        });
-        if (matchedExistingRampage) {
-          existingRampageId = matchedExistingRampage.id;
-          rampageAction = 'update';
-        }
-      }
-    }
+        : matchedExistingRampage?.ambientSound === 'none' ||
+            matchedExistingRampage?.ambientSound === 'white_noise' ||
+            matchedExistingRampage?.ambientSound === 'astral_rain'
+          ? matchedExistingRampage.ambientSound
+          : 'astral_rain';
 
     let newAffirmations: string[] = [];
     if (matchedExistingRampage) {
@@ -853,10 +953,8 @@ export function normalizeNarrativeDraft(raw: unknown, options: NormalizeOptions)
         matchedExistingRampage.affirmations.map((a) => normalizeForCompare(a))
       );
       newAffirmations = unique.filter((a) => !existingSet.has(normalizeForCompare(a)));
-    } else if (asArray(rawRampage.newAffirmations).length > 0) {
-      newAffirmations = asArray(rawRampage.newAffirmations)
-        .map((entry) => (isRecord(entry) ? readString(entry.text) : readString(entry)))
-        .filter(Boolean);
+    } else if (rawNewAffirmations.length > 0) {
+      newAffirmations = rawNewAffirmations;
     }
 
     const addedAffirmationsCount =
@@ -1350,24 +1448,26 @@ export function buildNarrativeOrganizerSystemPrompt(options: {
 Sos un verdadero asistente personal y activo. Cuando el usuario te hable solicitando crear, MODIFICAR, EDITAR o AMPLIAR elementos existentes en su santuario (rampages, afirmaciones, manifestaciones o historias de éxito), debes ejecutar la modificación correspondiente:
 
 ### 1. MODIFICACIÓN Y AMPLIACIÓN DE RAMPAGES (REGLA FUNDAMENTAL):
-- Si el usuario te pide modificar, ampliar o agregar afirmaciones a un rampage existente (ejemplos: "modificá mi rampage de autoconcepto y agregale 10 afirmaciones más", "sumale 10 afirmaciones al rampage de relaciones", "agregale 10 afirmaciones más al rampage", "modificá el rampage X"):
-  * Busca en ## RAMPAGES EXISTENTES el rampage que coincida con el título, categoría o concepto mencionado (o si tiene uno solo, o el más afín).
+- Si el usuario te pide modificar, editar, reemplazar, ampliar o agregar afirmaciones a un rampage existente (ejemplos: "modificá mi rampage de autoconcepto y agregale 10 afirmaciones más", "sumale 10 afirmaciones al rampage de relaciones", "modificá específicamente el rampage de encuentro fluido con X", "cambiá las afirmaciones del rampage X"):
+  * Busca en ## RAMPAGES EXISTENTES el rampage que coincida con el título, persona, categoría o concepto mencionado (copiá exactamente su "id" como "existingId" y su "title").
   * DEBES COMPRENDER DE FORMA IMPLÍCITA EL CONCEPTO Y VIBRACIÓN DEL RAMPAGE a partir de su título, su temática y las afirmaciones que ya tiene.
-  * MANTÉN LAS AFIRMACIONES EXISTENTES intactas (a menos que pida reemplazarlas) y GENERA LAS NUEVAS AFIRMACIONES solicitadas (ej: 10 afirmaciones nuevas) que continúen exactamente con ese mismo concepto y energía.
+  * Si pide AGREGAR afirmaciones: MANTÉN LAS AFIRMACIONES EXISTENTES intactas y GENERA LAS NUEVAS AFIRMACIONES solicitadas que continúen exactamente con ese mismo concepto y energía.
+  * Si pide MODIFICAR, EDITAR o REEMPLAZAR afirmaciones existentes (o cambiar la cantidad total): devolvé en "affirmations" la lista completa ya modificada con los cambios aplicados y en "count" la nueva cantidad total exacta.
   * Todas las afirmaciones deben estar en primera persona ("yo"), directas, sentidas y sin términos poéticos prohibidos.
-  * Devolvé en "rampageToStart":
+  * Devolvé OBLIGATORIAMENTE en "proposedPlan.rampageToStart" (NUNCA lo dejes en null cuando te pidan modificar o ampliar un rampage):
     {
-      "title": "[título del rampage existente]",
-      "existingId": "[id del rampage en RAMPAGES EXISTENTES]",
+      "title": "[título exacto del rampage existente en RAMPAGES EXISTENTES]",
+      "existingId": "[id exacto del rampage en RAMPAGES EXISTENTES]",
       "action": "update",
-      "count": [total de afirmaciones: existentes + nuevas agregadas],
-      "affirmations": [array completo: las que ya tenía + las nuevas generadas],
-      "newAffirmations": [solo las nuevas afirmaciones generadas],
-      "addedAffirmationsCount": [cantidad de nuevas afirmaciones agregadas, ej: 10],
+      "count": [cantidad total de afirmaciones en "affirmations"],
+      "affirmations": [array completo y final de afirmaciones del rampage modificado],
+      "newAffirmations": [solo las afirmaciones nuevas o modificadas],
+      "addedAffirmationsCount": [cantidad de nuevas afirmaciones agregadas, o 0 si solo editaste existentes],
       "ambientSound": "astral_rain | white_noise | none"
     }
   * PROHIBIDO: NO agregues estas afirmaciones en "proposedPlan.affirmations". Si el pedido fue modificar o sumar afirmaciones a un RAMPAGE, pertenecen y deben devolverse ÚNICAMENTE dentro de "rampageToStart" con action: "update".
-  * En "siriResponse", confirmá con calidez: ej. "Modifiqué tu rampage [Título] agregando 10 nuevas afirmaciones en la misma sintonía (ahora tiene [Total] afirmaciones en total)."
+  * PROHIBIDO decir en "siriResponse" que modificaste o agregaste afirmaciones a un rampage si "rampageToStart" es null.
+  * En "siriResponse", presentá el cambio como propuesta lista para guardar: ej. "Preparé la actualización de tu rampage [Título] (ahora con [Total] afirmaciones). Confirmá abajo para guardarlo."
 
 ### 2. MODIFICACIÓN DE AFIRMACIONES EXISTENTES:
 - Si el usuario pide cambiar, editar o modificar una afirmación que ya existe en su santuario (ej: "modificá la afirmación X para que diga Y", "cambiá la categoría de la afirmación X a..."):
@@ -1494,9 +1594,10 @@ REGLAS PROHIBIDAS:
 - Si no hay vínculo posible, usá { "kind": "none" } y no inventes una manifestación.
 
 ## RAMPAGE
-- Solo si la persona lo pide explícitamente ("hacé un rampage", "quiero escuchar afirmaciones").
-- Devolvé "rampageToStart" con title, count (5, 11 o 15), affirmations (esa misma cantidad, estilo directo) y ambientSound ("white_noise", "astral_rain" o "none").
-- Si no lo pide, "rampageToStart": null.
+- Si la persona pide crear un rampage ("hacé un rampage", "quiero escuchar afirmaciones") O pide modificar, editar o ampliar un rampage existente:
+  * Para creación: devolvé "rampageToStart" con title, action: "create", count (5, 11 o 15), affirmations (esa misma cantidad, estilo directo) y ambientSound ("white_noise", "astral_rain" o "none").
+  * Para modificación/ampliación de uno existente: devolvé "rampageToStart" con existingId, action: "update", title, count (igual al largo total de "affirmations"), affirmations (lista completa actualizada), newAffirmations y addedAffirmationsCount.
+- Si no pide crear ni modificar un rampage, "rampageToStart": null.
 
 ## REPETICIÓN DE AFIRMACIONES O MANIFESTACIONES EXISTENTES (REGLA FUNDAMENTAL)
 - Si el usuario dice o repite una AFIRMACIÓN o MANIFESTACIÓN que ya se encuentra presente en su santuario ("existingAffirmations" o "existingContext"):
@@ -1557,7 +1658,7 @@ Devolvé ÚNICAMENTE este JSON, sin texto extra ni code fences:
       "category": "Vínculos",
       "songQuery": "opcional: título y artista si pidió anexar una canción"
     }],
-    "rampageToStart": null
+    "rampageToStart": "null | { title, existingId?, action: 'create' | 'update', count, affirmations: string[], newAffirmations?: string[], addedAffirmationsCount?: number, ambientSound: 'astral_rain' | 'white_noise' | 'none' }"
   }
 }
 

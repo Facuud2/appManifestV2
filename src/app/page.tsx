@@ -738,7 +738,7 @@ export default function HomePage() {
   const existingNarrativeRampages = useMemo<ExistingRampageItem[]>(() => {
     return rampageSets
       .filter((set) => set.userId === activeScope)
-      .slice(0, 30)
+      .slice(0, 50)
       .map((set) => ({
         id: set.id,
         title: set.title,

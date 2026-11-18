@@ -404,9 +404,13 @@ export function buildNarrativeCommit(options: BuildCommitOptions): BuiltNarrativ
 
   updatedRampages.forEach((item) => {
     statements.push({
-      sql: `INSERT OR REPLACE INTO rampage_sets
+      sql: `INSERT INTO rampage_sets
         (id, user_id, title, theme, affirmations_json, ambient_sound, is_favorite, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 0, ?);`,
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          affirmations_json = excluded.affirmations_json,
+          ambient_sound = excluded.ambient_sound;`,
       args: [
         item.id,
         profileId,

@@ -72,7 +72,7 @@ async function generateJson(options: {
   const config: Record<string, unknown> = {
     systemInstruction: options.systemInstruction,
     temperature: 0.2,
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,
   };
 
   if (options.enableUrlContext) {
@@ -284,6 +284,18 @@ export async function analyzeNarrativeWithGemini(options: {
       existingSuccessStories: options.existingSuccessStories,
       allowLegacy: true,
     });
+    if (
+      !draft.proposedPlan.rampageToStart &&
+      /\b(modifiqu[eé]|actualic[eé]|agregu[eé]|sum[eé]|cambi[eé]|reemplac[eé]|prepar[eé])\b.*\brampage\b/i.test(
+        draft.siriResponse
+      )
+    ) {
+      warnings.push(
+        'La IA mencionó una modificación de rampage pero no devolvió proposedPlan.rampageToStart.'
+      );
+      draft.siriResponse =
+        'No pude generar la actualización del rampage en este borrador. Probá pedirmelo de nuevo indicando el nombre exacto del rampage y qué cambios querés hacer.';
+    }
     await enrichDraftWithMusic(draft);
     return { draft, source: 'GEMINI_LIVE', quotaUsedToday, warnings };
   } catch (parseError) {

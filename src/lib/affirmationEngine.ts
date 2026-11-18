@@ -38,8 +38,6 @@ export const POETIC_BLACKLIST = [
   'sintonia',
   'sendero',
   'senderos',
-  'brisa',
-  'brisas',
   'respiro',
   'respiros',
   'respirar',
