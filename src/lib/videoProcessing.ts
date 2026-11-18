@@ -1,5 +1,3 @@
-const MAX_VIDEO_SECONDS = 20;
-const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 const POSTER_EDGE = 280;
 const MAX_THUMB_DATA_URL_LENGTH = 72_000;
 
@@ -16,9 +14,6 @@ export interface PreparedVideo {
 function assertVideoFile(file: File) {
   if (!file.type.startsWith('video/')) {
     throw new Error('El archivo no es un video válido.');
-  }
-  if (file.size > MAX_VIDEO_BYTES) {
-    throw new Error('El video es demasiado grande (máximo 30 MB).');
   }
 }
 
@@ -149,10 +144,6 @@ export async function prepareVideo(file: File): Promise<PreparedVideo> {
 
   const metadata = await loadVideoMetadata(file);
   try {
-    if (metadata.duration > MAX_VIDEO_SECONDS + 0.25) {
-      throw new Error(`El video dura ${Math.ceil(metadata.duration)} s. El máximo es 20 s.`);
-    }
-
     const seekTime = Math.min(0.6, Math.max(0.1, metadata.duration / 3));
     await waitForSeek(metadata.video, seekTime);
 
@@ -167,7 +158,7 @@ export async function prepareVideo(file: File): Promise<PreparedVideo> {
       thumbDataUrl,
       width: metadata.width,
       height: metadata.height,
-      durationSeconds: Math.min(metadata.duration, MAX_VIDEO_SECONDS),
+      durationSeconds: metadata.duration,
       mimeType: file.type || 'video/mp4',
       byteSize: file.size,
     };

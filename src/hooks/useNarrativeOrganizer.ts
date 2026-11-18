@@ -8,6 +8,11 @@ import {
   getMicrophoneStream,
 } from '@/lib/microphone';
 import { useAppStore } from '@/store';
+import { preparePhoto } from '@/lib/imageProcessing';
+import { prepareVideo } from '@/lib/videoProcessing';
+import { buildMediaStorageKey } from '@/lib/manifestationAttachments';
+import { putMedia } from '@/lib/mediaStorage';
+import type { MediaAttachment } from '@/types';
 import {
   countProposedItems,
   NARRATIVE_SCENARIOS,
@@ -15,6 +20,7 @@ import {
   type ExistingAffirmationItem,
   type ExistingRampageItem,
   type ExistingSuccessStoryItem,
+  type NarrativeChatMessage,
   type NarrativeCommitResult,
   type NarrativeDraft,
   type NarrativeScenario,
@@ -22,6 +28,7 @@ import {
 
 export type NarrativePhase =
   | 'idle'
+  | 'ready'
   | 'listening'
   | 'processing'
   | 'review'
@@ -30,6 +37,14 @@ export type NarrativePhase =
   | 'error';
 
 export type NarrativeErrorKind = 'analyze' | 'commit' | 'microphone' | 'quota';
+
+export interface PendingChatAttachment {
+  id: string;
+  kind: 'photo' | 'video';
+  attachment: MediaAttachment;
+  blob: Blob;
+  previewUrl: string;
+}
 
 interface UseNarrativeOrganizerProps {
   profileId: string;
@@ -96,12 +111,20 @@ export function useNarrativeOrganizer({
   const [errorKind, setErrorKind] = useState<NarrativeErrorKind | null>(null);
   const [holdProgress, setHoldProgress] = useState(0);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const [messages, setMessages] = useState<NarrativeChatMessage[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingChatAttachment[]>([]);
+  const [isProcessingAttachment, setIsProcessingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const isOpenRef = useRef(false);
   const phaseRef = useRef<NarrativePhase>('idle');
   const draftRef = useRef<NarrativeDraft | null>(null);
   const draftIdRef = useRef('');
   const isMountedRef = useRef(true);
+  const messagesRef = useRef<NarrativeChatMessage[]>([]);
+  const pendingAttachmentsRef = useRef<PendingChatAttachment[]>([]);
+  const mediaBlobsForCommitRef = useRef<Map<string, Blob>>(new Map());
+  const latestMediaAttachmentRef = useRef<{ attachment: MediaAttachment; blob: Blob } | null>(null);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -227,8 +250,149 @@ export function useNarrativeOrganizer({
     }
   }, []);
 
-  const sendAudioToServer = useCallback(
-    async (audioBlob: Blob) => {
+  const appendMessages = useCallback((...newMsgs: NarrativeChatMessage[]) => {
+    const next = [...messagesRef.current, ...newMsgs];
+    messagesRef.current = next;
+    if (isMountedRef.current) setMessages(next);
+  }, []);
+
+  const clearPendingAttachments = useCallback(() => {
+    pendingAttachmentsRef.current.forEach((item) => {
+      try {
+        URL.revokeObjectURL(item.previewUrl);
+      } catch {
+        // ignore
+      }
+    });
+    pendingAttachmentsRef.current = [];
+    if (isMountedRef.current) {
+      setPendingAttachments([]);
+      setAttachmentError(null);
+    }
+  }, []);
+
+  const addAttachments = useCallback(async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+
+    setIsProcessingAttachment(true);
+    setAttachmentError(null);
+
+    const added: PendingChatAttachment[] = [];
+    const remainingSlots = Math.max(0, 4 - pendingAttachmentsRef.current.length);
+    for (const file of list.slice(0, remainingSlots)) {
+      try {
+        if (file.type.startsWith('image/')) {
+          const prepared = await preparePhoto(file);
+          const previewUrl = URL.createObjectURL(prepared.blob);
+          const attachment: MediaAttachment = {
+            kind: 'photo',
+            thumbDataUrl: prepared.thumbDataUrl,
+            mimeType: prepared.mimeType,
+            width: prepared.width,
+            height: prepared.height,
+            byteSize: prepared.byteSize,
+            storageKey: 'draft',
+          };
+          added.push({
+            id: createDraftId(),
+            kind: 'photo',
+            attachment,
+            blob: prepared.blob,
+            previewUrl,
+          });
+          latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
+        } else if (file.type.startsWith('video/')) {
+          const prepared = await prepareVideo(file);
+          const previewUrl = URL.createObjectURL(prepared.blob);
+          const attachment: MediaAttachment = {
+            kind: 'video',
+            thumbDataUrl: prepared.thumbDataUrl,
+            mimeType: prepared.mimeType,
+            width: prepared.width,
+            height: prepared.height,
+            durationSeconds: prepared.durationSeconds,
+            byteSize: prepared.byteSize,
+            storageKey: 'draft',
+          };
+          added.push({
+            id: createDraftId(),
+            kind: 'video',
+            attachment,
+            blob: prepared.blob,
+            previewUrl,
+          });
+          latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
+        } else {
+          setAttachmentError('Solo podés adjuntar imágenes o videos.');
+        }
+      } catch (err) {
+        setAttachmentError(
+          err instanceof Error ? err.message : 'No pudimos procesar el archivo adjunto.'
+        );
+      }
+    }
+
+    if (added.length > 0 && isMountedRef.current) {
+      const next = [...pendingAttachmentsRef.current, ...added];
+      pendingAttachmentsRef.current = next;
+      setPendingAttachments(next);
+    }
+    if (isMountedRef.current) setIsProcessingAttachment(false);
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    const target = pendingAttachmentsRef.current.find((a) => a.id === id);
+    if (target) {
+      try {
+        URL.revokeObjectURL(target.previewUrl);
+      } catch {
+        // ignore
+      }
+    }
+    const next = pendingAttachmentsRef.current.filter((a) => a.id !== id);
+    pendingAttachmentsRef.current = next;
+    if (isMountedRef.current) setPendingAttachments(next);
+  }, []);
+
+  const attachLatestMediaToDraft = useCallback((nextDraft: NarrativeDraft): NarrativeDraft => {
+    const latest = latestMediaAttachmentRef.current;
+    if (!latest) return nextDraft;
+
+    const plan = nextDraft.proposedPlan;
+    const hasAnyMedia =
+      plan.manifestations.some((m) => Boolean(m.mediaAttachment)) ||
+      plan.progressLogs.some((p) => Boolean(p.mediaAttachment)) ||
+      plan.affirmations.some((a) => Boolean(a.mediaAttachment));
+
+    if (hasAnyMedia) return nextDraft;
+
+    if (plan.progressLogs.length > 0) {
+      const target = plan.progressLogs[0];
+      const storageKey = buildMediaStorageKey(`${nextDraft.draftId}_${target.tempId}`);
+      mediaBlobsForCommitRef.current.set(storageKey, latest.blob);
+      target.mediaAttachment = { ...latest.attachment, storageKey };
+    } else if (plan.manifestations.length > 0) {
+      const target = plan.manifestations[0];
+      const storageKey = buildMediaStorageKey(`${nextDraft.draftId}_${target.tempId}`);
+      mediaBlobsForCommitRef.current.set(storageKey, latest.blob);
+      target.mediaAttachment = { ...latest.attachment, storageKey };
+    } else if (plan.affirmations.length > 0) {
+      const target = plan.affirmations[0];
+      const storageKey = buildMediaStorageKey(`${nextDraft.draftId}_${target.tempId}`);
+      mediaBlobsForCommitRef.current.set(storageKey, latest.blob);
+      target.mediaAttachment = { ...latest.attachment, storageKey };
+    }
+    return nextDraft;
+  }, []);
+
+  const submitNarrativePayload = useCallback(
+    async (payload: {
+      audioBlob?: Blob;
+      text?: string;
+      attachments?: PendingChatAttachment[];
+      isVoice?: boolean;
+    }) => {
       setPhaseSafe('processing');
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -236,8 +400,28 @@ export function useNarrativeOrganizer({
 
       try {
         const formData = new FormData();
-        const ext = audioBlob.type.includes('mp4') || audioBlob.type.includes('aac') ? 'mp4' : 'webm';
-        formData.append('audio', audioBlob, `narrative.${ext}`);
+        if (payload.audioBlob) {
+          const ext =
+            payload.audioBlob.type.includes('mp4') || payload.audioBlob.type.includes('aac')
+              ? 'mp4'
+              : 'webm';
+          formData.append('audio', payload.audioBlob, `narrative.${ext}`);
+        }
+        if (payload.text) {
+          formData.append('text', payload.text);
+        }
+        if (payload.attachments && payload.attachments.length > 0) {
+          payload.attachments.forEach((item, index) => {
+            const ext = item.attachment.mimeType.includes('png')
+              ? 'png'
+              : item.attachment.mimeType.includes('webp')
+                ? 'webp'
+                : item.kind === 'video'
+                  ? 'mp4'
+                  : 'jpg';
+            formData.append('media', item.blob, `attachment_${index}.${ext}`);
+          });
+        }
         formData.append('profileId', profileIdRef.current);
         formData.append('draftId', draftIdRef.current);
         formData.append('existingContext', JSON.stringify(existingContextRef.current));
@@ -253,12 +437,20 @@ export function useNarrativeOrganizer({
         if (draftRef.current) {
           formData.append('currentDraft', JSON.stringify(draftRef.current));
         }
+        if (messagesRef.current.length > 0) {
+          formData.append(
+            'conversationHistory',
+            JSON.stringify(
+              messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
+            )
+          );
+        }
 
         if (isSandboxRef.current) {
           formData.append('sandbox', 'true');
           const scenario = readSandboxScenario();
           if (scenario) formData.append('scenario', scenario);
-          const speech = readSandboxSpeech();
+          const speech = payload.text || readSandboxSpeech();
           if (speech) formData.append('spokenText', speech);
         }
 
@@ -288,11 +480,36 @@ export function useNarrativeOrganizer({
           return;
         }
 
-        const nextDraft = json.data as NarrativeDraft;
+        const nextDraft = attachLatestMediaToDraft(json.data as NarrativeDraft);
         draftRef.current = nextDraft;
         setDraft(nextDraft);
         setError(null);
         setErrorKind(null);
+
+        if (payload.isVoice) {
+          appendMessages(
+            {
+              id: createDraftId(),
+              role: 'user',
+              text: nextDraft.userTranscript || 'Nota de voz',
+              timestamp: Date.now(),
+            },
+            {
+              id: createDraftId(),
+              role: 'assistant',
+              text: nextDraft.siriResponse,
+              timestamp: Date.now(),
+            }
+          );
+        } else {
+          appendMessages({
+            id: createDraftId(),
+            role: 'assistant',
+            text: nextDraft.siriResponse,
+            timestamp: Date.now(),
+          });
+        }
+
         setPhaseSafe('review');
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -300,7 +517,7 @@ export function useNarrativeOrganizer({
         setError(
           err instanceof Error
             ? err.message
-            : 'No se pudo procesar el audio. Comprobá tu conexión.'
+            : 'No se pudo procesar tu solicitud. Comprobá tu conexión.'
         );
         setErrorKind('analyze');
         setPhaseSafe('error');
@@ -308,8 +525,72 @@ export function useNarrativeOrganizer({
         if (abortRef.current === controller) abortRef.current = null;
       }
     },
-    [setPhaseSafe]
+    [appendMessages, attachLatestMediaToDraft, setPhaseSafe]
   );
+
+  const sendAudioToServer = useCallback(
+    async (audioBlob: Blob) => {
+      await submitNarrativePayload({ audioBlob, isVoice: true });
+    },
+    [submitNarrativePayload]
+  );
+
+  const sendChatMessage = useCallback(
+    async (rawText: string) => {
+      if (phaseRef.current === 'processing' || phaseRef.current === 'committing') return;
+      const trimmed = rawText.trim();
+      const attachments = [...pendingAttachmentsRef.current];
+      if (!trimmed && attachments.length === 0) return;
+
+      cleanupAudio();
+      setError(null);
+      setErrorKind(null);
+
+      appendMessages({
+        id: createDraftId(),
+        role: 'user',
+        text:
+          trimmed ||
+          (attachments[0]?.kind === 'video' ? 'Video adjunto' : 'Imagen adjunta'),
+        attachments: attachments.map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          thumbDataUrl: a.attachment.thumbDataUrl,
+          mimeType: a.attachment.mimeType,
+          byteSize: a.attachment.byteSize,
+        })),
+        timestamp: Date.now(),
+      });
+
+      // Clear pending attachments from composer (blobs remain in attachments array for this request)
+      pendingAttachmentsRef.current = [];
+      if (isMountedRef.current) {
+        setPendingAttachments([]);
+        setAttachmentError(null);
+      }
+
+      await submitNarrativePayload({
+        text: trimmed,
+        attachments,
+        isVoice: false,
+      });
+
+      attachments.forEach((item) => {
+        try {
+          URL.revokeObjectURL(item.previewUrl);
+        } catch {
+          // ignore
+        }
+      });
+    },
+    [appendMessages, cleanupAudio, submitNarrativePayload]
+  );
+
+  const pauseListening = useCallback(() => {
+    if (phaseRef.current !== 'listening') return;
+    cleanupAudio();
+    setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
+  }, [cleanupAudio, setPhaseSafe]);
 
   const finishAndSubmit = useCallback(() => {
     if (Date.now() < ignoreSubmitUntilRef.current) return;
@@ -453,13 +734,18 @@ export function useNarrativeOrganizer({
     if (isOpenRef.current) return;
     draftIdRef.current = createDraftId();
     draftRef.current = null;
+    messagesRef.current = [];
+    mediaBlobsForCommitRef.current.clear();
+    latestMediaAttachmentRef.current = null;
+    clearPendingAttachments();
+    setMessages([]);
     setDraft(null);
     setError(null);
     setErrorKind(null);
     isOpenRef.current = true;
     setIsOpen(true);
     void startListening();
-  }, [startListening]);
+  }, [clearPendingAttachments, startListening]);
 
   const reRecord = useCallback(() => {
     // Keep the current draft: the new audio is a correction over it.
@@ -473,13 +759,20 @@ export function useNarrativeOrganizer({
     if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
     closeTimerRef.current = window.setTimeout(() => {
       draftRef.current = null;
-      if (isMountedRef.current) setDraft(null);
+      messagesRef.current = [];
+      mediaBlobsForCommitRef.current.clear();
+      latestMediaAttachmentRef.current = null;
+      clearPendingAttachments();
+      if (isMountedRef.current) {
+        setDraft(null);
+        setMessages([]);
+      }
       setError(null);
       setErrorKind(null);
       setPhaseSafe('idle');
       callbacksRef.current.onClosed?.();
     }, 240);
-  }, [setPhaseSafe]);
+  }, [clearPendingAttachments, setPhaseSafe]);
 
   const cancelAll = useCallback(() => {
     // Stop the microphone and in-flight request immediately, but keep the
@@ -504,15 +797,20 @@ export function useNarrativeOrganizer({
     setHoldProgress(0);
     closeTimerRef.current = window.setTimeout(() => {
       draftRef.current = null;
+      messagesRef.current = [];
+      mediaBlobsForCommitRef.current.clear();
+      latestMediaAttachmentRef.current = null;
+      clearPendingAttachments();
       if (isMountedRef.current) {
         setDraft(null);
+        setMessages([]);
         setError(null);
         setErrorKind(null);
         setPhase('idle');
         phaseRef.current = 'idle';
       }
     }, 240);
-  }, [abortInFlight, cleanupAudio]);
+  }, [abortInFlight, cleanupAudio, clearPendingAttachments]);
 
   const confirm = useCallback(async (saveRampage = true) => {
     const current = draftRef.current;
@@ -542,6 +840,27 @@ export function useNarrativeOrganizer({
       }
 
       const result = json.data as NarrativeCommitResult;
+
+      // Persist any attached media blobs into IndexedDB under their storageKeys
+      if (mediaBlobsForCommitRef.current.size > 0) {
+        const storageKeysToSave = new Set<string>();
+        current.proposedPlan.manifestations.forEach((m) => {
+          if (m.mediaAttachment?.storageKey) storageKeysToSave.add(m.mediaAttachment.storageKey);
+        });
+        current.proposedPlan.progressLogs.forEach((p) => {
+          if (p.mediaAttachment?.storageKey) storageKeysToSave.add(p.mediaAttachment.storageKey);
+        });
+        current.proposedPlan.affirmations.forEach((a) => {
+          if (a.mediaAttachment?.storageKey) storageKeysToSave.add(a.mediaAttachment.storageKey);
+        });
+        await Promise.all(
+          Array.from(storageKeysToSave).map((key) => {
+            const blob = mediaBlobsForCommitRef.current.get(key);
+            return blob ? putMedia(key, blob) : Promise.resolve(false);
+          })
+        );
+      }
+
       useAppStore.getState().applyNarrativeCommit(result);
 
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -742,6 +1061,10 @@ export function useNarrativeOrganizer({
     isOpen,
     phase,
     draft,
+    messages,
+    pendingAttachments,
+    isProcessingAttachment,
+    attachmentError,
     transcript: draft?.userTranscript || '',
     siriResponse: draft?.siriResponse || '',
     error,
@@ -753,7 +1076,11 @@ export function useNarrativeOrganizer({
     canRetryCommit,
     open,
     reRecord,
+    pauseListening,
     finishAndSubmit,
+    sendChatMessage,
+    addAttachments,
+    removeAttachment,
     confirm,
     cancelAll,
     toggleItemAction,

@@ -128,6 +128,22 @@ export interface NarrativeProposedPlan {
   rampageToStart: ProposedRampage | null;
 }
 
+export interface NarrativeChatAttachmentSummary {
+  id: string;
+  kind: 'photo' | 'video';
+  thumbDataUrl: string;
+  mimeType: string;
+  byteSize: number;
+}
+
+export interface NarrativeChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  attachments?: NarrativeChatAttachmentSummary[];
+  timestamp: number;
+}
+
 export interface NarrativeDraft {
   draftId: string;
   userTranscript: string;
@@ -933,6 +949,7 @@ export function hasProposedItems(plan: NarrativeProposedPlan | null | undefined)
 interface SandboxOptions {
   scenario?: NarrativeScenario | string;
   spokenText?: string;
+  hasMediaAttachments?: boolean;
   currentDraft?: NarrativeDraft | null;
   existingContext?: ExistingContextItem[];
   existingAffirmations?: ExistingAffirmationItem[];
@@ -989,7 +1006,55 @@ export function buildSandboxNarrativeDraft(options: SandboxOptions): NarrativeDr
   let scenario = (options.scenario || 'sabrina_initial') as NarrativeScenario;
   const draftId = options.draftId;
 
-  const spokenLower = (options.spokenText || '').toLowerCase();
+  const spokenRaw = (options.spokenText || '').trim();
+  const spokenLower = spokenRaw.toLowerCase();
+
+  if (
+    !options.hasMediaAttachments &&
+    URL_REGEX.test(spokenRaw) &&
+    (spokenLower.includes('instagram.com') ||
+      spokenLower.includes('tiktok.com') ||
+      spokenLower.includes('privado') ||
+      spokenLower.includes('blocked'))
+  ) {
+    URL_REGEX.lastIndex = 0;
+    return {
+      draftId,
+      userTranscript: spokenRaw,
+      siriResponse:
+        'No pude acceder al contenido de ese link porque requiere sesión o está restringido. Adjuntame una imagen (captura) o un video de ese link para poder verlo exactamente y organizarlo.',
+      proposedPlan: {
+        manifestations: [],
+        progressLogs: [],
+        successStories: [],
+        affirmations: [],
+        rampageToStart: null,
+      },
+    };
+  }
+  URL_REGEX.lastIndex = 0;
+
+  if (options.hasMediaAttachments && !options.scenario) {
+    const draft = emptyNarrativeDraft(draftId);
+    draft.userTranscript = spokenRaw || 'Archivo multimedia adjunto';
+    draft.siriResponse =
+      'Perfecto, ya pude ver el contenido que adjuntaste. Preparé la manifestación y el avance para registrarlo.';
+    draft.proposedPlan.manifestations = [
+      {
+        tempId: 'm_1',
+        isNewPersonWithSameName: false,
+        title: 'Vivo esta experiencia con plenitud',
+        content: spokenRaw
+          ? clipText(spokenRaw.replace(URL_REGEX, '').trim() || 'Vivo esta experiencia con alegría y plenitud.', 180)
+          : 'Vivo esta experiencia con alegría y plenitud.',
+        context: '',
+        category: 'relaciones',
+        status: 'semilla',
+      },
+    ];
+    return draft;
+  }
+
   if (
     scenario === 'sabrina_initial' &&
     spokenLower.includes('rampage') &&
@@ -1262,6 +1327,7 @@ export function buildNarrativeOrganizerSystemPrompt(options: {
   existingRampages?: ExistingRampageItem[];
   existingSuccessStories?: ExistingSuccessStoryItem[];
   currentDraft: NarrativeDraft | null;
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
 }): string {
   const contextJson = JSON.stringify(options.existingContext || [], null, 2);
   const affirmationsJson = JSON.stringify(options.existingAffirmations || [], null, 2);
@@ -1270,6 +1336,13 @@ export function buildNarrativeOrganizerSystemPrompt(options: {
   const draftJson = options.currentDraft
     ? JSON.stringify(options.currentDraft.proposedPlan, null, 2)
     : 'null';
+  const historyText =
+    options.conversationHistory && options.conversationHistory.length > 0
+      ? options.conversationHistory
+          .slice(-8)
+          .map((m) => `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.text}`)
+          .join('\n')
+      : '';
 
   return `Sos el asistente inteligente y organizador narrativo de Manifest. Escuchás un relato o pedido libre en español rioplatense y lo procesás para el santuario personal del usuario. No inventás datos: si algo no fue dicho o solicitado, no existe.
 
@@ -1439,6 +1512,15 @@ REGLAS PROHIBIDAS:
   * REGLA OBLIGATORIA DE LIMPIEZA DE TEXTO: NUNCA dejes la frase de la orden dentro de "content", "title" o "note". Está TERMINANTEMENTE PROHIBIDO dejar frases como "Agregué la canción El muelle de San Blas de Spotify a este momento" en el texto. Remové esa frase del relato; el relato debe conservar exclusivamente lo vivido en primera persona.
   * En "siriResponse", confirmá con calidez que anexaste la canción solicitada.
 
+## LINKS, IMÁGENES Y VIDEOS EN EL CHAT
+- El usuario puede enviarte mensajes escritos, notas de voz, **links (URLs)**, **imágenes** o **videos**.
+- Si el mensaje incluye un **link (URL)**:
+  * Usá el contenido obtenido del link (mediante urlContext o contexto web) para entender exactamente de qué trata y crear o actualizar la manifestación, avance, afirmación o rampage correspondiente.
+  * NUNCA pongas la URL cruda ("https://...") dentro de "title".
+  * **REGLA CRÍTICA DE ACCESO A LINKS**: Si NO podés acceder al contenido del link (por ejemplo, si requiere iniciar sesión como un post/reel privado de Instagram/TikTok/Facebook, tiene paywall, está bloqueado o falló la recuperación de urlContext), NO inventes ni adivines qué hay en ese link. En "siriResponse", pedile amablemente al usuario que te adjunte una **imagen (captura de pantalla)** o un **video** de ese link para poder verlo exactamente y organizarlo bien, y dejá "proposedPlan" vacío (o conservá "currentDraft" si ya existía uno).
+- Si el usuario adjunta una **imagen o video** (por ejemplo, una captura o grabación de pantalla de un link, una foto o un video personal):
+  * Analizá con detalle lo que se ve (y lo que se escucha si es video) para comprender el contexto exacto y generar o actualizar los elementos solicitados.
+
 ## FORMATO DE SALIDA
 Devolvé ÚNICAMENTE este JSON, sin texto extra ni code fences:
 {
@@ -1492,5 +1574,5 @@ ${rampagesJson}
 ${successStoriesJson}
 
 ## BORRADOR ACTUAL (si no es null, es lo que venís proponiendo)
-${draftJson}`;
+${draftJson}${historyText ? `\n\n## HISTORIAL RECIENTE DEL CHAT\n${historyText}` : ''}`;
 }

@@ -596,3 +596,72 @@ test('19 · modifica un rampage existente y agrega 10 afirmaciones basadas en el
   expect(texts).toContain('Soy siempre mi prioridad absoluta');
 });
 
+test('20 · chat escrito y micrófono disponibles desde el inicio y tras la respuesta de la IA', async ({ page }) => {
+  await boot(page, 'sabrina_initial');
+  await openOrganizer(page);
+
+  // Desde el primer momento (fase listening) el chat y el micrófono están disponibles
+  const chatInput = page.getByTestId('narrative-chat-input');
+  const attachBtn = page.getByTestId('narrative-chat-attach');
+  const micBtn = page.getByTestId('narrative-chat-mic');
+  const sendBtn = page.getByTestId('narrative-chat-send');
+
+  await expect(chatInput).toBeVisible();
+  await expect(attachBtn).toBeVisible();
+  await expect(micBtn).toBeVisible();
+  await expect(sendBtn).toBeVisible();
+
+  // Escribir en lugar de hablar
+  await chatInput.fill('Modificá mi rampage de Autoconcepto y agregale 10 afirmaciones');
+  await expect(sendBtn).toBeEnabled();
+  await sendBtn.click();
+
+  await waitForReview(page);
+  await expect(page.getByTestId('narrative-card-rampage')).toBeVisible();
+
+  // Tras la respuesta de la IA, tanto el chat escrito como el micrófono siguen disponibles
+  await expect(chatInput).toBeVisible();
+  await expect(micBtn).toBeVisible();
+  await expect(attachBtn).toBeVisible();
+});
+
+test('21 · link inaccesible solicita imagen o video y permite adjuntar imagen para crear manifestación', async ({ page }) => {
+  await boot(page, 'sabrina_initial');
+  await openOrganizer(page);
+
+  const chatInput = page.getByTestId('narrative-chat-input');
+  const sendBtn = page.getByTestId('narrative-chat-send');
+
+  // Enviar un link restringido (simulando Instagram privado)
+  await chatInput.fill('Mirá este post https://www.instagram.com/p/privado-test/');
+  await sendBtn.click();
+
+  // La IA responde pidiendo una imagen o video de ese link y sin CTA de confirmar
+  const response = page.getByTestId('narrative-siri-response');
+  await expect(response).toBeVisible();
+  await expect(response).toContainText(/imagen|captura|video/i);
+  await expect(page.getByTestId('narrative-confirm')).toHaveCount(0);
+
+  // Adjuntar una imagen PNG válida (1x1 px)
+  const pngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const fileInput = page.getByTestId('narrative-chat-file-input');
+  await fileInput.setInputFiles({
+    name: 'captura-link.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(pngBase64, 'base64'),
+  });
+
+  // Se muestra la previsualización del adjunto pendiente
+  await expect(page.getByTestId('narrative-pending-attachment')).toHaveCount(1);
+
+  // Enviar el mensaje con la imagen adjunta
+  await chatInput.fill('Acá está la captura del link');
+  await sendBtn.click();
+
+  // La IA procesa la imagen y propone la manifestación con el adjunto
+  await expect(page.getByTestId('narrative-card-manifestation')).toBeVisible();
+  await expect(page.getByTestId('narrative-confirm')).toBeVisible();
+});
+
+

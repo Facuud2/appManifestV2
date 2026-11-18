@@ -15,7 +15,11 @@ import {
   type NarrativeDraft,
   type NarrativeScenario,
 } from '@/lib/narrativeOrganizer';
-import { analyzeNarrativeWithGemini, enrichDraftWithMusic } from '@/lib/narrativeOrganizerServer';
+import {
+  analyzeNarrativeWithGemini,
+  enrichDraftWithMusic,
+  type NarrativeMediaInput,
+} from '@/lib/narrativeOrganizerServer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -23,6 +27,7 @@ export const runtime = 'nodejs';
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const MIN_AUDIO_BYTES = 200;
+const MAX_MEDIA_FILES = 4;
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback;
@@ -124,6 +129,9 @@ export async function POST(req: NextRequest) {
     let existingSuccessStoriesRaw: unknown = [];
     let sandbox = false;
     let spokenText = '';
+    let userText = '';
+    let conversationHistoryRaw: unknown = [];
+    const mediaFiles: NarrativeMediaInput[] = [];
     let scenario: NarrativeScenario | undefined;
 
     if (contentType.includes('application/json')) {
@@ -137,6 +145,8 @@ export async function POST(req: NextRequest) {
       existingSuccessStoriesRaw = json.existingSuccessStories ?? [];
       sandbox = Boolean(json.sandbox);
       spokenText = typeof json.spokenText === 'string' ? json.spokenText : '';
+      userText = typeof json.text === 'string' ? json.text : '';
+      conversationHistoryRaw = json.conversationHistory ?? [];
       scenario = typeof json.scenario === 'string' ? (json.scenario as NarrativeScenario) : undefined;
       mimeType = typeof json.mimeType === 'string' ? json.mimeType : mimeType;
       if (typeof json.audioBase64 === 'string' && json.audioBase64) {
@@ -149,6 +159,23 @@ export async function POST(req: NextRequest) {
         audioBuffer = Buffer.from(await file.arrayBuffer());
         mimeType = file.type || mimeType;
       }
+      const rawMediaEntries = formData.getAll('media');
+      for (const entry of rawMediaEntries.slice(0, MAX_MEDIA_FILES)) {
+        if (entry instanceof File && entry.size > 0) {
+          const entryMime = (entry.type || '').toLowerCase();
+          if (!entryMime.startsWith('image/') && !entryMime.startsWith('video/')) {
+            return NextResponse.json(
+              { success: false, error: 'Solo se permiten archivos de imagen o video.' },
+              { status: 400 }
+            );
+          }
+          mediaFiles.push({
+            buffer: Buffer.from(await entry.arrayBuffer()),
+            mimeType: entryMime,
+            name: entry.name,
+          });
+        }
+      }
       profileIdRaw = formData.get('profileId') ?? formData.get('currentProfile') ?? 'facu';
       draftId = (formData.get('draftId') as string) || '';
       currentDraftRaw = parseJsonField(formData.get('currentDraft'), null);
@@ -156,8 +183,10 @@ export async function POST(req: NextRequest) {
       existingAffirmationsRaw = parseJsonField(formData.get('existingAffirmations'), []);
       existingRampagesRaw = parseJsonField(formData.get('existingRampages'), []);
       existingSuccessStoriesRaw = parseJsonField(formData.get('existingSuccessStories'), []);
+      conversationHistoryRaw = parseJsonField(formData.get('conversationHistory'), []);
       sandbox = formData.get('sandbox') === 'true';
       spokenText = (formData.get('spokenText') as string) || '';
+      userText = (formData.get('text') as string) || '';
       const rawScenario = formData.get('scenario');
       if (typeof rawScenario === 'string' && rawScenario) {
         scenario = rawScenario as NarrativeScenario;
@@ -194,10 +223,24 @@ export async function POST(req: NextRequest) {
     const queryScenario = readSandboxScenarioFromSearch(req.nextUrl.search);
     const effectiveScenario = scenario || queryScenario;
 
+    const conversationHistory = Array.isArray(conversationHistoryRaw)
+      ? conversationHistoryRaw
+          .slice(-10)
+          .flatMap((entry) => {
+            if (!entry || typeof entry !== 'object') return [];
+            const rec = entry as Record<string, unknown>;
+            const role = rec.role === 'user' || rec.role === 'assistant' ? rec.role : null;
+            const text = typeof rec.text === 'string' ? rec.text.trim().slice(0, 2000) : '';
+            if (!role || !text) return [];
+            return [{ role: role as 'user' | 'assistant', text }];
+          })
+      : [];
+
     if (isSandbox) {
       const draft = buildSandboxNarrativeDraft({
         scenario: effectiveScenario,
-        spokenText,
+        spokenText: userText || spokenText,
+        hasMediaAttachments: mediaFiles.length > 0,
         currentDraft: currentDraftNormalized,
         existingContext,
         existingAffirmations,
@@ -234,12 +277,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (audioBuffer.length < MIN_AUDIO_BYTES) {
+    const hasValidAudio = audioBuffer.length >= MIN_AUDIO_BYTES;
+    const hasValidText = userText.trim().length > 0;
+    const hasValidMedia = mediaFiles.length > 0;
+
+    if (!hasValidAudio && !hasValidText && !hasValidMedia) {
       return NextResponse.json(
         {
           success: false,
-          error: 'No se recibió una grabación de audio válida.',
-          code: 'NARRATIVE_EMPTY_AUDIO',
+          error: 'No se recibió audio, texto ni archivos adjuntos.',
+          code: 'NARRATIVE_EMPTY_INPUT',
         },
         { status: 400 }
       );
@@ -247,8 +294,11 @@ export async function POST(req: NextRequest) {
 
     try {
       const analysis = await analyzeNarrativeWithGemini({
-        audioBuffer,
+        audioBuffer: hasValidAudio ? audioBuffer : undefined,
         mimeType,
+        userText,
+        mediaFiles,
+        conversationHistory,
         profileId,
         draftId,
         currentDraft: currentDraftNormalized,

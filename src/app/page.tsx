@@ -1015,6 +1015,10 @@ export default function HomePage() {
         isOpen={narrative.isOpen}
         phase={narrative.phase}
         draft={narrative.draft}
+        messages={narrative.messages}
+        pendingAttachments={narrative.pendingAttachments}
+        isProcessingAttachment={narrative.isProcessingAttachment}
+        attachmentError={narrative.attachmentError}
         error={narrative.error}
         errorKind={narrative.errorKind}
         analyserNode={narrative.analyserNode}
@@ -1023,7 +1027,11 @@ export default function HomePage() {
         onCancel={narrative.cancelAll}
         onConfirm={narrative.confirm}
         onReRecord={narrative.reRecord}
+        onPauseListening={narrative.pauseListening}
         onSubmit={narrative.finishAndSubmit}
+        onSendChatMessage={narrative.sendChatMessage}
+        onAddAttachments={narrative.addAttachments}
+        onRemoveAttachment={narrative.removeAttachment}
         onToggleItemAction={narrative.toggleItemAction}
       />
 

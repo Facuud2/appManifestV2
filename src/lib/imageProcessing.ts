@@ -1,6 +1,5 @@
 const MAX_PHOTO_EDGE = 1200;
 const THUMB_EDGE = 280;
-const MAX_INPUT_BYTES = 30 * 1024 * 1024;
 const MAX_THUMB_DATA_URL_LENGTH = 72_000;
 
 export interface PreparedPhoto {
@@ -15,9 +14,6 @@ export interface PreparedPhoto {
 function assertImageFile(file: File) {
   if (!file.type.startsWith('image/')) {
     throw new Error('El archivo no es una imagen válida.');
-  }
-  if (file.size > MAX_INPUT_BYTES) {
-    throw new Error('La imagen es demasiado grande (máximo 30 MB).');
   }
 }
 

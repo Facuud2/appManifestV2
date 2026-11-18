@@ -15,6 +15,7 @@ import {
   type NarrativeProfileId,
 } from './narrativeOrganizer';
 import { searchMusicTracks, resolveSpotifyTrackUrl } from './musicProviders';
+import { URL_REGEX } from '@/utils/urlParser';
 import type { SongAttachment } from '@/types';
 
 const NARRATIVE_TIMEOUT_MS = 45_000;
@@ -47,38 +48,49 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+export interface NarrativeMediaInput {
+  buffer: Buffer;
+  mimeType: string;
+  name?: string;
+}
+
+function extractUrls(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(URL_REGEX) || [];
+  return Array.from(new Set(matches));
+}
+
 async function generateJson(options: {
   apiKey: string;
   model: string;
   systemInstruction: string;
   prompt: string;
-  mimeType: string;
-  audioBase64: string;
+  parts: Array<Record<string, unknown>>;
+  enableUrlContext?: boolean;
 }): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: options.apiKey });
+  const config: Record<string, unknown> = {
+    systemInstruction: options.systemInstruction,
+    temperature: 0.2,
+    maxOutputTokens: 4096,
+  };
+
+  if (options.enableUrlContext) {
+    config.tools = [{ urlContext: {} }];
+  } else {
+    config.responseMimeType = 'application/json';
+  }
+
   const response = await withTimeout(
     ai.models.generateContent({
       model: options.model,
       contents: [
         {
           role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: options.mimeType,
-                data: options.audioBase64,
-              },
-            },
-            { text: options.prompt },
-          ],
+          parts: [...options.parts, { text: options.prompt }],
         },
       ],
-      config: {
-        systemInstruction: options.systemInstruction,
-        temperature: 0.2,
-        responseMimeType: 'application/json',
-        maxOutputTokens: 4096,
-      },
+      config,
     }),
     NARRATIVE_TIMEOUT_MS
   );
@@ -163,8 +175,11 @@ export async function enrichDraftWithMusic(draft: NarrativeDraft): Promise<Narra
 }
 
 export async function analyzeNarrativeWithGemini(options: {
-  audioBuffer: Buffer;
-  mimeType: string;
+  audioBuffer?: Buffer;
+  mimeType?: string;
+  userText?: string;
+  mediaFiles?: NarrativeMediaInput[];
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
   profileId: NarrativeProfileId;
   draftId: string;
   currentDraft: NarrativeDraft | null;
@@ -184,13 +199,57 @@ export async function analyzeNarrativeWithGemini(options: {
     existingRampages: options.existingRampages,
     existingSuccessStories: options.existingSuccessStories,
     currentDraft: options.currentDraft,
+    conversationHistory: options.conversationHistory,
   });
 
-  const prompt = `Perfil activo: ${options.profileId}.
-Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.${options.currentDraft ? '\nEl audio es una corrección o ampliación del borrador actual.' : ''}`;
+  const cleanText = (options.userText || '').trim();
+  const urls = extractUrls(cleanText);
+  const hasAudio = Boolean(options.audioBuffer && options.audioBuffer.length >= 200);
+  const mediaFiles = options.mediaFiles || [];
 
-  const mimeType = cleanMimeType(options.mimeType);
-  const audioBase64 = options.audioBuffer.toString('base64');
+  const promptParts: string[] = [`Perfil activo: ${options.profileId}.`];
+  if (hasAudio) {
+    promptParts.push('Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.');
+  }
+  if (cleanText) {
+    promptParts.push(`Mensaje escrito del usuario:\n${cleanText}`);
+  }
+  if (mediaFiles.length > 0) {
+    promptParts.push(
+      `El usuario adjuntó ${mediaFiles.length} archivo(s) multimedia (imagen o video). Analizá su contenido visual y/o sonoro.`
+    );
+  }
+  if (urls.length > 0) {
+    promptParts.push(
+      `El mensaje incluye link(s): ${urls.join(', ')}. Accedé al contenido con urlContext; si no podés acceder o está restringido, pedile al usuario una imagen o video de ese link en siriResponse sin inventar contenido.`
+    );
+  }
+  if (options.currentDraft) {
+    promptParts.push('Este mensaje es una respuesta, corrección o ampliación sobre el borrador actual.');
+  }
+  if (!hasAudio) {
+    promptParts.push('Devolvé ÚNICAMENTE el JSON del organizador narrativo.');
+  }
+
+  const parts: Array<Record<string, unknown>> = [];
+  if (hasAudio && options.audioBuffer) {
+    parts.push({
+      inlineData: {
+        mimeType: cleanMimeType(options.mimeType || 'audio/webm'),
+        data: options.audioBuffer.toString('base64'),
+      },
+    });
+  }
+  for (const media of mediaFiles) {
+    parts.push({
+      inlineData: {
+        mimeType: media.mimeType,
+        data: media.buffer.toString('base64'),
+      },
+    });
+  }
+
+  const prompt = promptParts.join('\n');
 
   const run = async (model: string) =>
     generateJson({
@@ -198,8 +257,8 @@ Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.${options
       model,
       systemInstruction,
       prompt,
-      mimeType,
-      audioBase64,
+      parts,
+      enableUrlContext: urls.length > 0,
     });
 
   let rawText = '';

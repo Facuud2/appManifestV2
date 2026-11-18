@@ -2,23 +2,42 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { AlertCircle, Check, Loader2, Mic, Music2, X } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowUp,
+  Check,
+  Film,
+  ImagePlus,
+  Loader2,
+  Mic,
+  Music2,
+  X,
+} from 'lucide-react';
 import { LiquidIridescentOrb } from './LiquidIridescentOrb';
 import { SiriOrb } from './VoiceActionOrb';
 import { APPLE_ELASTIC_SPRING, EMIL_EASE_OUT } from '@/lib/iosSprings';
 import type { SongAttachment, MediaAttachment } from '@/types';
 import {
   countProposedItems,
+  type NarrativeChatMessage,
   type NarrativeDraft,
   type NarrativeLink,
   type NarrativeProposedPlan,
 } from '@/lib/narrativeOrganizer';
-import type { NarrativeErrorKind, NarrativePhase } from '@/hooks/useNarrativeOrganizer';
+import type {
+  NarrativeErrorKind,
+  NarrativePhase,
+  PendingChatAttachment,
+} from '@/hooks/useNarrativeOrganizer';
 
 interface SiriOrganizerOverlayProps {
   isOpen: boolean;
   phase: NarrativePhase;
   draft: NarrativeDraft | null;
+  messages: NarrativeChatMessage[];
+  pendingAttachments: PendingChatAttachment[];
+  isProcessingAttachment: boolean;
+  attachmentError: string | null;
   error: string | null;
   errorKind: NarrativeErrorKind | null;
   analyserNode: AnalyserNode | null;
@@ -27,7 +46,11 @@ interface SiriOrganizerOverlayProps {
   onCancel: () => void;
   onConfirm: (saveRampage: boolean) => void;
   onReRecord: () => void;
+  onPauseListening: () => void;
   onSubmit: () => void;
+  onSendChatMessage: (text: string) => void;
+  onAddAttachments: (files: FileList | File[]) => void;
+  onRemoveAttachment: (id: string) => void;
   onToggleItemAction?: (kind: 'manifestation' | 'affirmation', tempId: string) => void;
 }
 
@@ -393,6 +416,10 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   isOpen,
   phase,
   draft,
+  messages,
+  pendingAttachments,
+  isProcessingAttachment,
+  attachmentError,
   error,
   errorKind,
   analyserNode,
@@ -401,16 +428,58 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   onCancel,
   onConfirm,
   onReRecord,
+  onPauseListening,
   onSubmit,
+  onSendChatMessage,
+  onAddAttachments,
+  onRemoveAttachment,
   onToggleItemAction,
 }) => {
   const prefersReducedMotion = useReducedMotion();
   const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const orbActive = isOpen && (phase === 'listening' || phase === 'review' || phase === 'error');
   const audioLevel = useOrbLevel(analyserNode, orbActive);
 
   const [saveRampage, setSaveRampage] = useState(true);
   const [showAffirmationsPreview, setShowAffirmationsPreview] = useState(false);
+  const [chatText, setChatText] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) {
+      setChatText('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [messages.length, phase]);
+
+  const showComposer =
+    phase === 'ready' ||
+    phase === 'listening' ||
+    phase === 'review' ||
+    phase === 'error';
+
+  const canSendChat =
+    (chatText.trim().length > 0 || pendingAttachments.length > 0) &&
+    !isProcessingAttachment &&
+    phase !== 'processing' &&
+    phase !== 'committing';
+
+  const handleSendChat = () => {
+    if (!canSendChat) return;
+    const textToSend = chatText;
+    setChatText('');
+    if (chatInputRef.current) {
+      chatInputRef.current.style.height = 'auto';
+    }
+    onSendChatMessage(textToSend);
+  };
 
   const plan = draft?.proposedPlan;
   const itemCount = draft ? countProposedItems(draft.proposedPlan) : 0;
@@ -449,7 +518,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
       if (!panel) return;
       const focusable = Array.from(
         panel.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [role="button"]:not([aria-disabled="true"]), [href], input, [tabindex]:not([tabindex="-1"])'
+          'button:not([disabled]), [role="button"]:not([aria-disabled="true"]), [href], input, textarea, [tabindex]:not([tabindex="-1"])'
         )
       ).filter((element) => element.offsetParent !== null);
       if (focusable.length === 0) return;
@@ -547,15 +616,17 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                   <span>
                     {phase === 'listening'
                       ? 'Escuchando'
-                      : phase === 'processing'
-                        ? 'Procesando'
-                        : phase === 'committing'
-                          ? 'Guardando'
-                          : phase === 'success'
-                            ? 'Listo'
-                            : phase === 'error'
-                              ? 'Atención'
-                              : 'Online'}
+                      : phase === 'ready'
+                        ? 'Chat listo'
+                        : phase === 'processing'
+                          ? 'Procesando'
+                          : phase === 'committing'
+                            ? 'Guardando'
+                            : phase === 'success'
+                              ? 'Listo'
+                              : phase === 'error'
+                                ? 'Atención'
+                                : 'Online'}
                   </span>
                 </div>
               </div>
@@ -571,82 +642,133 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
               </button>
             </header>
 
-            <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-[calc(var(--safe-bottom,0px)+1.5rem)] pt-5">
+            <div
+              ref={scrollRef}
+              className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-5"
+            >
               <h2 id="narrative-organizer-title" className="sr-only">
                 {phase === 'listening'
                   ? 'Te escucho'
-                  : phase === 'processing'
-                    ? 'Ordenando tu relato'
-                    : phase === 'committing'
-                      ? 'Registrando'
-                      : phase === 'success'
-                        ? 'Listo'
-                        : phase === 'error'
-                          ? 'Algo salió mal'
-                          : 'Siri'}
+                  : phase === 'ready'
+                    ? 'Escribí o hablá'
+                    : phase === 'processing'
+                      ? 'Ordenando tu relato'
+                      : phase === 'committing'
+                        ? 'Registrando'
+                        : phase === 'success'
+                          ? 'Listo'
+                          : phase === 'error'
+                            ? 'Algo salió mal'
+                            : 'Siri'}
               </h2>
               <p id="narrative-organizer-hint" className="sr-only">
                 {phase === 'listening'
-                  ? 'Habla con naturalidad. Toca el orbe para enviar o toca fuera para cancelar.'
-                  : 'Toca fuera para cancelar. Para corregir, toca el orbe y habla.'}
+                  ? 'Habla con naturalidad o escribí en el chat. Toca el orbe para enviar.'
+                  : 'Escribí un mensaje, adjuntá una imagen o video, o tocá el orbe para hablar.'}
               </p>
 
-              {/* ---------------------------- LISTENING / PROCESSING (Orbe Iridiscente Imagen 3) ---------------------------- */}
-              {(phase === 'listening' || phase === 'processing') && (
-                <div className="flex flex-col items-center gap-6 py-6">
+              {/* ---------------------------- LISTENING / READY / PROCESSING ---------------------------- */}
+              {(phase === 'listening' || phase === 'ready' || phase === 'processing') && (
+                <div className="flex flex-col items-center gap-5 py-4">
+                  {/* Show prior chat history above processing orb if in a multi-turn conversation */}
+                  {messages.length > 0 && (
+                    <div className="w-full space-y-3 pb-2" data-testid="narrative-chat-history">
+                      {messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed shadow-xs backdrop-blur-md ${
+                              msg.role === 'user'
+                                ? 'bg-[var(--color-accent)] text-[var(--color-accent-fg)]'
+                                : 'border border-white/70 bg-white/75 text-[var(--color-ink)] dark:border-white/10 dark:bg-white/[0.06]'
+                            }`}
+                          >
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                {msg.attachments.map((att) => (
+                                  <div
+                                    key={att.id}
+                                    className="relative h-14 w-14 overflow-hidden rounded-xl border border-white/30"
+                                  >
+                                    <img
+                                      src={att.thumbDataUrl}
+                                      alt={att.kind === 'video' ? 'Video adjunto' : 'Imagen adjunta'}
+                                      className="h-full w-full object-cover"
+                                    />
+                                    {att.kind === 'video' && (
+                                      <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white">
+                                        <Film size={10} />
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Orbe Líquido Iridiscente con deformación y caústicas */}
                   <div className="touch-manipulation select-none active:scale-[0.96] transition-transform duration-100 ease-out">
                     <LiquidIridescentOrb
-                      size={120}
+                      size={messages.length > 0 ? 84 : 112}
                       audioLevel={audioLevel}
                       isProcessing={phase === 'processing'}
-                      interactive={phase === 'listening'}
+                      interactive={phase === 'listening' || phase === 'ready'}
                       label={
                         phase === 'listening'
                           ? 'Enviar el relato al organizador'
-                          : 'Ordenando tu relato'
+                          : phase === 'ready'
+                            ? 'Hablar por micrófono'
+                            : 'Ordenando tu relato'
                       }
-                      onClick={onSubmit}
+                      onClick={phase === 'listening' ? onSubmit : onReRecord}
                     />
                   </div>
 
-                  {/* Tipografía inspirada en la Imagen 1 ("How can I help you today?") */}
+                  {/* Tipografía inspirada en la Imagen 1 */}
                   <div className="text-center" aria-live="polite">
-                    <p className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--color-ink)]">
-                      {phase === 'listening' ? 'Te escucho…' : 'Ordenando tu relato…'}
-                    </p>
-                    <p className="mt-1.5 text-[14px] text-[var(--color-ink-muted)]">
+                    <p className="text-[20px] font-semibold tracking-[-0.02em] text-[var(--color-ink)]">
                       {phase === 'listening'
-                        ? '¿En qué puedo ayudarte hoy? Habla libremente o toca para enviar.'
-                        : 'Interpretando tus palabras con precisión…'}
+                        ? 'Te escucho…'
+                        : phase === 'ready'
+                          ? 'Escribí o hablá'
+                          : 'Ordenando tu relato…'}
+                    </p>
+                    <p className="mt-1 text-[13px] text-[var(--color-ink-muted)]">
+                      {phase === 'listening'
+                        ? 'Hablá libremente, tocá el orbe para enviar o escribí abajo.'
+                        : phase === 'ready'
+                          ? 'Escribí, pegá un link, adjuntá foto/video o tocá el orbe para hablar.'
+                          : 'Interpretando tu mensaje con precisión…'}
                     </p>
                   </div>
 
-                  {/* Barra Flotante Liquid Glass estilo Imagen 1 ("Ask anything..." + Waveform) */}
-                  <div
-                    onClick={phase === 'listening' ? onSubmit : undefined}
-                    className={`mt-2 flex w-full max-w-[22rem] items-center justify-between rounded-full border border-white/80 bg-white/70 px-4 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.06)] backdrop-blur-2xl transition-all dark:border-white/10 dark:bg-white/[0.08] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)] ${
-                      phase === 'listening'
-                        ? 'cursor-pointer hover:bg-white/85 dark:hover:bg-white/[0.12] active:scale-[0.98]'
-                        : ''
-                    }`}
-                    style={{
-                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7)',
-                    }}
-                  >
-                    <span className="text-[14px] font-medium text-[var(--color-ink-muted)]">
-                      {phase === 'listening' ? 'Escuchando tu voz…' : 'Procesando relato…'}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <AudioWaveformBars
-                        audioLevel={audioLevel}
-                        active={phase === 'listening'}
-                      />
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-accent-fg)] shadow-sm transition-colors dark:bg-[var(--color-neon-lime,#CCFF00)] dark:text-black">
-                        <Mic size={15} />
+                  {/* Barra Flotante Liquid Glass de audio cuando escucha */}
+                  {phase === 'listening' && (
+                    <div
+                      onClick={onSubmit}
+                      className="flex w-full max-w-[22rem] cursor-pointer items-center justify-between rounded-full border border-white/80 bg-white/70 px-4 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.06)] backdrop-blur-2xl transition-all hover:bg-white/85 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.08] dark:hover:bg-white/[0.12]"
+                      style={{
+                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7)',
+                      }}
+                    >
+                      <span className="text-[13px] font-medium text-[var(--color-ink-muted)]">
+                        Escuchando tu voz… (tocá para enviar)
                       </span>
+                      <div className="flex items-center gap-2.5">
+                        <AudioWaveformBars audioLevel={audioLevel} active />
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-accent-fg)] shadow-sm dark:bg-[var(--color-neon-lime,#CCFF00)] dark:text-black">
+                          <Mic size={14} />
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {draft && itemCount > 0 && (
                     <p className="text-center text-[12px] text-[var(--color-ink-muted)]">
@@ -659,28 +781,99 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
               {/* ------------------------------ REVIEW (Liquid Glass Chat Experience) ----------------------------- */}
               {(phase === 'review' || phase === 'committing' || (phase === 'error' && draft)) && (
                 <div className="space-y-4">
-                  {/* Siri Conversational Response Bubble (Liquid Glass) */}
-                  <div
-                    className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[0_8px_24px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)]"
-                    style={{
-                      boxShadow:
-                        'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 4px 16px rgba(0,0,0,0.03)',
-                    }}
-                  >
-                    <div className="flex items-center gap-2 pb-1.5">
-                      <span className="h-2 w-2 rounded-full bg-[var(--color-accent)] dark:bg-[var(--color-neon-lime,#CCFF00)]" />
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-muted)]">
-                        Respuesta de IA
-                      </span>
+                  {/* Chat Thread History */}
+                  {messages.length > 0 ? (
+                    <div className="space-y-3" data-testid="narrative-chat-history">
+                      {messages.map((msg, idx) => {
+                        const isLastAssistant =
+                          msg.role === 'assistant' &&
+                          idx ===
+                            messages.reduce(
+                              (lastIdx, m, i) => (m.role === 'assistant' ? i : lastIdx),
+                              -1
+                            );
+
+                        if (msg.role === 'user') {
+                          return (
+                            <div key={msg.id} className="flex justify-end">
+                              <div className="max-w-[85%] rounded-2xl bg-[var(--color-accent)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--color-accent-fg)] shadow-sm">
+                                {msg.attachments && msg.attachments.length > 0 && (
+                                  <div className="mb-2 flex flex-wrap gap-1.5">
+                                    {msg.attachments.map((att) => (
+                                      <div
+                                        key={att.id}
+                                        className="relative h-14 w-14 overflow-hidden rounded-xl border border-white/30"
+                                      >
+                                        <img
+                                          src={att.thumbDataUrl}
+                                          alt={att.kind === 'video' ? 'Video adjunto' : 'Imagen adjunta'}
+                                          className="h-full w-full object-cover"
+                                        />
+                                        {att.kind === 'video' && (
+                                          <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white">
+                                            <Film size={10} />
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={msg.id}
+                            className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[0_8px_24px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)]"
+                            style={{
+                              boxShadow:
+                                'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 4px 16px rgba(0,0,0,0.03)',
+                            }}
+                          >
+                            <div className="flex items-center gap-2 pb-1.5">
+                              <span className="h-2 w-2 rounded-full bg-[var(--color-accent)] dark:bg-[var(--color-neon-lime,#CCFF00)]" />
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-muted)]">
+                                Respuesta de IA
+                              </span>
+                            </div>
+                            <p
+                              data-testid={isLastAssistant ? 'narrative-siri-response' : undefined}
+                              aria-live={isLastAssistant ? 'polite' : undefined}
+                              className="text-[15px] font-normal leading-[1.48] tracking-[-0.01em] text-[var(--color-ink)]"
+                            >
+                              {msg.text}
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <p
-                      data-testid="narrative-siri-response"
-                      aria-live="polite"
-                      className="text-[16px] font-normal leading-[1.48] tracking-[-0.01em] text-[var(--color-ink)]"
+                  ) : (
+                    /* Fallback single bubble if opened directly with draft */
+                    <div
+                      className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[0_8px_24px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)]"
+                      style={{
+                        boxShadow:
+                          'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 4px 16px rgba(0,0,0,0.03)',
+                      }}
                     >
-                      {draft?.siriResponse}
-                    </p>
-                  </div>
+                      <div className="flex items-center gap-2 pb-1.5">
+                        <span className="h-2 w-2 rounded-full bg-[var(--color-accent)] dark:bg-[var(--color-neon-lime,#CCFF00)]" />
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-muted)]">
+                          Respuesta de IA
+                        </span>
+                      </div>
+                      <p
+                        data-testid="narrative-siri-response"
+                        aria-live="polite"
+                        className="text-[15px] font-normal leading-[1.48] tracking-[-0.01em] text-[var(--color-ink)]"
+                      >
+                        {draft?.siriResponse}
+                      </p>
+                    </div>
+                  )}
 
                   {phase === 'error' && error && (
                     <p
@@ -892,6 +1085,131 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                 </div>
               )}
             </div>
+
+            {/* -------------------- Persistent Chat Composer (Always Available) -------------------- */}
+            {showComposer && (
+              <div className="relative z-10 border-t border-white/40 bg-white/50 px-4 pb-[calc(var(--safe-bottom,0px)+0.85rem)] pt-3 backdrop-blur-2xl dark:border-white/[0.08] dark:bg-black/25">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  data-testid="narrative-chat-file-input"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      onAddAttachments(e.target.files);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+
+                {attachmentError && (
+                  <p role="alert" className="mb-2 text-[12px] text-[var(--color-danger)]">
+                    {attachmentError}
+                  </p>
+                )}
+
+                {(pendingAttachments.length > 0 || isProcessingAttachment) && (
+                  <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                    {pendingAttachments.map((att) => (
+                      <div
+                        key={att.id}
+                        data-testid="narrative-pending-attachment"
+                        className="group relative h-14 w-14 overflow-hidden rounded-xl border border-white/70 bg-white/60 shadow-sm dark:border-white/15"
+                      >
+                        <img
+                          src={att.attachment.thumbDataUrl}
+                          alt={att.kind === 'video' ? 'Video adjunto' : 'Imagen adjunta'}
+                          className="h-full w-full object-cover"
+                        />
+                        {att.kind === 'video' && (
+                          <span className="absolute bottom-1 left-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/65 text-white">
+                            <Film size={10} />
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          data-testid="narrative-remove-attachment"
+                          aria-label="Quitar archivo adjunto"
+                          onClick={() => onRemoveAttachment(att.id)}
+                          className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white transition-transform active:scale-90 hover:bg-black"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+                    {isProcessingAttachment && (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/10">
+                        <Loader2 size={18} className="animate-spin text-[var(--color-ink-muted)]" />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-end gap-2 rounded-[24px] border border-white/80 bg-white/80 p-1.5 shadow-[0_6px_20px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.08]">
+                  <button
+                    type="button"
+                    data-testid="narrative-chat-attach"
+                    aria-label="Adjuntar imagen o video"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessingAttachment}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--color-ink-muted)] transition-colors hover:bg-black/5 hover:text-[var(--color-ink)] disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white"
+                  >
+                    <ImagePlus size={18} />
+                  </button>
+
+                  <textarea
+                    ref={chatInputRef}
+                    data-testid="narrative-chat-input"
+                    rows={1}
+                    value={chatText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setChatText(val);
+                      if (phase === 'listening' && val.trim().length > 0) {
+                        onPauseListening();
+                      }
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 108)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendChat();
+                      }
+                    }}
+                    placeholder="Escribí, pegá un link o hablá…"
+                    className="max-h-[108px] min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[14px] leading-snug text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:outline-none"
+                  />
+
+                  <button
+                    type="button"
+                    data-testid="narrative-chat-mic"
+                    aria-label={phase === 'listening' ? 'Enviar audio grabado' : 'Hablar por micrófono'}
+                    onClick={phase === 'listening' ? onSubmit : onReRecord}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                      phase === 'listening'
+                        ? 'animate-pulse bg-[var(--color-accent)] text-[var(--color-accent-fg)] shadow-sm dark:bg-[var(--color-neon-lime,#CCFF00)] dark:text-black'
+                        : 'text-[var(--color-ink-muted)] hover:bg-black/5 hover:text-[var(--color-ink)] dark:hover:bg-white/10 dark:hover:text-white'
+                    }`}
+                  >
+                    <Mic size={17} />
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="narrative-chat-send"
+                    aria-label="Enviar mensaje"
+                    onClick={handleSendChat}
+                    disabled={!canSendChat}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-accent-fg)] shadow-sm transition-all active:scale-95 disabled:opacity-35 dark:bg-[var(--color-neon-lime,#CCFF00)] dark:text-black"
+                  >
+                    <ArrowUp size={17} strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}
