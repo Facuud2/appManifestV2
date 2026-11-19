@@ -7,6 +7,7 @@ import { useAppStore } from '@/store';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { BACKDROP_TRANSITION, MODAL_TRANSITION } from '@/lib/iosSprings';
 import { putMedia } from '@/lib/mediaStorage';
+import { analyzeMediaAttachment } from '@/lib/mediaAnalysis';
 import { createManifestationId } from '@/lib/manifestationAttachments';
 import { stopActivePreview } from '@/lib/audioPreviewBus';
 import { useAttachmentDraft } from '@/hooks/useAttachmentDraft';
@@ -24,7 +25,8 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
   isOpen,
   onClose,
 }) => {
-  const { activeScope, addManifestation } = useAppStore();
+  const { activeScope, addManifestation, updateManifestationMediaSummary, isSandboxMode } =
+    useAppStore();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -115,18 +117,35 @@ export const ManifestationEditorModal: React.FC<ManifestationEditorModalProps> =
         await putMedia(storageKey, blobToPersist);
       }
 
+      const finalTitle = title.trim() || generatedTitle || description.trim().slice(0, 72);
+      const finalDescription = description.trim();
+
       await addManifestation({
         id,
         userId: activeScope,
         author: activeScope === 'maia' ? 'Maia' : activeScope === 'facu' ? 'Facu' : 'Juntos',
-        title: title.trim() || generatedTitle || description.trim().slice(0, 72),
-        description: description.trim(),
+        title: finalTitle,
+        description: finalDescription,
         sensoryAnchor: sensoryAnchor.trim() || undefined,
         status: 'semilla',
         targetDate: targetDate || undefined,
         songAttachment: songAttachment ?? null,
         mediaAttachment: mediaAttachment ?? null,
       });
+
+      if (mediaAttachment && blobToPersist) {
+        void analyzeMediaAttachment({
+          mediaAttachment,
+          blob: blobToPersist,
+          title: finalTitle,
+          description: finalDescription,
+          sandbox: isSandboxMode,
+        }).then((res) => {
+          if (res?.aiSummary) {
+            void updateManifestationMediaSummary(id, res.aiSummary, res.aiSummaryAt);
+          }
+        });
+      }
 
       setTitle('');
       setDescription('');

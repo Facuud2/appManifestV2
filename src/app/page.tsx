@@ -720,6 +720,7 @@ export default function HomePage() {
           .trim()
           .slice(0, 300),
         repeatCount: manifestation.repeatCount || 0,
+        mediaSummary: manifestation.mediaAttachment?.aiSummary || undefined,
       }));
   }, [manifestations, activeScope]);
 
@@ -785,7 +786,11 @@ export default function HomePage() {
     activeScope,
     activeManifestations: manifestations
       .filter((m) => m.userId === activeScope)
-      .map((m) => ({ id: m.id, title: m.title })),
+      .map((m) => ({
+        id: m.id,
+        title: m.title,
+        mediaSummary: m.mediaAttachment?.aiSummary || undefined,
+      })),
     isSandboxMode,
   });
 

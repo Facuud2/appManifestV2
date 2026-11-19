@@ -20,6 +20,50 @@ export interface LinkPreviewData {
   author?: string;
   shortcode?: string;
   isVideoOrReel: boolean;
+  accessible: boolean;
+  requiresLogin?: boolean;
+}
+
+const LOGIN_WALL_PATTERNS = [
+  /^login\s*[•·|-]\s*instagram$/i,
+  /^iniciar sesi[oó]n\s*[•·|-]\s*instagram$/i,
+  /^instagram$/i,
+  /^tiktok\s*[-•·|]\s*make your day$/i,
+  /^tiktok$/i,
+  /^facebook\s*[-•·|]\s*(log in|inicia sesi[oó]n)/i,
+  /^log in or sign up/i,
+  /^inicia sesi[oó]n o reg[ií]strate/i,
+  /^create an account or log in to instagram/i,
+  /^crea una cuenta o inicia sesi[oó]n en instagram/i,
+  /^welcome back to instagram/i,
+  /^sign in/i,
+  /^log in/i,
+  /^threads$/i,
+  /^x$/i,
+];
+
+function isGenericOrLoginWall(
+  title: string,
+  description: string,
+  providerLabel: string,
+): boolean {
+  const cleanTitle = title.trim();
+  const cleanDesc = description.trim();
+
+  const titleIsWall =
+    !cleanTitle ||
+    cleanTitle.toLowerCase() === providerLabel.trim().toLowerCase() ||
+    LOGIN_WALL_PATTERNS.some((rx) => rx.test(cleanTitle));
+
+  const descIsWall =
+    !cleanDesc ||
+    cleanDesc.length < 15 ||
+    LOGIN_WALL_PATTERNS.some((rx) => rx.test(cleanDesc)) ||
+    /create an account or log in|crea una cuenta o inicia sesi[oó]n|log in to see photos and videos/i.test(
+      cleanDesc,
+    );
+
+  return titleIsWall && descIsWall;
 }
 
 /** Check against local/private network addresses for basic SSRF protection */
@@ -254,6 +298,11 @@ export async function GET(req: NextRequest) {
     proxiedThumbnailUrl = `/api/link-preview/image?url=${encodeURIComponent(originalThumbnailUrl)}`;
   }
 
+  const isLoginWall = isGenericOrLoginWall(title, description, hints.providerLabel);
+  const loginProviders: SupportedProvider[] = ['instagram', 'facebook', 'tiktok', 'threads', 'x'];
+  const requiresLogin = isLoginWall && loginProviders.includes(hints.provider);
+  const accessible = !isLoginWall;
+
   const responseData: LinkPreviewData = {
     url: targetUrl,
     cleanUrl,
@@ -266,6 +315,8 @@ export async function GET(req: NextRequest) {
     author,
     shortcode: hints.shortcode,
     isVideoOrReel: hints.isVideoOrReel,
+    accessible,
+    requiresLogin,
   };
 
   return NextResponse.json(

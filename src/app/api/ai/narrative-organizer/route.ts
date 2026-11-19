@@ -153,7 +153,11 @@ function sanitizeExistingContext(value: unknown): ExistingContextItem[] {
         typeof record.summary === 'string'
           ? record.summary.slice(0, 300)
           : '';
-      return [{ id, title: title.slice(0, 280), personNames, summary }];
+      const mediaSummary =
+        typeof record.mediaSummary === 'string' && record.mediaSummary.trim()
+          ? record.mediaSummary.trim().slice(0, 650)
+          : undefined;
+      return [{ id, title: title.slice(0, 280), personNames, summary, mediaSummary }];
     });
 }
 
@@ -330,7 +334,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hasValidAudio = audioBuffer.length >= MIN_AUDIO_BYTES;
+    const isAllZeroAudio =
+      audioBuffer.length > 0 && audioBuffer.every((byte) => byte === 0);
+    const hasValidAudio = audioBuffer.length >= MIN_AUDIO_BYTES && !isAllZeroAudio;
     const hasValidText = userText.trim().length > 0;
     const hasLiveMedia = mediaFiles.length > 0 || uploadedMedia.length > 0;
 

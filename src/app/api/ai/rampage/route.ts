@@ -15,7 +15,14 @@ export async function POST(req: NextRequest) {
         : typeof body.additionalDetails === 'string'
           ? body.additionalDetails
           : '';
-    const additionalDetails = rawNuances.trim().slice(0, 1000);
+    const rawMediaContext =
+      typeof body.supplementalContext === 'string'
+        ? body.supplementalContext.trim().slice(0, 800)
+        : '';
+    const additionalDetails = [rawNuances.trim(), rawMediaContext]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 1400);
 
     const rawScope = body.profileId || body.userScope || 'shared';
     const userScope: UserScope =
@@ -52,6 +59,7 @@ export async function POST(req: NextRequest) {
           typeof item === 'object' && item !== null
       )
       .map((item) => ({
+        id: typeof item.id === 'string' ? item.id.trim().slice(0, 120) : undefined,
         title: typeof item.title === 'string' ? item.title.trim().slice(0, 160) : '',
         description:
           typeof item.description === 'string'
@@ -60,6 +68,11 @@ export async function POST(req: NextRequest) {
         status: typeof item.status === 'string' ? item.status.trim().slice(0, 40) : '',
         category:
           typeof item.category === 'string' ? item.category.trim().slice(0, 60) : '',
+        mediaSummary:
+          typeof item.mediaSummary === 'string'
+            ? item.mediaSummary.trim().slice(0, 650)
+            : '',
+        isFocused: Boolean(item.isFocused),
       }))
       .filter((item) => item.title)
       .slice(0, 15);
@@ -88,7 +101,10 @@ export async function POST(req: NextRequest) {
       .filter((item) => item.title && item.affirmations.length > 0)
       .slice(0, 5);
 
-    if (!centralTheme) {
+    const focusedFallbackTitle = userManifestations.find((m) => m.isFocused)?.title || '';
+    const resolvedTheme = centralTheme || focusedFallbackTitle;
+
+    if (!resolvedTheme) {
       return NextResponse.json(
         { success: false, error: 'El título del Rampage es requerido' },
         { status: 400 }
@@ -111,7 +127,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await generateRampageWithGemini(
-      centralTheme || 'Mi identidad',
+      resolvedTheme || 'Mi identidad',
       userScope,
       userAffirmations,
       count,

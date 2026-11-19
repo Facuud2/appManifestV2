@@ -373,8 +373,20 @@ export async function generateRampageWithGemini(
     : '';
   const safeManifestations = userManifestations.filter(
     (manifestation) =>
+      manifestation.isFocused ||
+      Boolean(manifestation.mediaSummary?.trim()) ||
       !findPoeticTerm(`${manifestation.title} ${manifestation.description ?? ''}`)
   );
+  const focusedManifestations = safeManifestations.filter((m) => m.isFocused);
+  const backgroundManifestations = safeManifestations.filter((m) => !m.isFocused);
+  const formatManifestationLine = (manifestation: RampageManifestationContext): string => {
+    const details = manifestation.description ? `: ${manifestation.description}` : '';
+    const status = manifestation.status ? ` [${manifestation.status}]` : '';
+    const media = manifestation.mediaSummary?.trim()
+      ? ` | [Contenido real del video/foto adjunto: ${manifestation.mediaSummary.trim()}]`
+      : '';
+    return `- ${manifestation.title}${details}${status}${media}`;
+  };
   const safeRampages = userRampages
     .map((rampage) => ({
       title: rampage.title,
@@ -387,16 +399,11 @@ export async function generateRampageWithGemini(
   const referencesSection = safeReferences.length
     ? `\nAfirmaciones propias del perfil (solo como referencia de voz; no las copies literalmente):\n${safeReferences.map((a) => `- "${a}"`).join('\n')}`
     : '';
-  const manifestationsSection = safeManifestations.length
-    ? `\nManifestaciones registradas por el perfil (contexto real de su vida; no las copies literalmente):\n${safeManifestations
-        .map((manifestation) => {
-          const details = manifestation.description
-            ? `: ${manifestation.description}`
-            : '';
-          const status = manifestation.status ? ` [${manifestation.status}]` : '';
-          return `- ${manifestation.title}${details}${status}`;
-        })
-        .join('\n')}`
+  const focusedSection = focusedManifestations.length
+    ? `\nMANIFESTACIONES SELECCIONADAS COMO FOCO PRINCIPAL (OBLIGATORIO basar las afirmaciones en esto; si el título es breve o genérico como "Yo quiero esto", usá el contenido real del video/foto adjunto como núcleo de todas las afirmaciones):\n${focusedManifestations.map(formatManifestationLine).join('\n')}`
+    : '';
+  const manifestationsSection = backgroundManifestations.length
+    ? `\nManifestaciones registradas por el perfil (contexto real de su vida; si el tema o detalles refieren a alguna, usá también su [Contenido real del video/foto adjunto]):\n${backgroundManifestations.map(formatManifestationLine).join('\n')}`
     : '';
   const rampagesSection = safeRampages.length
     ? `\nAfirmaciones de Rampages del perfil (para mantener continuidad; no las copies literalmente):\n${safeRampages
@@ -417,12 +424,13 @@ export async function generateRampageWithGemini(
   const systemInstruction = buildLawOfAssumptionSystemPrompt(count);
   const prompt = `Perfil actual: ${profileLabel}.
 ${profileInstruction}
-Tema central y prioridad absoluta: "${centralTheme.trim()}".${detailsSection}${manifestationsSection}${referencesSection}${rampagesSection}
+Tema central y prioridad absoluta: "${centralTheme.trim()}".${detailsSection}${focusedSection}${manifestationsSection}${referencesSection}${rampagesSection}
 
 Cantidad exacta obligatoria: ${count} afirmaciones.
 Instrucciones adicionales:
 - Escribe en primera persona, presente simple, como hechos reales y cotidianos de tu vida.
 - Combina afirmaciones ultra cortas de impacto (2 a 5 palabras, ej. "Soy Dios", "SP me ama", "Soy elegido") con afirmaciones directas de situación (6 a 12 palabras).
+- Si alguna manifestación referenciada tiene [Contenido real del video/foto adjunto: ...], incorporá esos detalles concretos (objetos, lugar, situación, vínculo, estilo) en las afirmaciones en lugar de frases genéricas.
 - No uses ninguna palabra de la lista negra poética.
 - No repitas la misma frase.
 - Si el tema o los detalles nombran a una persona, usá ese nombre. Si no, podés usar "SP".
@@ -735,9 +743,18 @@ export interface VoiceCommandResult {
 /**
  * System prompt estricto para Voice Action Router en Gemini 3.5 Flash
  */
-export function buildVoiceActionRouterSystemPrompt(activeManifestations: Array<{ id: string; title: string }>): string {
+export function buildVoiceActionRouterSystemPrompt(
+  activeManifestations: Array<{ id: string; title: string; mediaSummary?: string }>
+): string {
   const manifestationsList = activeManifestations.length > 0
-    ? activeManifestations.map((m) => `- id: "${m.id}", title: "${m.title}"`).join('\n')
+    ? activeManifestations
+        .map((m) => {
+          const media = m.mediaSummary?.trim()
+            ? `, mediaSummary: "${m.mediaSummary.trim().replace(/"/g, "'")}"`
+            : '';
+          return `- id: "${m.id}", title: "${m.title}"${media}`;
+        })
+        .join('\n')
     : '(Ninguna manifestación activa registrada aún)';
 
   return `Eres el "Voice Action Router" de Manifest, una aplicación guiada estrictamente por la Ley de la Asunción Natural (cero lenguaje poético / cero New Age).
@@ -884,7 +901,7 @@ RESPONDE EXCLUSIVAMENTE CON EL OBJETO JSON COMPLETO.`;
  */
 function buildMockVoiceCommandResult(
   spokenText: string,
-  activeManifestations: Array<{ id: string; title: string }>
+  activeManifestations: Array<{ id: string; title: string; mediaSummary?: string }>
 ): Omit<VoiceCommandResult, 'source' | 'quotaUsedToday'> {
   const text = spokenText.trim().toLowerCase();
 
@@ -1055,7 +1072,7 @@ export async function processVoiceCommandWithGemini(options: {
   audioBuffer: Buffer;
   mimeType: string;
   currentProfile: 'facu' | 'maia' | 'shared';
-  activeManifestations: Array<{ id: string; title: string }>;
+  activeManifestations: Array<{ id: string; title: string; mediaSummary?: string }>;
   spokenText?: string;
   sandbox?: boolean;
 }): Promise<VoiceCommandResult> {

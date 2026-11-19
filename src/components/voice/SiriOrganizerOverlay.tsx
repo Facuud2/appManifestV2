@@ -1181,7 +1181,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                             }}
                           >
                             <span
-                              className="absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-out"
+                              className="absolute left-0 top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-out"
                               style={{
                                 transform: saveRampage ? 'translateX(22px)' : 'translateX(2px)',
                               }}

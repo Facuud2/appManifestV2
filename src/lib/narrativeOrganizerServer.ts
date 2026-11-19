@@ -39,6 +39,9 @@ function cleanMimeType(mimeType: string): string {
   if (base === 'audio/m4a' || base === 'audio/x-m4a' || base === 'video/mp4') {
     return 'audio/mp4';
   }
+  if (base === 'video/webm') {
+    return 'audio/webm';
+  }
   return base;
 }
 

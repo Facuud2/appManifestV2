@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     let audioBuffer = Buffer.alloc(0);
     let mimeType = 'audio/webm';
     let currentProfile: UserScope = 'facu';
-    let activeManifestations: Array<{ id: string; title: string }> = [];
+    let activeManifestations: Array<{ id: string; title: string; mediaSummary?: string }> = [];
     let spokenText = '';
     let bodySandbox = false;
 
@@ -41,7 +41,12 @@ export async function POST(req: NextRequest) {
       if (Array.isArray(json.activeManifestations)) {
         activeManifestations = json.activeManifestations
           .filter((item: any) => item && typeof item.id === 'string' && typeof item.title === 'string')
-          .map((item: any) => ({ id: item.id, title: item.title }));
+          .map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            mediaSummary:
+              typeof item.mediaSummary === 'string' ? item.mediaSummary.slice(0, 650) : undefined,
+          }));
       }
 
       if (typeof json.audioBase64 === 'string' && json.audioBase64) {
@@ -65,7 +70,12 @@ export async function POST(req: NextRequest) {
           if (Array.isArray(parsed)) {
             activeManifestations = parsed
               .filter((item: any) => item && typeof item.id === 'string' && typeof item.title === 'string')
-              .map((item: any) => ({ id: item.id, title: item.title }));
+              .map((item: any) => ({
+                id: item.id,
+                title: item.title,
+                mediaSummary:
+                  typeof item.mediaSummary === 'string' ? item.mediaSummary.slice(0, 650) : undefined,
+              }));
           }
         } catch {
           // If JSON parse fails, fallback to empty list

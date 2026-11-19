@@ -282,6 +282,15 @@ interface AppState {
     item: Omit<ManifestationItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
   ) => Promise<ManifestationItem>;
   updateManifestationStatus: (id: string, status: ManifestationItem['status']) => Promise<void>;
+  updateManifestationMediaSummary: (
+    id: string,
+    aiSummary: string,
+    aiSummaryAt?: string
+  ) => Promise<void>;
+  attachManifestationMedia: (
+    id: string,
+    mediaAttachment: MediaAttachment
+  ) => Promise<void>;
   incrementManifestationRepeat: (id: string) => Promise<void>;
   deleteManifestation: (id: string) => Promise<void>;
 
@@ -868,6 +877,138 @@ export const useAppStore = create<AppState>((set, get) => {
         } catch (error) {
           console.error(error);
         }
+      }
+    },
+
+    updateManifestationMediaSummary: async (id, aiSummary, aiSummaryAt) => {
+      const cleanSummary = aiSummary.trim();
+      if (!cleanSummary) return;
+
+      const summaryTimestamp = aiSummaryAt || new Date().toISOString();
+      const now = new Date().toISOString();
+      const state = get();
+      let targetItem: ManifestationItem | null = null;
+      let targetScope: UserScope = state.activeScope;
+
+      for (const scopeKey of ['facu', 'maia', 'shared'] as UserScope[]) {
+        const found = state.scopeCollections[scopeKey]?.manifestations.find((m) => m.id === id);
+        if (found) {
+          targetItem = found;
+          targetScope = scopeKey;
+          break;
+        }
+      }
+      if (!targetItem) {
+        const foundActive = state.manifestations.find((m) => m.id === id);
+        if (foundActive) {
+          targetItem = foundActive;
+          targetScope = foundActive.userId;
+        }
+      }
+      if (!targetItem || !targetItem.mediaAttachment) return;
+
+      const updatedItem: ManifestationItem = {
+        ...targetItem,
+        mediaAttachment: {
+          ...targetItem.mediaAttachment,
+          aiSummary: cleanSummary,
+          aiSummaryAt: summaryTimestamp,
+        },
+        updatedAt: now,
+      };
+
+      set((prev) => {
+        const updateList = (list: ManifestationItem[]) =>
+          list.map((m) => (m.id === id ? updatedItem : m));
+        const nextScopeList = updateList(prev.scopeCollections[targetScope]?.manifestations || []);
+        return {
+          manifestations:
+            prev.activeScope === targetScope ? updateList(prev.manifestations) : prev.manifestations,
+          scopeCollections: {
+            ...prev.scopeCollections,
+            [targetScope]: {
+              ...prev.scopeCollections[targetScope],
+              manifestations: nextScopeList,
+            },
+          },
+        };
+      });
+
+      try {
+        await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entity: 'manifestation',
+            action: 'save',
+            scope: targetScope,
+            data: updatedItem,
+          }),
+        });
+      } catch (error) {
+        console.error('[Store] Error syncing manifestation media aiSummary:', error);
+      }
+    },
+
+    attachManifestationMedia: async (id, mediaAttachment) => {
+      const now = new Date().toISOString();
+      const state = get();
+      let targetItem: ManifestationItem | null = null;
+      let targetScope: UserScope = state.activeScope;
+
+      for (const scopeKey of ['facu', 'maia', 'shared'] as UserScope[]) {
+        const found = state.scopeCollections[scopeKey]?.manifestations.find((m) => m.id === id);
+        if (found) {
+          targetItem = found;
+          targetScope = scopeKey;
+          break;
+        }
+      }
+      if (!targetItem) {
+        const foundActive = state.manifestations.find((m) => m.id === id);
+        if (foundActive) {
+          targetItem = foundActive;
+          targetScope = foundActive.userId;
+        }
+      }
+      if (!targetItem) return;
+
+      const updatedItem: ManifestationItem = {
+        ...targetItem,
+        mediaAttachment,
+        updatedAt: now,
+      };
+
+      set((prev) => {
+        const updateList = (list: ManifestationItem[]) =>
+          list.map((m) => (m.id === id ? updatedItem : m));
+        const nextScopeList = updateList(prev.scopeCollections[targetScope]?.manifestations || []);
+        return {
+          manifestations:
+            prev.activeScope === targetScope ? updateList(prev.manifestations) : prev.manifestations,
+          scopeCollections: {
+            ...prev.scopeCollections,
+            [targetScope]: {
+              ...prev.scopeCollections[targetScope],
+              manifestations: nextScopeList,
+            },
+          },
+        };
+      });
+
+      try {
+        await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entity: 'manifestation',
+            action: 'save',
+            scope: targetScope,
+            data: updatedItem,
+          }),
+        });
+      } catch (error) {
+        console.error('[Store] Error syncing attached manifestation media:', error);
       }
     },
 

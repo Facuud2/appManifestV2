@@ -30,6 +30,7 @@ export interface ExistingContextItem {
   personNames: string[];
   summary: string;
   repeatCount?: number;
+  mediaSummary?: string;
 }
 
 export interface ExistingAffirmationItem {
@@ -1601,6 +1602,7 @@ REGLAS PROHIBIDAS:
 - Si la persona pide crear un rampage ("hacé un rampage", "quiero escuchar afirmaciones") O pide modificar, editar o ampliar un rampage existente:
   * Para creación: devolvé "rampageToStart" con title, action: "create", count (5, 11 o 15), affirmations (esa misma cantidad, estilo directo) y ambientSound ("white_noise", "astral_rain" o "none").
   * Para modificación/ampliación de uno existente: devolvé "rampageToStart" con existingId, action: "update", title, count (igual al largo total de "affirmations"), affirmations (lista completa actualizada), newAffirmations y addedAffirmationsCount.
+  * Si la persona pide basar el rampage en una manifestación ya guardada de "existingContext" (aunque su título sea genérico como "Yo quiero esto") y esa manifestación tiene el campo "mediaSummary", usá el contenido de "mediaSummary" como núcleo real y concreto de las afirmaciones (sin inventar detalles ajenos).
 - Si no pide crear ni modificar un rampage, "rampageToStart": null.
 
 ## REPETICIÓN DE AFIRMACIONES O MANIFESTACIONES EXISTENTES (REGLA FUNDAMENTAL)
@@ -1622,7 +1624,8 @@ REGLAS PROHIBIDAS:
 - Si el mensaje incluye un **link (URL)**:
   * Usá el contenido obtenido del link (mediante urlContext o contexto web) para entender exactamente de qué trata y crear o actualizar la manifestación, avance, afirmación o rampage correspondiente.
   * NUNCA pongas la URL cruda ("https://...") dentro de "title".
-  * **REGLA CRÍTICA DE ACCESO A LINKS**: Si NO podés acceder al contenido del link (por ejemplo, si requiere iniciar sesión como un post/reel privado de Instagram/TikTok/Facebook, tiene paywall, está bloqueado o falló la recuperación de urlContext), NO inventes ni adivines qué hay en ese link. En "siriResponse", pedile amablemente al usuario que te adjunte una **imagen (captura de pantalla)** o un **video** de ese link para poder verlo exactamente y organizarlo bien, y dejá "proposedPlan" vacío (o conservá "currentDraft" si ya existía uno).
+  * **REGLA CRÍTICA DE ACCESO A LINKS**: Si NO podés acceder al contenido del link (por ejemplo, si requiere iniciar sesión como un post/reel privado de Instagram/TikTok/Facebook, tiene paywall, está bloqueado o falló la recuperación de urlContext), NO inventes ni adivines qué hay en ese link. En "siriResponse", pedile amablemente al usuario que te adjunte una **imagen (captura de pantalla) o un video** de ese link, **o que te describa brevemente con sus palabras** qué muestra para poder entenderlo y crear/organizar lo solicitado, y dejá "proposedPlan" vacío (o conservá "currentDraft" si ya existía uno).
+  * Esta misma regla aplica si el usuario te pide generar un Rampage basado en una manifestación de "existingContext" que contiene únicamente un link inaccesible y NO tiene "mediaSummary" ni una descripción real: no inventes el contenido, pedile que adjunte la foto/video o te describa qué muestra.
 - Si el usuario adjunta una **imagen o video** (por ejemplo, una captura o grabación de pantalla de un link, una foto o un video personal):
   * Analizá con detalle lo que se ve (y lo que se escucha si es video) para comprender el contexto exacto y generar o actualizar los elementos solicitados.
 

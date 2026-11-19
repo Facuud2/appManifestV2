@@ -43,7 +43,9 @@ export function isMediaAttachment(value: unknown): value is MediaAttachment {
     media.thumbDataUrl.startsWith('data:image/') &&
     typeof media.mimeType === 'string' &&
     typeof media.storageKey === 'string' &&
-    typeof media.byteSize === 'number'
+    typeof media.byteSize === 'number' &&
+    (media.aiSummary === undefined || typeof media.aiSummary === 'string') &&
+    (media.aiSummaryAt === undefined || typeof media.aiSummaryAt === 'string')
   );
 }
 

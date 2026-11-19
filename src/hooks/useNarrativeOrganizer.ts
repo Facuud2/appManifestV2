@@ -16,6 +16,7 @@ import {
 } from '@/lib/videoProcessing';
 import { buildMediaStorageKey } from '@/lib/manifestationAttachments';
 import { putMedia } from '@/lib/mediaStorage';
+import { analyzeMediaAttachment } from '@/lib/mediaAnalysis';
 import type { MediaAttachment } from '@/types';
 import {
   countProposedItems,
@@ -603,9 +604,62 @@ export function useNarrativeOrganizer({
           }
         }
 
+        // Lazy media analysis: if user text references an existing manifestation with media
+        // that does not have aiSummary yet, analyze it now and persist to Turso before calling AI.
+        let enrichedExistingContext = existingContextRef.current;
+        const spokenLower = (payload.text || '').toLowerCase().trim();
+        if (spokenLower.length >= 3) {
+          const storeState = useAppStore.getState();
+          const candidates = storeState.manifestations
+            .filter(
+              (m) =>
+                m.userId === profileIdRef.current &&
+                m.mediaAttachment &&
+                !m.mediaAttachment.aiSummary &&
+                m.title.trim().length >= 3 &&
+                spokenLower.includes(m.title.trim().toLowerCase())
+            )
+            .slice(0, 2);
+
+          if (candidates.length > 0) {
+            const analyzedEntries = await Promise.all(
+              candidates.map(async (m) => {
+                if (!m.mediaAttachment) return null;
+                const res = await analyzeMediaAttachment({
+                  mediaAttachment: m.mediaAttachment,
+                  title: m.title,
+                  description: m.description,
+                  sandbox: isSandboxRef.current,
+                });
+                if (res?.aiSummary) {
+                  void storeState.updateManifestationMediaSummary(
+                    m.id,
+                    res.aiSummary,
+                    res.aiSummaryAt
+                  );
+                  return { id: m.id, aiSummary: res.aiSummary };
+                }
+                return null;
+              })
+            );
+
+            const summaryById = new Map<string, string>();
+            analyzedEntries.forEach((entry) => {
+              if (entry) summaryById.set(entry.id, entry.aiSummary);
+            });
+            if (summaryById.size > 0) {
+              enrichedExistingContext = existingContextRef.current.map((ctx) =>
+                summaryById.has(ctx.id)
+                  ? { ...ctx, mediaSummary: summaryById.get(ctx.id) }
+                  : ctx
+              );
+            }
+          }
+        }
+
         formData.append('profileId', profileIdRef.current);
         formData.append('draftId', draftIdRef.current);
-        formData.append('existingContext', JSON.stringify(existingContextRef.current));
+        formData.append('existingContext', JSON.stringify(enrichedExistingContext));
         if (existingAffirmationsRef.current) {
           formData.append('existingAffirmations', JSON.stringify(existingAffirmationsRef.current));
         }
@@ -819,15 +873,28 @@ export function useNarrativeOrganizer({
 
       const recorder = mediaRecorderRef.current;
       if (!recorder || recorder.state === 'inactive') {
-        const mime = isSandboxRef.current ? 'audio/webm' : 'audio/webm';
-        const dummy = new Blob([new Uint8Array(256)], { type: mime });
-        void sendAudioToServer(dummy, extraText);
+        if (isSandboxRef.current) {
+          const dummy = new Blob([new Uint8Array(256)], { type: 'audio/webm' });
+          void sendAudioToServer(dummy, extraText);
+          return;
+        }
+        cleanupAudio();
+        if (extraText && extraText.trim()) {
+          void submitNarrativePayload({ text: extraText.trim(), isVoice: false });
+          return;
+        }
+        setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
         return;
       }
 
       recorder.onstop = () => {
         const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
         const blob = new Blob(audioChunksRef.current, { type: mime });
+        if (!isSandboxRef.current && blob.size < 400) {
+          cleanupAudio();
+          setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
+          return;
+        }
         void sendAudioToServer(blob, extraText);
       };
 
@@ -835,10 +902,16 @@ export function useNarrativeOrganizer({
         recorder.stop();
       } catch {
         const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
-        void sendAudioToServer(new Blob(audioChunksRef.current, { type: mime }), extraText);
+        const blob = new Blob(audioChunksRef.current, { type: mime });
+        if (!isSandboxRef.current && blob.size < 400) {
+          cleanupAudio();
+          setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
+          return;
+        }
+        void sendAudioToServer(blob, extraText);
       }
     },
-    [sendAudioToServer]
+    [cleanupAudio, sendAudioToServer, setPhaseSafe, submitNarrativePayload]
   );
 
   const startListening = useCallback(async () => {
@@ -1084,6 +1157,31 @@ export function useNarrativeOrganizer({
       }
 
       useAppStore.getState().applyNarrativeCommit(result);
+
+      // Background auto-analysis for newly created manifestations that have media without aiSummary
+      if (Array.isArray(result.manifestations) && result.manifestations.length > 0) {
+        const storeActions = useAppStore.getState();
+        result.manifestations.forEach((created) => {
+          if (created.mediaAttachment && !created.mediaAttachment.aiSummary) {
+            const blob = mediaBlobsForCommitRef.current.get(created.mediaAttachment.storageKey);
+            void analyzeMediaAttachment({
+              mediaAttachment: created.mediaAttachment,
+              blob: blob ?? null,
+              title: created.title,
+              description: created.description,
+              sandbox: isSandboxRef.current,
+            }).then((res) => {
+              if (res?.aiSummary) {
+                void storeActions.updateManifestationMediaSummary(
+                  created.id,
+                  res.aiSummary,
+                  res.aiSummaryAt
+                );
+              }
+            });
+          }
+        });
+      }
 
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         try {

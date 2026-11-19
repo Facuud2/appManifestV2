@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { VoiceDictationButton } from '@/components/ui/VoiceDictationButton';
 import { putMedia } from '@/lib/mediaStorage';
+import { analyzeMediaAttachment } from '@/lib/mediaAnalysis';
 import {
   buildMediaStorageKey,
   createManifestationId,
@@ -42,7 +43,8 @@ export const ManifestationQuickAdd = React.forwardRef<
   },
   ref,
 ) {
-  const { activeScope, addManifestation } = useAppStore();
+  const { activeScope, addManifestation, updateManifestationMediaSummary, isSandboxMode } =
+    useAppStore();
   const composerRef = useRef<QuickAddComposerHandle>(null);
   const titleId = useId();
   const anchorId = useId();
@@ -116,17 +118,33 @@ export const ManifestationQuickAdd = React.forwardRef<
       await putMedia(storageKey, blobToPersist);
     }
 
+    const finalTitle = title.trim() || generatedTitle || description.slice(0, 72);
+
     await addManifestation({
       id,
       userId: activeScope,
       author,
-      title: title.trim() || generatedTitle || description.slice(0, 72),
+      title: finalTitle,
       description,
       sensoryAnchor: sensoryAnchor.trim() || undefined,
       status: 'semilla',
       songAttachment: songAttachment ?? null,
       mediaAttachment: mediaAttachment ?? null,
     });
+
+    if (mediaAttachment && blobToPersist) {
+      void analyzeMediaAttachment({
+        mediaAttachment,
+        blob: blobToPersist,
+        title: finalTitle,
+        description,
+        sandbox: isSandboxMode,
+      }).then((res) => {
+        if (res?.aiSummary) {
+          void updateManifestationMediaSummary(id, res.aiSummary, res.aiSummaryAt);
+        }
+      });
+    }
   };
 
   const options = (

@@ -21,7 +21,7 @@ interface UseVoiceActionRouterProps {
   onCommandResult: (result: VoiceCommandResult) => void;
   onError?: (error: VoiceActionErrorPayload) => void;
   activeScope: UserScope;
-  activeManifestations: Array<{ id: string; title: string }>;
+  activeManifestations: Array<{ id: string; title: string; mediaSummary?: string }>;
   isSandboxMode?: boolean;
   /**
    * Set to false when the narrative organizer owns the create gesture.

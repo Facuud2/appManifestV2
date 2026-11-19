@@ -70,6 +70,8 @@ export interface MediaAttachment {
   durationSeconds?: number;
   byteSize: number;
   storageKey: string;
+  aiSummary?: string;
+  aiSummaryAt?: string;
 }
 
 export interface Affirmation {

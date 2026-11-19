@@ -82,10 +82,13 @@ export interface AffirmationGroup {
 }
 
 export interface RampageManifestationContext {
+  id?: string;
   title: string;
   description?: string;
   status?: string;
   category?: string;
+  mediaSummary?: string;
+  isFocused?: boolean;
 }
 
 export interface RampageHistoryContext {

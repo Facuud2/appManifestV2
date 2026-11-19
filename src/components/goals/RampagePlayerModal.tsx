@@ -12,11 +12,15 @@ import {
 } from 'framer-motion';
 import {
   Activity,
+  AlertCircle,
   BookmarkCheck,
   Check,
   CloudRain,
+  Film,
+  Image as ImageIcon,
   Mic,
   Moon,
+  Paperclip,
   Pause,
   Play,
   Radio,
@@ -30,6 +34,13 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
+import { analyzeMediaAttachment } from '@/lib/mediaAnalysis';
+import { preparePhoto } from '@/lib/imageProcessing';
+import { isVideoFile, prepareVideo } from '@/lib/videoProcessing';
+import { buildMediaStorageKey } from '@/lib/manifestationAttachments';
+import { putMedia } from '@/lib/mediaStorage';
+import { URL_REGEX, extractUrlMetadataHints } from '@/utils/urlParser';
+import type { MediaAttachment } from '@/types';
 import { audioEngine, AmbienceType } from '@/lib/audioEngine';
 import { APPLE_ELASTIC_SPRING, EMIL_EASE_OUT, IOS_TAP_SPRING } from '@/lib/iosSprings';
 import {
@@ -181,6 +192,8 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     saveRampageSet,
     deleteRampageSet,
     touchRampageLastPlayed,
+    updateManifestationMediaSummary,
+    attachManifestationMedia,
   } = useAppStore();
 
   const [selectedCount, setSelectedCount] = useState<RampageLoopCount>(11);
@@ -355,6 +368,18 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
   const miniPlayerRef = useRef<HTMLElement | null>(null);
   const [draftTitle, setDraftTitle] = useState(centralTheme);
   const [draftDetails, setDraftDetails] = useState('');
+  const [selectedManifestationIds, setSelectedManifestationIds] = useState<string[]>([]);
+  const [isAnalyzingMedia, setIsAnalyzingMedia] = useState(false);
+  const [isCheckingLinks, setIsCheckingLinks] = useState(false);
+  const [blockedLinkPrompt, setBlockedLinkPrompt] = useState<{
+    url: string;
+    providerLabel: string;
+    manifestationId?: string;
+    manifestationTitle?: string;
+  } | null>(null);
+  const [blockedLinkDescription, setBlockedLinkDescription] = useState('');
+  const supplementalLinkContextRef = useRef<string>('');
+  const blockedLinkFileInputRef = useRef<HTMLInputElement | null>(null);
   const [setupError, setSetupError] = useState('');
   const [audioPreparationWarning, setAudioPreparationWarning] = useState('');
   const prefersReducedMotion = useReducedMotion();
@@ -584,15 +609,43 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     .filter((affirmation) => affirmation.userId === activeScope)
     .slice(0, 20)
     .map((affirmation) => affirmation.text);
-  const profileManifestations: RampageManifestationContext[] = userManifestations
-    .filter((manifestation) => manifestation.userId === activeScope)
-    .slice(0, 15)
-    .map((manifestation) => ({
+  const scopedManifestationItems = useMemo(
+    () => userManifestations.filter((manifestation) => manifestation.userId === activeScope),
+    [userManifestations, activeScope]
+  );
+
+  const profileManifestations: RampageManifestationContext[] = useMemo(() => {
+    const selectedSet = new Set(selectedManifestationIds);
+    const ordered = [
+      ...scopedManifestationItems.filter((m) => selectedSet.has(m.id)),
+      ...scopedManifestationItems.filter((m) => !selectedSet.has(m.id)),
+    ];
+    return ordered.slice(0, 15).map((manifestation) => ({
+      id: manifestation.id,
       title: manifestation.title,
       description: manifestation.description,
       status: manifestation.status,
       category: manifestation.category,
+      mediaSummary: manifestation.mediaAttachment?.aiSummary || undefined,
+      isFocused: selectedSet.has(manifestation.id),
     }));
+  }, [scopedManifestationItems, selectedManifestationIds]);
+
+  const handleToggleManifestationSelection = useCallback(
+    (manifestationId: string, manifestationTitle: string) => {
+      setSelectedManifestationIds((prev) => {
+        const exists = prev.includes(manifestationId);
+        const next = exists
+          ? prev.filter((id) => id !== manifestationId)
+          : [...prev, manifestationId].slice(0, 5);
+        if (!exists && !draftTitle.trim()) {
+          setDraftTitle(manifestationTitle.slice(0, 120));
+        }
+        return next;
+      });
+    },
+    [draftTitle]
+  );
   const profileRampages: RampageHistoryContext[] = userRampageSets
     .filter((rampage) => rampage.userId === activeScope)
     .slice(0, 5)
@@ -642,6 +695,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
         body: JSON.stringify({
           centralTheme: activeRampageRef.current.title,
           nuances: activeRampageRef.current.details,
+          supplementalContext: supplementalLinkContextRef.current,
           profileId: activeRampageScopeRef.current,
           count: targetCount,
           sandbox: isSandboxMode,
@@ -1446,10 +1500,17 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
   };
 
-  const handleStartRampage = async (): Promise<boolean> => {
-    const title = draftTitle.trim().replace(/\n+/g, ' · ');
+  const handleStartRampage = async (options?: {
+    skipLinkCheck?: boolean;
+    extraContext?: string;
+  }): Promise<boolean> => {
+    const selectedItems = scopedManifestationItems.filter((m) =>
+      selectedManifestationIds.includes(m.id)
+    );
+    const fallbackSelectedTitle = selectedItems[0]?.title || '';
+    const title = (draftTitle.trim() || fallbackSelectedTitle).replace(/\n+/g, ' · ');
     if (!title) {
-      setSetupError('Escribí o dictá un tema central para iniciar tu Rampage.');
+      setSetupError('Escribí un tema central o seleccioná al menos una manifestación.');
       return false;
     }
 
@@ -1458,6 +1519,160 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     }
 
     saveToSanctuaryRef.current = saveToSanctuary;
+    if (options?.extraContext !== undefined) {
+      supplementalLinkContextRef.current = options.extraContext;
+    } else if (!options?.skipLinkCheck) {
+      supplementalLinkContextRef.current = '';
+    }
+
+    // Check if there are URLs without media/description that might be behind a login wall (e.g. Instagram)
+    if (!options?.skipLinkCheck && !isSandboxMode) {
+      const linkTargets: Array<{
+        url: string;
+        manifestationId?: string;
+        manifestationTitle?: string;
+        nonUrlTextLength: number;
+      }> = [];
+
+      for (const m of selectedItems) {
+        if (m.mediaAttachment?.aiSummary || m.mediaAttachment) continue;
+        const combined = `${m.title} ${m.description || ''}`;
+        const matches = combined.match(URL_REGEX);
+        if (matches && matches.length > 0) {
+          const textWithoutUrl = combined.replace(URL_REGEX, '').trim();
+          linkTargets.push({
+            url: matches[0],
+            manifestationId: m.id,
+            manifestationTitle: m.title,
+            nonUrlTextLength: textWithoutUrl.length,
+          });
+        }
+      }
+
+      const draftCombined = `${draftTitle} ${draftDetails}`;
+      const draftMatches = draftCombined.match(URL_REGEX);
+      if (draftMatches && draftMatches.length > 0 && linkTargets.length === 0) {
+        const textWithoutUrl = draftCombined.replace(URL_REGEX, '').trim();
+        linkTargets.push({
+          url: draftMatches[0],
+          nonUrlTextLength: textWithoutUrl.length,
+        });
+      }
+
+      if (linkTargets.length > 0) {
+        const primaryLink = linkTargets[0];
+        const userAlreadyDescribed =
+          draftDetails.replace(URL_REGEX, '').trim().length >= 25 ||
+          primaryLink.nonUrlTextLength >= 60;
+
+        setIsCheckingLinks(true);
+        try {
+          const previewRes = await fetch(
+            `/api/link-preview?url=${encodeURIComponent(primaryLink.url)}`
+          );
+          if (previewRes.ok) {
+            const previewJson = (await previewRes.json()) as {
+              success?: boolean;
+              data?: {
+                accessible?: boolean;
+                requiresLogin?: boolean;
+                providerLabel?: string;
+                title?: string;
+                description?: string;
+              };
+            };
+            const previewData = previewJson.data;
+            if (previewData?.accessible) {
+              const snippet = [previewData.title, previewData.description]
+                .filter(Boolean)
+                .join(' — ');
+              if (snippet) {
+                supplementalLinkContextRef.current = `[Contenido del enlace (${previewData.providerLabel || 'Web'}): ${snippet}]`;
+              }
+            } else if (!userAlreadyDescribed) {
+              const hints = extractUrlMetadataHints(primaryLink.url);
+              setBlockedLinkPrompt({
+                url: primaryLink.url,
+                providerLabel: previewData?.providerLabel || hints.providerLabel,
+                manifestationId: primaryLink.manifestationId,
+                manifestationTitle: primaryLink.manifestationTitle,
+              });
+              setBlockedLinkDescription('');
+              return false;
+            }
+          }
+        } catch {
+          // If preview check fails on a known login-walled platform and user didn't describe it, ask user
+          const hints = extractUrlMetadataHints(primaryLink.url);
+          if (
+            !userAlreadyDescribed &&
+            ['instagram', 'facebook', 'tiktok', 'threads'].includes(hints.provider)
+          ) {
+            setBlockedLinkPrompt({
+              url: primaryLink.url,
+              providerLabel: hints.providerLabel,
+              manifestationId: primaryLink.manifestationId,
+              manifestationTitle: primaryLink.manifestationTitle,
+            });
+            setBlockedLinkDescription('');
+            return false;
+          }
+        } finally {
+          setIsCheckingLinks(false);
+        }
+      }
+    }
+
+    // Lazy media analysis: if any selected or title-referenced manifestation has a video/photo
+    // without aiSummary yet, analyze it now and persist to Turso before calling /api/ai/rampage.
+    const combinedPromptLower = `${title} ${draftDetails}`.toLowerCase();
+    const pendingLazyItems = scopedManifestationItems
+      .filter((m) => {
+        if (!m.mediaAttachment || m.mediaAttachment.aiSummary) return false;
+        if (selectedManifestationIds.includes(m.id)) return true;
+        const cleanT = m.title.trim().toLowerCase();
+        return cleanT.length >= 3 && combinedPromptLower.includes(cleanT);
+      })
+      .slice(0, 3);
+
+    let enrichedManifestations = profileManifestationsRef.current;
+
+    if (pendingLazyItems.length > 0) {
+      setIsAnalyzingMedia(true);
+      try {
+        const results = await Promise.all(
+          pendingLazyItems.map(async (m) => {
+            if (!m.mediaAttachment) return null;
+            const res = await analyzeMediaAttachment({
+              mediaAttachment: m.mediaAttachment,
+              title: m.title,
+              description: m.description,
+              sandbox: isSandboxMode,
+            });
+            if (res?.aiSummary) {
+              void updateManifestationMediaSummary(m.id, res.aiSummary, res.aiSummaryAt);
+              return { id: m.id, aiSummary: res.aiSummary };
+            }
+            return null;
+          })
+        );
+
+        const summaryMap = new Map<string, string>();
+        results.forEach((entry) => {
+          if (entry) summaryMap.set(entry.id, entry.aiSummary);
+        });
+
+        if (summaryMap.size > 0) {
+          enrichedManifestations = profileManifestationsRef.current.map((item) =>
+            item.id && summaryMap.has(item.id)
+              ? { ...item, mediaSummary: summaryMap.get(item.id) }
+              : item
+          );
+        }
+      } finally {
+        setIsAnalyzingMedia(false);
+      }
+    }
 
     activeRampageRef.current = {
       title: title.slice(0, 120),
@@ -1466,7 +1681,7 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
     };
     activeRampageScopeRef.current = activeScopeRef.current;
     activeProfileAffirmationsRef.current = profileAffirmationsRef.current;
-    activeProfileManifestationsRef.current = profileManifestationsRef.current;
+    activeProfileManifestationsRef.current = enrichedManifestations;
     activeProfileRampagesRef.current = profileRampagesRef.current;
     activeRampageSetRef.current = null;
     isNewSessionRef.current = true;
@@ -1479,6 +1694,105 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
     setIsAwaitingVoiceCalibration(false);
     return await generateSingleRampageSet();
+  };
+
+  const handleResolveBlockedLinkWithFile = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !blockedLinkPrompt) return;
+
+    setSetupError('');
+    setIsAnalyzingMedia(true);
+    try {
+      const isVideo = isVideoFile(file);
+      const storageKey = blockedLinkPrompt.manifestationId
+        ? buildMediaStorageKey(blockedLinkPrompt.manifestationId)
+        : `temp_rampage_${Date.now()}`;
+
+      let mediaAttachment: MediaAttachment;
+      let blobToAnalyze: Blob;
+
+      if (isVideo) {
+        const prepared = await prepareVideo(file);
+        blobToAnalyze = prepared.blob;
+        mediaAttachment = {
+          kind: 'video',
+          thumbDataUrl: prepared.thumbDataUrl,
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+          durationSeconds: prepared.durationSeconds,
+          byteSize: prepared.byteSize,
+          storageKey,
+        };
+      } else {
+        const prepared = await preparePhoto(file);
+        blobToAnalyze = prepared.blob;
+        mediaAttachment = {
+          kind: 'photo',
+          thumbDataUrl: prepared.thumbDataUrl,
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+          byteSize: prepared.byteSize,
+          storageKey,
+        };
+      }
+
+      const analysis = await analyzeMediaAttachment({
+        mediaAttachment,
+        blob: blobToAnalyze,
+        title: blockedLinkPrompt.manifestationTitle || draftTitle,
+        description: draftDetails,
+        sandbox: isSandboxMode,
+      });
+
+      if (!analysis?.aiSummary) {
+        setSetupError(
+          'No pudimos analizar el archivo. Probá describiendo brevemente qué muestra el enlace.'
+        );
+        return;
+      }
+
+      if (blockedLinkPrompt.manifestationId) {
+        await putMedia(storageKey, blobToAnalyze);
+        await attachManifestationMedia(blockedLinkPrompt.manifestationId, {
+          ...mediaAttachment,
+          aiSummary: analysis.aiSummary,
+          aiSummaryAt: analysis.aiSummaryAt,
+        });
+      }
+
+      const extraContext = `[Contenido real del video/foto adjunto para el enlace ${blockedLinkPrompt.providerLabel}: ${analysis.aiSummary}]`;
+      setBlockedLinkPrompt(null);
+      setBlockedLinkDescription('');
+      const ok = await handleStartRampage({ skipLinkCheck: true, extraContext });
+      if (ok) {
+        setIsCustomizerOpen(false);
+      }
+    } catch (err: any) {
+      setSetupError(err?.message || 'No se pudo procesar el archivo adjunto.');
+    } finally {
+      setIsAnalyzingMedia(false);
+    }
+  };
+
+  const handleResolveBlockedLinkWithDescription = async () => {
+    const desc = blockedLinkDescription.trim();
+    if (!desc || !blockedLinkPrompt) {
+      setSetupError('Describí brevemente qué muestra el enlace o adjuntá una foto/video.');
+      return;
+    }
+    setSetupError('');
+    const extraContext = `[Descripción del usuario sobre el enlace (${blockedLinkPrompt.providerLabel}): ${desc}]`;
+    setBlockedLinkPrompt(null);
+    setBlockedLinkDescription('');
+    const ok = await handleStartRampage({ skipLinkCheck: true, extraContext });
+    if (ok) {
+      setIsCustomizerOpen(false);
+    }
   };
 
   useEffect(() => {
@@ -1903,6 +2217,70 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                           />
                         </div>
 
+                        {scopedManifestationItems.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-medium text-white/80">
+                                Basar en manifestaciones (opcional)
+                              </span>
+                              {selectedManifestationIds.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedManifestationIds([])}
+                                  className="text-[11px] font-medium text-white/55 hover:text-white/85 transition-colors"
+                                >
+                                  Limpiar ({selectedManifestationIds.length})
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-0.5">
+                              {scopedManifestationItems.slice(0, 12).map((item) => {
+                                const isSelected = selectedManifestationIds.includes(item.id);
+                                const hasVideo = item.mediaAttachment?.kind === 'video';
+                                const hasPhoto = item.mediaAttachment?.kind === 'photo';
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() =>
+                                      handleToggleManifestationSelection(item.id, item.title)
+                                    }
+                                    className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all active:scale-95 ${
+                                      isSelected
+                                        ? 'border-white/60 bg-white text-black'
+                                        : 'border-white/15 bg-white/[0.07] text-white/80 hover:bg-white/[0.14]'
+                                    }`}
+                                    title={
+                                      item.mediaAttachment
+                                        ? item.mediaAttachment.aiSummary
+                                          ? 'Con memoria visual lista para la IA'
+                                          : 'Se analizará el video/foto al generar'
+                                        : item.title
+                                    }
+                                  >
+                                    {isSelected ? (
+                                      <Check size={11} className="shrink-0" aria-hidden="true" />
+                                    ) : hasVideo ? (
+                                      <Film
+                                        size={11}
+                                        className="shrink-0 text-amber-300"
+                                        aria-hidden="true"
+                                      />
+                                    ) : hasPhoto ? (
+                                      <ImageIcon
+                                        size={11}
+                                        className="shrink-0 text-sky-300"
+                                        aria-hidden="true"
+                                      />
+                                    ) : null}
+                                    <span className="truncate max-w-[165px]">{item.title}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between pt-1">
                           <span className="text-xs text-white/70">Longitud:</span>
                           <div className="flex gap-1">
@@ -1957,6 +2335,84 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                           </span>
                         </button>
 
+                        {blockedLinkPrompt && (
+                          <div className="rounded-xl border border-amber-400/35 bg-amber-500/10 p-3 space-y-2.5">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle
+                                size={15}
+                                className="mt-0.5 shrink-0 text-amber-300"
+                                aria-hidden="true"
+                              />
+                              <div className="min-w-0 space-y-0.5">
+                                <p className="text-xs font-semibold text-amber-100 leading-snug">
+                                  No pudimos acceder al enlace de {blockedLinkPrompt.providerLabel}
+                                </p>
+                                <p className="text-[11px] text-white/75 leading-snug">
+                                  Esta plataforma pide iniciar sesión o está restringida. Adjuntá
+                                  una foto/video de ese contenido o describí brevemente qué muestra
+                                  para que la IA no invente.
+                                </p>
+                              </div>
+                            </div>
+
+                            <input
+                              ref={blockedLinkFileInputRef}
+                              type="file"
+                              accept="image/*,video/*"
+                              className="hidden"
+                              onChange={handleResolveBlockedLinkWithFile}
+                            />
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                disabled={isAnalyzingMedia || isLoadingBatch}
+                                onClick={() => blockedLinkFileInputRef.current?.click()}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/25 transition-colors disabled:opacity-50"
+                              >
+                                <Paperclip size={12} aria-hidden="true" />
+                                <span>
+                                  {isAnalyzingMedia
+                                    ? 'Analizando archivo…'
+                                    : 'Adjuntar foto o video'}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBlockedLinkPrompt(null);
+                                  setBlockedLinkDescription('');
+                                }}
+                                className="text-[11px] font-medium text-white/55 hover:text-white/85 px-2 py-1"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+
+                            <div className="space-y-1.5 pt-1 border-t border-white/10">
+                              <textarea
+                                rows={2}
+                                value={blockedLinkDescription}
+                                onChange={(e) => setBlockedLinkDescription(e.target.value)}
+                                placeholder="O describí acá qué muestra el video/post (ej: un departamento con vista al mar y balcón amplio)…"
+                                className="w-full rounded-xl bg-black/30 border border-white/15 px-2.5 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-amber-300/60"
+                              />
+                              <button
+                                type="button"
+                                disabled={
+                                  !blockedLinkDescription.trim() ||
+                                  isAnalyzingMedia ||
+                                  isLoadingBatch
+                                }
+                                onClick={handleResolveBlockedLinkWithDescription}
+                                className="w-full rounded-full border border-amber-300/40 bg-amber-400/20 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-400/30 transition-colors disabled:opacity-40"
+                              >
+                                Continuar con esta descripción y generar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {setupError && (
                           <div className="rounded-xl border border-rose-500/30 bg-rose-500/20 px-3 py-2 text-xs text-rose-200 font-medium">
                             {setupError}
@@ -1965,10 +2421,12 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
 
                         <button
                           type="button"
-                          disabled={isLoadingBatch}
+                          disabled={isLoadingBatch || isAnalyzingMedia || isCheckingLinks}
                           onClick={async () => {
-                            if (!draftTitle.trim()) {
-                              setSetupError('Escribí o dictá un tema central para iniciar tu Rampage.');
+                            if (!draftTitle.trim() && selectedManifestationIds.length === 0) {
+                              setSetupError(
+                                'Escribí un tema central o seleccioná al menos una manifestación.'
+                              );
                               return;
                             }
                             setSetupError('');
@@ -1997,7 +2455,13 @@ export const RampagePlayerModal: React.FC<RampagePlayerModalProps> = ({
                           }}
                           className={`w-full py-2.5 rounded-full ${profileTheme.playBtnBg} text-xs font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                          {isLoadingBatch ? 'Generando afirmaciones con IA…' : 'Generar con IA y Reproducir'}
+                          {isCheckingLinks
+                            ? 'Verificando enlace…'
+                            : isAnalyzingMedia
+                              ? 'Analizando video/foto adjunto…'
+                              : isLoadingBatch
+                                ? 'Generando afirmaciones con IA…'
+                                : 'Generar con IA y Reproducir'}
                         </button>
                       </div>
                     </motion.div>
