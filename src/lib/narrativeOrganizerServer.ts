@@ -19,8 +19,11 @@ import { URL_REGEX } from '@/utils/urlParser';
 import type { SongAttachment } from '@/types';
 
 const NARRATIVE_TIMEOUT_MS = 45_000;
+const NARRATIVE_VIDEO_TIMEOUT_MS = 90_000;
 const PRIMARY_MODEL = 'gemini-3.5-flash';
-const FALLBACK_MODEL = 'gemini-2.5-flash';
+const FALLBACK_MODEL = 'gemini-3.8-flash';
+const TERTIARY_MODEL = 'gemini-3.5-flash-lite';
+const INLINE_VIDEO_MAX_BYTES = 4 * 1024 * 1024;
 
 export interface NarrativeAnalysisResult {
   draft: NarrativeDraft;
@@ -35,6 +38,12 @@ function cleanMimeType(mimeType: string): string {
   if (base === 'audio/m4a' || base === 'audio/x-m4a' || base === 'video/mp4') {
     return 'audio/mp4';
   }
+  return base;
+}
+
+function cleanMediaMimeType(mimeType: string): string {
+  const base = (mimeType || '').split(';')[0].trim().toLowerCase();
+  if (!base) return 'video/mp4';
   return base;
 }
 
@@ -54,6 +63,95 @@ export interface NarrativeMediaInput {
   name?: string;
 }
 
+export interface NarrativeUploadedMediaInput {
+  name: string;
+  uri: string;
+  mimeType: string;
+}
+
+async function waitForGeminiFileActive(
+  ai: GoogleGenAI,
+  fileName: string,
+  fallbackUri: string,
+  fallbackMime: string,
+): Promise<{ name: string; uri: string; mimeType: string }> {
+  const normalizedName = fileName.startsWith('files/') ? fileName : `files/${fileName}`;
+  const deadline = Date.now() + 45_000;
+  let currentUri = fallbackUri;
+  let currentMime = cleanMediaMimeType(fallbackMime);
+
+  while (Date.now() < deadline) {
+    const info = await ai.files.get({ name: normalizedName });
+    if (info.uri) currentUri = info.uri;
+    if (info.mimeType) currentMime = cleanMediaMimeType(info.mimeType);
+
+    const state = String(info.state || '').toUpperCase();
+    if (!state || state === 'ACTIVE') {
+      return { name: normalizedName, uri: currentUri, mimeType: currentMime };
+    }
+    if (state === 'FAILED') {
+      throw new Error('GEMINI_FILE_PROCESSING_FAILED');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+  }
+
+  return { name: normalizedName, uri: currentUri, mimeType: currentMime };
+}
+
+async function uploadBufferToGeminiFiles(
+  apiKey: string,
+  ai: GoogleGenAI,
+  media: NarrativeMediaInput,
+): Promise<{ name: string; uri: string; mimeType: string }> {
+  const cleanMime = cleanMediaMimeType(media.mimeType);
+  const startRes = await fetch(
+    'https://generativelanguage.googleapis.com/upload/v1beta/files',
+    {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': apiKey,
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(media.buffer.length),
+        'X-Goog-Upload-Header-Content-Type': cleanMime,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file: { display_name: media.name || 'narrative_video.mp4' },
+      }),
+    },
+  );
+
+  const uploadUrl = startRes.headers.get('x-goog-upload-url');
+  if (!startRes.ok || !uploadUrl) {
+    throw new Error('GEMINI_FILE_UPLOAD_START_FAILED');
+  }
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Length': String(media.buffer.length),
+      'X-Goog-Upload-Offset': '0',
+      'X-Goog-Upload-Command': 'upload, finalize',
+    },
+    body: new Uint8Array(media.buffer),
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error('GEMINI_FILE_UPLOAD_FINALIZE_FAILED');
+  }
+
+  const json = (await uploadRes.json()) as {
+    file?: { name?: string; uri?: string; mimeType?: string; state?: string };
+  };
+  const fileObj = json?.file;
+  if (!fileObj?.name || !fileObj?.uri) {
+    throw new Error('GEMINI_FILE_UPLOAD_INVALID_RESPONSE');
+  }
+
+  return waitForGeminiFileActive(ai, fileObj.name, fileObj.uri, fileObj.mimeType || cleanMime);
+}
+
 function extractUrls(text: string): string[] {
   if (!text) return [];
   const matches = text.match(URL_REGEX) || [];
@@ -67,6 +165,7 @@ async function generateJson(options: {
   prompt: string;
   parts: Array<Record<string, unknown>>;
   enableUrlContext?: boolean;
+  timeoutMs?: number;
 }): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: options.apiKey });
   const config: Record<string, unknown> = {
@@ -92,7 +191,7 @@ async function generateJson(options: {
       ],
       config,
     }),
-    NARRATIVE_TIMEOUT_MS
+    options.timeoutMs ?? NARRATIVE_TIMEOUT_MS
   );
   return response.text || '';
 }
@@ -179,6 +278,7 @@ export async function analyzeNarrativeWithGemini(options: {
   mimeType?: string;
   userText?: string;
   mediaFiles?: NarrativeMediaInput[];
+  uploadedMedia?: NarrativeUploadedMediaInput[];
   conversationHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
   profileId: NarrativeProfileId;
   draftId: string;
@@ -193,6 +293,8 @@ export async function analyzeNarrativeWithGemini(options: {
     throw new Error('GEMINI_API_KEY_MISSING');
   }
 
+  const ai = new GoogleGenAI({ apiKey });
+
   const systemInstruction = buildNarrativeOrganizerSystemPrompt({
     existingContext: options.existingContext,
     existingAffirmations: options.existingAffirmations,
@@ -206,6 +308,11 @@ export async function analyzeNarrativeWithGemini(options: {
   const urls = extractUrls(cleanText);
   const hasAudio = Boolean(options.audioBuffer && options.audioBuffer.length >= 200);
   const mediaFiles = options.mediaFiles || [];
+  const uploadedMedia = options.uploadedMedia || [];
+  const totalMediaCount = mediaFiles.length + uploadedMedia.length;
+  const hasVideo =
+    mediaFiles.some((m) => m.mimeType.startsWith('video/')) ||
+    uploadedMedia.some((m) => m.mimeType.startsWith('video/'));
 
   const promptParts: string[] = [`Perfil activo: ${options.profileId}.`];
   if (hasAudio) {
@@ -214,14 +321,18 @@ export async function analyzeNarrativeWithGemini(options: {
   if (cleanText) {
     promptParts.push(`Mensaje escrito del usuario:\n${cleanText}`);
   }
-  if (mediaFiles.length > 0) {
+  if (totalMediaCount > 0) {
     promptParts.push(
-      `El usuario adjuntó ${mediaFiles.length} archivo(s) multimedia (imagen o video). Analizá su contenido visual y/o sonoro.`
+      `El usuario adjuntó ${totalMediaCount} archivo(s) multimedia (imagen o video). Analizá con detalle su contenido visual y/o sonoro para comprender el contexto y organizar lo solicitado.`
     );
   }
-  if (urls.length > 0) {
+  if (urls.length > 0 && totalMediaCount === 0) {
     promptParts.push(
       `El mensaje incluye link(s): ${urls.join(', ')}. Accedé al contenido con urlContext; si no podés acceder o está restringido, pedile al usuario una imagen o video de ese link en siriResponse sin inventar contenido.`
+    );
+  } else if (urls.length > 0 && totalMediaCount > 0) {
+    promptParts.push(
+      `El mensaje incluye link(s) (${urls.join(', ')}), pero el usuario YA adjuntó la imagen o video correspondiente. Usá directamente el contenido de los archivos multimedia adjuntos para crear o actualizar lo solicitado.`
     );
   }
   if (options.currentDraft) {
@@ -232,6 +343,8 @@ export async function analyzeNarrativeWithGemini(options: {
   }
 
   const parts: Array<Record<string, unknown>> = [];
+  const temporaryGeminiFileNames: string[] = [];
+
   if (hasAudio && options.audioBuffer) {
     parts.push({
       inlineData: {
@@ -240,16 +353,54 @@ export async function analyzeNarrativeWithGemini(options: {
       },
     });
   }
+
+  for (const uploaded of uploadedMedia) {
+    const active = await waitForGeminiFileActive(
+      ai,
+      uploaded.name,
+      uploaded.uri,
+      uploaded.mimeType,
+    );
+    temporaryGeminiFileNames.push(active.name);
+    parts.push({
+      fileData: {
+        fileUri: active.uri,
+        mimeType: active.mimeType,
+      },
+    });
+  }
+
   for (const media of mediaFiles) {
+    const cleanMime = cleanMediaMimeType(media.mimeType);
+    if (cleanMime.startsWith('video/') && media.buffer.length > INLINE_VIDEO_MAX_BYTES) {
+      try {
+        const uploaded = await uploadBufferToGeminiFiles(apiKey, ai, {
+          ...media,
+          mimeType: cleanMime,
+        });
+        temporaryGeminiFileNames.push(uploaded.name);
+        parts.push({
+          fileData: {
+            fileUri: uploaded.uri,
+            mimeType: uploaded.mimeType,
+          },
+        });
+        continue;
+      } catch (uploadError) {
+        console.warn('[NarrativeOrganizer] Server Files API upload failed, falling back to inlineData:', uploadError);
+      }
+    }
     parts.push({
       inlineData: {
-        mimeType: media.mimeType,
+        mimeType: cleanMime,
         data: media.buffer.toString('base64'),
       },
     });
   }
 
   const prompt = promptParts.join('\n');
+  const timeoutMs = hasVideo ? NARRATIVE_VIDEO_TIMEOUT_MS : NARRATIVE_TIMEOUT_MS;
+  const enableUrlContext = urls.length > 0 && totalMediaCount === 0;
 
   const run = async (model: string) =>
     generateJson({
@@ -258,18 +409,35 @@ export async function analyzeNarrativeWithGemini(options: {
       systemInstruction,
       prompt,
       parts,
-      enableUrlContext: urls.length > 0,
+      enableUrlContext,
+      timeoutMs,
     });
 
   let rawText = '';
   let lastError: unknown = null;
 
   try {
-    rawText = await run(PRIMARY_MODEL);
-  } catch (primaryError) {
-    lastError = primaryError;
-    console.warn('[NarrativeOrganizer] Primary model failed, trying fallback:', primaryError);
-    rawText = await run(FALLBACK_MODEL);
+    try {
+      rawText = await run(PRIMARY_MODEL);
+    } catch (primaryError) {
+      lastError = primaryError;
+      console.warn('[NarrativeOrganizer] Primary model failed, trying fallback:', primaryError);
+      try {
+        rawText = await run(FALLBACK_MODEL);
+      } catch (fallbackError) {
+        lastError = fallbackError;
+        console.warn('[NarrativeOrganizer] Fallback model failed, trying tertiary:', fallbackError);
+        rawText = await run(TERTIARY_MODEL);
+      }
+    }
+  } finally {
+    if (temporaryGeminiFileNames.length > 0) {
+      for (const name of temporaryGeminiFileNames) {
+        void ai.files.delete({ name }).catch(() => {
+          // Best-effort cleanup of temporary Gemini Files API entry
+        });
+      }
+    }
   }
 
   // The request was consumed even if the JSON is unusable.

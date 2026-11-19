@@ -1092,7 +1092,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,video/*"
+                  accept="image/*,video/*,.mp4,.mov,.webm,.mkv,.m4v,.3gp"
                   multiple
                   data-testid="narrative-chat-file-input"
                   className="hidden"
@@ -1152,7 +1152,12 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                     type="button"
                     data-testid="narrative-chat-attach"
                     aria-label="Adjuntar imagen o video"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      if (phase === 'listening') {
+                        onPauseListening();
+                      }
+                      fileInputRef.current?.click();
+                    }}
                     disabled={isProcessingAttachment}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--color-ink-muted)] transition-colors hover:bg-black/5 hover:text-[var(--color-ink)] disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white"
                   >

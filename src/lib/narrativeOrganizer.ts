@@ -1432,7 +1432,11 @@ export function buildNarrativeOrganizerSystemPrompt(options: {
   const rampagesJson = JSON.stringify(options.existingRampages || [], null, 2);
   const successStoriesJson = JSON.stringify(options.existingSuccessStories || [], null, 2);
   const draftJson = options.currentDraft
-    ? JSON.stringify(options.currentDraft.proposedPlan, null, 2)
+    ? JSON.stringify(
+        options.currentDraft.proposedPlan,
+        (key, value) => (key === 'thumbDataUrl' ? undefined : value),
+        2
+      )
     : 'null';
   const historyText =
     options.conversationHistory && options.conversationHistory.length > 0

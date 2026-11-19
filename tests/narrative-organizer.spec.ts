@@ -664,4 +664,38 @@ test('21 · link inaccesible solicita imagen o video y permite adjuntar imagen p
   await expect(page.getByTestId('narrative-confirm')).toBeVisible();
 });
 
+test('22 · adjuntar un video en el chat permite hablar con la IA y proponer la manifestación con video adjunto', async ({ page }) => {
+  await boot(page, '');
+  await openOrganizer(page);
+
+  const chatInput = page.getByTestId('narrative-chat-input');
+  const sendBtn = page.getByTestId('narrative-chat-send');
+  const fileInput = page.getByTestId('narrative-chat-file-input');
+
+  // Adjuntar un archivo MP4 (incluso si el navegador no pudiera decodificarlo localmente, usa el poster fallback)
+  const minimalMp4Header = Buffer.from(
+    '00000018667479706d703432000000006d70343269736f6d000000086d646174',
+    'hex'
+  );
+  await fileInput.setInputFiles({
+    name: 'video-manifestacion.mp4',
+    mimeType: 'video/mp4',
+    buffer: minimalMp4Header,
+  });
+
+  // Se muestra el chip de video pendiente sin error
+  await expect(page.getByTestId('narrative-pending-attachment')).toHaveCount(1);
+
+  // Enviar mensaje en el chat hablando con la IA sobre el video
+  await chatInput.fill('Quiero vivir esta experiencia del video con total plenitud');
+  await sendBtn.click();
+
+  // La IA procesa el video y propone la manifestación con el video adjunto
+  const card = page.getByTestId('narrative-card-manifestation');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Video adjunto');
+  await expect(page.getByTestId('narrative-confirm')).toBeVisible();
+});
+
+
 

@@ -19,15 +19,57 @@ import {
   analyzeNarrativeWithGemini,
   enrichDraftWithMusic,
   type NarrativeMediaInput,
+  type NarrativeUploadedMediaInput,
 } from '@/lib/narrativeOrganizerServer';
+import { inferVideoMimeType } from '@/lib/videoProcessing';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const runtime = 'nodejs';
+export const maxDuration = 120;
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const MIN_AUDIO_BYTES = 200;
 const MAX_MEDIA_FILES = 4;
+
+const IMAGE_EXT_MIMES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+
+function resolveEntryMimeType(file: File): string {
+  const base = (file.type || '').split(';')[0].trim().toLowerCase();
+  if (base.startsWith('image/') || base.startsWith('video/')) {
+    return base;
+  }
+  const inferredVideo = inferVideoMimeType({ name: file.name, type: file.type });
+  if (inferredVideo) return inferredVideo;
+  const ext = (file.name || '').trim().toLowerCase().split('.').pop() || '';
+  return IMAGE_EXT_MIMES[ext] || '';
+}
+
+function sanitizeUploadedMedia(value: unknown): NarrativeUploadedMediaInput[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, MAX_MEDIA_FILES).flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const rec = item as Record<string, unknown>;
+    const name = typeof rec.name === 'string' ? rec.name.trim() : '';
+    const uri = typeof rec.uri === 'string' ? rec.uri.trim() : '';
+    const rawMime = typeof rec.mimeType === 'string' ? rec.mimeType : '';
+    const mimeType =
+      rawMime.split(';')[0].trim().toLowerCase() ||
+      inferVideoMimeType({ name, type: rawMime }) ||
+      'video/mp4';
+    if (!name || !uri) return [];
+    if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) return [];
+    return [{ name, uri, mimeType }];
+  });
+}
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback;
@@ -131,6 +173,8 @@ export async function POST(req: NextRequest) {
     let spokenText = '';
     let userText = '';
     let conversationHistoryRaw: unknown = [];
+    let uploadedMediaRaw: unknown = [];
+    let hasMediaAttachmentsFlag = false;
     const mediaFiles: NarrativeMediaInput[] = [];
     let scenario: NarrativeScenario | undefined;
 
@@ -147,6 +191,8 @@ export async function POST(req: NextRequest) {
       spokenText = typeof json.spokenText === 'string' ? json.spokenText : '';
       userText = typeof json.text === 'string' ? json.text : '';
       conversationHistoryRaw = json.conversationHistory ?? [];
+      uploadedMediaRaw = json.uploadedMedia ?? [];
+      hasMediaAttachmentsFlag = Boolean(json.hasMediaAttachments);
       scenario = typeof json.scenario === 'string' ? (json.scenario as NarrativeScenario) : undefined;
       mimeType = typeof json.mimeType === 'string' ? json.mimeType : mimeType;
       if (typeof json.audioBase64 === 'string' && json.audioBase64) {
@@ -162,7 +208,7 @@ export async function POST(req: NextRequest) {
       const rawMediaEntries = formData.getAll('media');
       for (const entry of rawMediaEntries.slice(0, MAX_MEDIA_FILES)) {
         if (entry instanceof File && entry.size > 0) {
-          const entryMime = (entry.type || '').toLowerCase();
+          const entryMime = resolveEntryMimeType(entry);
           if (!entryMime.startsWith('image/') && !entryMime.startsWith('video/')) {
             return NextResponse.json(
               { success: false, error: 'Solo se permiten archivos de imagen o video.' },
@@ -184,6 +230,8 @@ export async function POST(req: NextRequest) {
       existingRampagesRaw = parseJsonField(formData.get('existingRampages'), []);
       existingSuccessStoriesRaw = parseJsonField(formData.get('existingSuccessStories'), []);
       conversationHistoryRaw = parseJsonField(formData.get('conversationHistory'), []);
+      uploadedMediaRaw = parseJsonField(formData.get('uploadedMedia'), []);
+      hasMediaAttachmentsFlag = formData.get('hasMediaAttachments') === 'true';
       sandbox = formData.get('sandbox') === 'true';
       spokenText = (formData.get('spokenText') as string) || '';
       userText = (formData.get('text') as string) || '';
@@ -192,6 +240,8 @@ export async function POST(req: NextRequest) {
         scenario = rawScenario as NarrativeScenario;
       }
     }
+
+    const uploadedMedia = sanitizeUploadedMedia(uploadedMediaRaw);
 
     if (profileIdRaw && !isNarrativeProfileId(profileIdRaw) && profileIdRaw !== 'juntos') {
       return NextResponse.json(
@@ -236,11 +286,14 @@ export async function POST(req: NextRequest) {
           })
       : [];
 
+    const hasValidMedia =
+      mediaFiles.length > 0 || uploadedMedia.length > 0 || hasMediaAttachmentsFlag;
+
     if (isSandbox) {
       const draft = buildSandboxNarrativeDraft({
         scenario: effectiveScenario,
         spokenText: userText || spokenText,
-        hasMediaAttachments: mediaFiles.length > 0,
+        hasMediaAttachments: hasValidMedia,
         currentDraft: currentDraftNormalized,
         existingContext,
         existingAffirmations,
@@ -279,9 +332,9 @@ export async function POST(req: NextRequest) {
 
     const hasValidAudio = audioBuffer.length >= MIN_AUDIO_BYTES;
     const hasValidText = userText.trim().length > 0;
-    const hasValidMedia = mediaFiles.length > 0;
+    const hasLiveMedia = mediaFiles.length > 0 || uploadedMedia.length > 0;
 
-    if (!hasValidAudio && !hasValidText && !hasValidMedia) {
+    if (!hasValidAudio && !hasValidText && !hasLiveMedia) {
       return NextResponse.json(
         {
           success: false,
@@ -298,6 +351,7 @@ export async function POST(req: NextRequest) {
         mimeType,
         userText,
         mediaFiles,
+        uploadedMedia,
         conversationHistory,
         profileId,
         draftId,

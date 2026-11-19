@@ -9,7 +9,11 @@ import {
 } from '@/lib/microphone';
 import { useAppStore } from '@/store';
 import { preparePhoto } from '@/lib/imageProcessing';
-import { prepareVideo } from '@/lib/videoProcessing';
+import {
+  extractVideoFramesFallback,
+  isVideoFile,
+  prepareVideo,
+} from '@/lib/videoProcessing';
 import { buildMediaStorageKey } from '@/lib/manifestationAttachments';
 import { putMedia } from '@/lib/mediaStorage';
 import type { MediaAttachment } from '@/types';
@@ -275,6 +279,11 @@ export function useNarrativeOrganizer({
     const list = Array.from(files);
     if (list.length === 0) return;
 
+    if (phaseRef.current === 'listening') {
+      cleanupAudio();
+      setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
+    }
+
     setIsProcessingAttachment(true);
     setAttachmentError(null);
 
@@ -282,7 +291,12 @@ export function useNarrativeOrganizer({
     const remainingSlots = Math.max(0, 4 - pendingAttachmentsRef.current.length);
     for (const file of list.slice(0, remainingSlots)) {
       try {
-        if (file.type.startsWith('image/')) {
+        const lowerName = (file.name || '').toLowerCase();
+        const isImage =
+          file.type.startsWith('image/') ||
+          /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(lowerName);
+
+        if (isImage) {
           const prepared = await preparePhoto(file);
           const previewUrl = URL.createObjectURL(prepared.blob);
           const attachment: MediaAttachment = {
@@ -302,7 +316,7 @@ export function useNarrativeOrganizer({
             previewUrl,
           });
           latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
-        } else if (file.type.startsWith('video/')) {
+        } else if (isVideoFile(file)) {
           const prepared = await prepareVideo(file);
           const previewUrl = URL.createObjectURL(prepared.blob);
           const attachment: MediaAttachment = {
@@ -339,7 +353,7 @@ export function useNarrativeOrganizer({
       setPendingAttachments(next);
     }
     if (isMountedRef.current) setIsProcessingAttachment(false);
-  }, []);
+  }, [cleanupAudio, setPhaseSafe]);
 
   const removeAttachment = useCallback((id: string) => {
     const target = pendingAttachmentsRef.current.find((a) => a.id === id);
@@ -386,6 +400,58 @@ export function useNarrativeOrganizer({
     return nextDraft;
   }, []);
 
+  const uploadAttachmentDirectlyToGemini = useCallback(
+    async (
+      item: PendingChatAttachment,
+      signal: AbortSignal,
+    ): Promise<{ name: string; uri: string; mimeType: string }> => {
+      const initRes = await fetch('/api/ai/narrative-organizer/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mimeType: item.attachment.mimeType,
+          byteSize: item.blob.size,
+          fileName: item.kind === 'video' ? 'chat_video.mp4' : 'chat_image.jpg',
+        }),
+        signal,
+      });
+      const initJson = await initRes.json().catch(() => null);
+      if (!initRes.ok || !initJson?.success || !initJson?.uploadUrl) {
+        throw new Error(initJson?.error || 'UPLOAD_INIT_FAILED');
+      }
+
+      const uploadRes = await fetch(initJson.uploadUrl as string, {
+        method: 'POST',
+        headers: {
+          'X-Goog-Upload-Offset': '0',
+          'X-Goog-Upload-Command': 'upload, finalize',
+        },
+        body: item.blob,
+        signal,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('DIRECT_UPLOAD_FAILED');
+      }
+
+      const uploadJson = (await uploadRes.json().catch(() => null)) as {
+        file?: { name?: string; uri?: string; mimeType?: string };
+      } | null;
+
+      const fileObj = uploadJson?.file;
+      if (!fileObj?.name || !fileObj?.uri) {
+        throw new Error('DIRECT_UPLOAD_INVALID_RESPONSE');
+      }
+
+      return {
+        name: fileObj.name,
+        uri: fileObj.uri,
+        mimeType: fileObj.mimeType || (initJson.mimeType as string) || item.attachment.mimeType,
+      };
+    },
+    [],
+  );
+
   const submitNarrativePayload = useCallback(
     async (payload: {
       audioBlob?: Blob;
@@ -410,8 +476,13 @@ export function useNarrativeOrganizer({
         if (payload.text) {
           formData.append('text', payload.text);
         }
+
         if (payload.attachments && payload.attachments.length > 0) {
-          payload.attachments.forEach((item, index) => {
+          formData.append('hasMediaAttachments', 'true');
+          const uploadedMediaList: Array<{ name: string; uri: string; mimeType: string }> = [];
+
+          for (let index = 0; index < payload.attachments.length; index++) {
+            const item = payload.attachments[index];
             const ext = item.attachment.mimeType.includes('png')
               ? 'png'
               : item.attachment.mimeType.includes('webp')
@@ -419,9 +490,46 @@ export function useNarrativeOrganizer({
                 : item.kind === 'video'
                   ? 'mp4'
                   : 'jpg';
+
+            if (isSandboxRef.current) {
+              if (item.blob.size <= 1024 * 1024) {
+                formData.append('media', item.blob, `attachment_${index}.${ext}`);
+              }
+              continue;
+            }
+
+            // Videos (or files > 3 MB) are uploaded directly to Gemini Files API so they
+            // never hit Vercel's 4.5 MB function payload limit.
+            if (item.kind === 'video' || item.blob.size > 3 * 1024 * 1024) {
+              try {
+                const uploaded = await uploadAttachmentDirectlyToGemini(item, controller.signal);
+                uploadedMediaList.push(uploaded);
+                continue;
+              } catch (directErr) {
+                if (directErr instanceof DOMException && directErr.name === 'AbortError') {
+                  throw directErr;
+                }
+                // Fallback if direct browser upload to generativelanguage.googleapis.com was blocked:
+                if (item.blob.size <= 3.5 * 1024 * 1024) {
+                  formData.append('media', item.blob, `attachment_${index}.${ext}`);
+                } else if (item.kind === 'video') {
+                  const frames = await extractVideoFramesFallback(item.blob, 4);
+                  frames.forEach((frame, frameIdx) => {
+                    formData.append('media', frame, `video_frame_${index}_${frameIdx}.jpg`);
+                  });
+                }
+                continue;
+              }
+            }
+
             formData.append('media', item.blob, `attachment_${index}.${ext}`);
-          });
+          }
+
+          if (uploadedMediaList.length > 0) {
+            formData.append('uploadedMedia', JSON.stringify(uploadedMediaList));
+          }
         }
+
         formData.append('profileId', profileIdRef.current);
         formData.append('draftId', draftIdRef.current);
         formData.append('existingContext', JSON.stringify(existingContextRef.current));
@@ -435,7 +543,12 @@ export function useNarrativeOrganizer({
           formData.append('existingSuccessStories', JSON.stringify(existingSuccessStoriesRef.current));
         }
         if (draftRef.current) {
-          formData.append('currentDraft', JSON.stringify(draftRef.current));
+          formData.append(
+            'currentDraft',
+            JSON.stringify(draftRef.current, (key, value) =>
+              key === 'thumbDataUrl' ? undefined : value,
+            ),
+          );
         }
         if (messagesRef.current.length > 0) {
           formData.append(
@@ -492,6 +605,16 @@ export function useNarrativeOrganizer({
               id: createDraftId(),
               role: 'user',
               text: nextDraft.userTranscript || 'Nota de voz',
+              attachments:
+                payload.attachments && payload.attachments.length > 0
+                  ? payload.attachments.map((a) => ({
+                      id: a.id,
+                      kind: a.kind,
+                      thumbDataUrl: a.attachment.thumbDataUrl,
+                      mimeType: a.attachment.mimeType,
+                      byteSize: a.attachment.byteSize,
+                    }))
+                  : undefined,
               timestamp: Date.now(),
             },
             {
@@ -525,12 +648,31 @@ export function useNarrativeOrganizer({
         if (abortRef.current === controller) abortRef.current = null;
       }
     },
-    [appendMessages, attachLatestMediaToDraft, setPhaseSafe]
+    [appendMessages, attachLatestMediaToDraft, setPhaseSafe, uploadAttachmentDirectlyToGemini]
   );
 
   const sendAudioToServer = useCallback(
     async (audioBlob: Blob) => {
-      await submitNarrativePayload({ audioBlob, isVoice: true });
+      const attachments = [...pendingAttachmentsRef.current];
+      if (attachments.length > 0) {
+        pendingAttachmentsRef.current = [];
+        if (isMountedRef.current) {
+          setPendingAttachments([]);
+          setAttachmentError(null);
+        }
+      }
+      await submitNarrativePayload({
+        audioBlob,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        isVoice: true,
+      });
+      attachments.forEach((item) => {
+        try {
+          URL.revokeObjectURL(item.previewUrl);
+        } catch {
+          // ignore
+        }
+      });
     },
     [submitNarrativePayload]
   );
