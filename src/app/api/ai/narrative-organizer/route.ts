@@ -368,6 +368,7 @@ export async function POST(req: NextRequest) {
         quotaUsedToday: analysis.quotaUsedToday,
         source: analysis.source,
         warnings: analysis.warnings,
+        activeUploadedMedia: analysis.activeUploadedMedia,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error desconocido';

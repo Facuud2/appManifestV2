@@ -121,9 +121,10 @@ export function cleanSpokenText(spokenText: string, previousTextTail?: string): 
   let cleaned = (spokenText || '').trim();
   if (!cleaned) return '';
 
-  // Remove Spanish fillers (muletillas)
-  cleaned = cleaned.replace(/^(y\s+bueno|bueno|eh+|este|mmm+|o\s+sea|digamos|entonces)[,\s]*/i, '');
-  cleaned = cleaned.replace(/\b(eh+|mmm+|este|o sea|digamos)\b/gi, '');
+  // Remove Spanish fillers (muletillas) without stripping valid demonstratives like "este video"
+  cleaned = cleaned.replace(/^(y\s+bueno|bueno|eh+|mmm+|o\s+sea|digamos|entonces)[,\s]+/i, '');
+  cleaned = cleaned.replace(/\b(eh+|mmm+|o sea|digamos)\b/gi, '');
+  cleaned = cleaned.replace(/\beste(?:\.{2,}|,)\s*/gi, '');
   cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
 
   if (!cleaned) return '';
@@ -148,7 +149,7 @@ export function cleanSpokenText(spokenText: string, previousTextTail?: string): 
 }
 
 /**
- * Transcribe audio using Google GenAI (gemini-3.5-transcript)
+ * Transcribe audio using Google GenAI (gemini-3.5-transcribe)
  */
 export async function transcribeAudioWithGemini(
   audioBuffer: Buffer,
@@ -184,15 +185,22 @@ export async function transcribeAudioWithGemini(
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
+  const rawBaseMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+  const cleanMime =
+    !rawBaseMime
+      ? 'audio/webm'
+      : rawBaseMime === 'audio/m4a' || rawBaseMime === 'audio/x-m4a' || rawBaseMime === 'video/mp4'
+        ? 'audio/mp4'
+        : rawBaseMime;
+  const base64Audio = audioBuffer.toString('base64');
 
   try {
     const response = await ai.interactions.create({
-      model: 'gemini-3.5-transcript',
+      model: 'gemini-3.5-transcribe',
       input: [
         {
           type: 'audio',
-          data: audioBuffer.toString('base64'),
+          data: base64Audio,
           mime_type: cleanMime,
         },
       ],
@@ -209,19 +217,32 @@ export async function transcribeAudioWithGemini(
       totalTokens: 0,
     };
   } catch (primaryError) {
-    // Fallback to gemini-3.5-transcribe if endpoint aliases differ
+    // Fallback to generateContent with gemini-3.5-flash-lite if container/codec isn't accepted by interactions transcribe
     try {
-      const response = await ai.interactions.create({
-        model: 'gemini-3.5-transcribe',
-        input: [
+      const fallbackRes = await ai.models.generateContent({
+        model: 'gemini-3.5-flash-lite',
+        contents: [
           {
-            type: 'audio',
-            data: audioBuffer.toString('base64'),
-            mime_type: cleanMime,
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: cleanMime,
+                  data: base64Audio,
+                },
+              },
+              {
+                text: 'Transcribí literalmente en español lo que dice la persona en este audio. Devolvé únicamente el texto transcrito, bien puntuado, sin comillas ni explicaciones adicionales.',
+              },
+            ],
           },
         ],
+        config: {
+          temperature: 0.1,
+          maxOutputTokens: 2048,
+        },
       });
-      const transcription = response.output_text?.trim();
+      const transcription = fallbackRes.text?.trim();
       if (!transcription) throw primaryError;
 
       await incrementDailyAiUsage(1);
@@ -230,7 +251,7 @@ export async function transcribeAudioWithGemini(
         text: cleanSpokenText(transcription, previousTextTail),
         detectedTone: 'calma, íntima y luminosa',
         source: 'GEMINI_LIVE',
-        totalTokens: 0,
+        totalTokens: fallbackRes.usageMetadata?.totalTokenCount || 0,
       };
     } catch {
       throw primaryError;

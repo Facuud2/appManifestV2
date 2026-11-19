@@ -697,5 +697,130 @@ test('22 · adjuntar un video en el chat permite hablar con la IA y proponer la 
   await expect(page.getByTestId('narrative-confirm')).toBeVisible();
 });
 
+test('23 · micrófono del chat hace speech-to-text en el cuadro de texto junto a un video adjunto sin enviarlo a ciegas', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'manifest_dictation_text',
+      'Quiero vivir este viaje del video con total plenitud'
+    );
+  });
+  await boot(page, '');
+  await openOrganizer(page);
+
+  let organizerCalls = 0;
+  page.on('request', (req) => {
+    if (req.url().includes('/api/ai/narrative-organizer') && req.method() === 'POST') {
+      organizerCalls += 1;
+    }
+  });
+
+  const fileInput = page.getByTestId('narrative-chat-file-input');
+  const minimalMp4Header = Buffer.from(
+    '00000018667479706d703432000000006d70343269736f6d000000086d646174',
+    'hex'
+  );
+  await fileInput.setInputFiles({
+    name: 'viaje-manifestacion.mp4',
+    mimeType: 'video/mp4',
+    buffer: minimalMp4Header,
+  });
+
+  await expect(page.getByTestId('narrative-pending-attachment')).toHaveCount(1);
+
+  const micBtn = page.getByTestId('narrative-chat-mic');
+  const chatInput = page.getByTestId('narrative-chat-input');
+  const sendBtn = page.getByTestId('narrative-chat-send');
+
+  // 1. Iniciar dictado STT hacia el cuadro de texto
+  await micBtn.click();
+  await expect(page.getByTestId('narrative-dictation-status')).toBeVisible();
+  await expect(micBtn).toHaveAttribute('aria-pressed', 'true');
+
+  // 2. Detener dictado: debe transcribir y escribir en el textarea SIN enviar al organizador todavía
+  const transcribePromise = page.waitForResponse(
+    (res) => res.url().includes('/api/ai/transcribe') && res.request().method() === 'POST'
+  );
+  await micBtn.click();
+  const transcribeRes = await transcribePromise;
+  expect(transcribeRes.status()).toBe(200);
+
+  await expect(chatInput).toHaveValue(/Quiero vivir este viaje del video con total plenitud/i);
+  expect(organizerCalls).toBe(0);
+  // El video sigue adjunto y listo para enviarse junto con el texto dictado
+  await expect(page.getByTestId('narrative-pending-attachment')).toHaveCount(1);
+
+  // 3. Ahora sí, enviar el mensaje multimodal (texto dictado + video adjunto)
+  await sendBtn.click();
+  const card = page.getByTestId('narrative-card-manifestation');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Video adjunto');
+  await expect(card).toContainText('viaje del video');
+  await expect(page.getByTestId('narrative-confirm')).toBeVisible();
+});
+
+test('24 · hablar por el orbe conserva y envía las fuentes adjuntas (foto/video) tanto en el primer turno como en turnos siguientes', async ({ page }) => {
+  await boot(page, '');
+  await openOrganizer(page);
+
+  const waitForOrganizerResponse = () =>
+    page.waitForResponse(
+      (res) =>
+        res.url().includes('/api/ai/narrative-organizer') &&
+        !res.url().includes('/commit') &&
+        !res.url().includes('/upload-url') &&
+        res.request().method() === 'POST'
+    );
+
+  // Adjuntar una imagen PNG válida (1x1 px)
+  const pngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const fileInput = page.getByTestId('narrative-chat-file-input');
+  await fileInput.setInputFiles({
+    name: 'foto-fuente.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(pngBase64, 'base64'),
+  });
+  await expect(page.getByTestId('narrative-pending-attachment')).toHaveCount(1);
+
+  // Turno 1: pulsar el Orbe para hablar sobre la foto adjunta y enviar
+  await page.getByRole('button', { name: 'Hablar por micrófono' }).click();
+  await expect(page.getByText(/1 fuente/i)).toBeVisible();
+
+  const turn1Promise = waitForOrganizerResponse();
+  await submitListening(page);
+  const turn1Res = await turn1Promise;
+  expect(turn1Res.status()).toBe(200);
+  const turn1Json = (await turn1Res.json()) as {
+    success: boolean;
+    data: { siriResponse: string };
+  };
+  expect(turn1Json.success).toBe(true);
+  // En modo sandbox sin scenario, esta respuesta SOLO se genera si el servidor recibió hasMediaAttachments=true
+  expect(turn1Json.data.siriResponse).toContain('ya pude ver el contenido que adjuntaste');
+
+  await waitForReview(page);
+
+  const card = page.getByTestId('narrative-card-manifestation');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Foto adjunta');
+
+  // Turno 2 (seguimiento por Orbe sin volver a adjuntar): debe conservar la fuente activa de la sesión
+  await expect(page.getByText(/1 fuente activa/i)).toBeVisible();
+  await page.getByRole('button', { name: 'Corregir el borrador por voz' }).click();
+
+  const turn2Promise = waitForOrganizerResponse();
+  await submitListening(page);
+  const turn2Res = await turn2Promise;
+  expect(turn2Res.status()).toBe(200);
+  const turn2Json = (await turn2Res.json()) as {
+    success: boolean;
+    data: { siriResponse: string };
+  };
+  expect(turn2Json.success).toBe(true);
+  expect(turn2Json.data.siriResponse).toContain('ya pude ver el contenido que adjuntaste');
+
+  await waitForReview(page);
+});
+
 
 

@@ -30,6 +30,7 @@ export interface NarrativeAnalysisResult {
   source: 'GEMINI_LIVE' | 'SANDBOX_MOCK';
   quotaUsedToday: number;
   warnings: string[];
+  activeUploadedMedia?: NarrativeUploadedMediaInput[];
 }
 
 function cleanMimeType(mimeType: string): string {
@@ -315,13 +316,17 @@ export async function analyzeNarrativeWithGemini(options: {
     uploadedMedia.some((m) => m.mimeType.startsWith('video/'));
 
   const promptParts: string[] = [`Perfil activo: ${options.profileId}.`];
-  if (hasAudio) {
-    promptParts.push('Escuchá el audio adjunto y devolvé el JSON del organizador narrativo.');
+  if (hasAudio && totalMediaCount > 0) {
+    promptParts.push(
+      `IMPORTANTE (MODO MULTIMODAL VOZ + ADJUNTOS): El usuario adjuntó ${totalMediaCount} archivo(s) multimedia (foto(s) y/o video(s)) Y ADEMÁS grabó un mensaje de voz por micrófono hablando sobre ellos. Debés: (1) transcribir fielmente la grabación de voz del usuario en "userTranscript", (2) analizar en detalle el contenido visual y sonoro de TODAS las fotos/videos adjuntos, y (3) integrar OBLIGATORIAMENTE la información de las fuentes adjuntas con lo pedido por voz para responder en "siriResponse" y construir "proposedPlan". NUNCA ignores las fotos o videos adjuntos.`
+    );
+  } else if (hasAudio) {
+    promptParts.push('Escuchá la grabación de voz adjunta del usuario y devolvé el JSON del organizador narrativo.');
   }
   if (cleanText) {
     promptParts.push(`Mensaje escrito del usuario:\n${cleanText}`);
   }
-  if (totalMediaCount > 0) {
+  if (totalMediaCount > 0 && !hasAudio) {
     promptParts.push(
       `El usuario adjuntó ${totalMediaCount} archivo(s) multimedia (imagen o video). Analizá con detalle su contenido visual y/o sonoro para comprender el contexto y organizar lo solicitado.`
     );
@@ -343,57 +348,69 @@ export async function analyzeNarrativeWithGemini(options: {
   }
 
   const parts: Array<Record<string, unknown>> = [];
-  const temporaryGeminiFileNames: string[] = [];
+  const activeUploadedMedia: NarrativeUploadedMediaInput[] = [];
+
+  if (totalMediaCount > 0) {
+    parts.push({
+      text: '--- FUENTES MULTIMEDIA ADJUNTAS POR EL USUARIO (FOTOS / VIDEOS PARA ANALIZAR OBLIGATORIAMENTE) ---',
+    });
+
+    for (const uploaded of uploadedMedia) {
+      const active = await waitForGeminiFileActive(
+        ai,
+        uploaded.name,
+        uploaded.uri,
+        uploaded.mimeType,
+      );
+      activeUploadedMedia.push(active);
+      parts.push({
+        fileData: {
+          fileUri: active.uri,
+          mimeType: active.mimeType,
+        },
+      });
+    }
+
+    for (const media of mediaFiles) {
+      const cleanMime = cleanMediaMimeType(media.mimeType);
+      if (cleanMime.startsWith('video/') && media.buffer.length > INLINE_VIDEO_MAX_BYTES) {
+        try {
+          const uploaded = await uploadBufferToGeminiFiles(apiKey, ai, {
+            ...media,
+            mimeType: cleanMime,
+          });
+          activeUploadedMedia.push(uploaded);
+          parts.push({
+            fileData: {
+              fileUri: uploaded.uri,
+              mimeType: uploaded.mimeType,
+            },
+          });
+          continue;
+        } catch (uploadError) {
+          console.warn('[NarrativeOrganizer] Server Files API upload failed, falling back to inlineData:', uploadError);
+        }
+      }
+      parts.push({
+        inlineData: {
+          mimeType: cleanMime,
+          data: media.buffer.toString('base64'),
+        },
+      });
+    }
+  }
 
   if (hasAudio && options.audioBuffer) {
+    parts.push({
+      text:
+        totalMediaCount > 0
+          ? '--- GRABACIÓN DE VOZ DEL USUARIO EN EL MICRÓFONO (INSTRUCCIÓN HABLADA SOBRE LAS FUENTES MULTIMEDIA ANTERIORES) ---'
+          : '--- GRABACIÓN DE VOZ DEL USUARIO EN EL MICRÓFONO ---',
+    });
     parts.push({
       inlineData: {
         mimeType: cleanMimeType(options.mimeType || 'audio/webm'),
         data: options.audioBuffer.toString('base64'),
-      },
-    });
-  }
-
-  for (const uploaded of uploadedMedia) {
-    const active = await waitForGeminiFileActive(
-      ai,
-      uploaded.name,
-      uploaded.uri,
-      uploaded.mimeType,
-    );
-    temporaryGeminiFileNames.push(active.name);
-    parts.push({
-      fileData: {
-        fileUri: active.uri,
-        mimeType: active.mimeType,
-      },
-    });
-  }
-
-  for (const media of mediaFiles) {
-    const cleanMime = cleanMediaMimeType(media.mimeType);
-    if (cleanMime.startsWith('video/') && media.buffer.length > INLINE_VIDEO_MAX_BYTES) {
-      try {
-        const uploaded = await uploadBufferToGeminiFiles(apiKey, ai, {
-          ...media,
-          mimeType: cleanMime,
-        });
-        temporaryGeminiFileNames.push(uploaded.name);
-        parts.push({
-          fileData: {
-            fileUri: uploaded.uri,
-            mimeType: uploaded.mimeType,
-          },
-        });
-        continue;
-      } catch (uploadError) {
-        console.warn('[NarrativeOrganizer] Server Files API upload failed, falling back to inlineData:', uploadError);
-      }
-    }
-    parts.push({
-      inlineData: {
-        mimeType: cleanMime,
-        data: media.buffer.toString('base64'),
       },
     });
   }
@@ -417,26 +434,16 @@ export async function analyzeNarrativeWithGemini(options: {
   let lastError: unknown = null;
 
   try {
+    rawText = await run(PRIMARY_MODEL);
+  } catch (primaryError) {
+    lastError = primaryError;
+    console.warn('[NarrativeOrganizer] Primary model failed, trying fallback:', primaryError);
     try {
-      rawText = await run(PRIMARY_MODEL);
-    } catch (primaryError) {
-      lastError = primaryError;
-      console.warn('[NarrativeOrganizer] Primary model failed, trying fallback:', primaryError);
-      try {
-        rawText = await run(FALLBACK_MODEL);
-      } catch (fallbackError) {
-        lastError = fallbackError;
-        console.warn('[NarrativeOrganizer] Fallback model failed, trying tertiary:', fallbackError);
-        rawText = await run(TERTIARY_MODEL);
-      }
-    }
-  } finally {
-    if (temporaryGeminiFileNames.length > 0) {
-      for (const name of temporaryGeminiFileNames) {
-        void ai.files.delete({ name }).catch(() => {
-          // Best-effort cleanup of temporary Gemini Files API entry
-        });
-      }
+      rawText = await run(FALLBACK_MODEL);
+    } catch (fallbackError) {
+      lastError = fallbackError;
+      console.warn('[NarrativeOrganizer] Fallback model failed, trying tertiary:', fallbackError);
+      rawText = await run(TERTIARY_MODEL);
     }
   }
 
@@ -465,7 +472,13 @@ export async function analyzeNarrativeWithGemini(options: {
         'No pude generar la actualización del rampage en este borrador. Probá pedirmelo de nuevo indicando el nombre exacto del rampage y qué cambios querés hacer.';
     }
     await enrichDraftWithMusic(draft);
-    return { draft, source: 'GEMINI_LIVE', quotaUsedToday, warnings };
+    return {
+      draft,
+      source: 'GEMINI_LIVE',
+      quotaUsedToday,
+      warnings,
+      activeUploadedMedia: activeUploadedMedia.length > 0 ? activeUploadedMedia : undefined,
+    };
   } catch (parseError) {
     console.error('[NarrativeOrganizer] Could not parse model JSON:', parseError);
     throw Object.assign(new Error('NARRATIVE_INVALID_JSON'), {

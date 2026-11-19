@@ -1017,6 +1017,7 @@ export default function HomePage() {
         draft={narrative.draft}
         messages={narrative.messages}
         pendingAttachments={narrative.pendingAttachments}
+        sessionAttachmentsCount={narrative.sessionAttachmentsCount}
         isProcessingAttachment={narrative.isProcessingAttachment}
         attachmentError={narrative.attachmentError}
         error={narrative.error}

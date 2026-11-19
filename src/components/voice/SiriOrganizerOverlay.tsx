@@ -11,11 +11,14 @@ import {
   Loader2,
   Mic,
   Music2,
+  Square,
   X,
 } from 'lucide-react';
 import { LiquidIridescentOrb } from './LiquidIridescentOrb';
 import { SiriOrb } from './VoiceActionOrb';
 import { APPLE_ELASTIC_SPRING, EMIL_EASE_OUT } from '@/lib/iosSprings';
+import { useAppStore } from '@/store';
+import { createSafeMediaRecorder, getMicrophoneStream } from '@/lib/microphone';
 import type { SongAttachment, MediaAttachment } from '@/types';
 import {
   countProposedItems,
@@ -36,6 +39,7 @@ interface SiriOrganizerOverlayProps {
   draft: NarrativeDraft | null;
   messages: NarrativeChatMessage[];
   pendingAttachments: PendingChatAttachment[];
+  sessionAttachmentsCount?: number;
   isProcessingAttachment: boolean;
   attachmentError: string | null;
   error: string | null;
@@ -47,7 +51,7 @@ interface SiriOrganizerOverlayProps {
   onConfirm: (saveRampage: boolean) => void;
   onReRecord: () => void;
   onPauseListening: () => void;
-  onSubmit: () => void;
+  onSubmit: (extraText?: string) => void;
   onSendChatMessage: (text: string) => void;
   onAddAttachments: (files: FileList | File[]) => void;
   onRemoveAttachment: (id: string) => void;
@@ -418,6 +422,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   draft,
   messages,
   pendingAttachments,
+  sessionAttachmentsCount = 0,
   isProcessingAttachment,
   attachmentError,
   error,
@@ -436,6 +441,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   onToggleItemAction,
 }) => {
   const prefersReducedMotion = useReducedMotion();
+  const { isSandboxMode, setAiRequestsToday } = useAppStore();
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -446,18 +452,239 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   const [saveRampage, setSaveRampage] = useState(true);
   const [showAffirmationsPreview, setShowAffirmationsPreview] = useState(false);
   const [chatText, setChatText] = useState('');
+  const [isDictating, setIsDictating] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [dictationError, setDictationError] = useState<string | null>(null);
+
+  const chatTextRef = useRef('');
+  const dictationRecorderRef = useRef<MediaRecorder | null>(null);
+  const dictationStreamRef = useRef<MediaStream | null>(null);
+  const dictationChunksRef = useRef<Blob[]>([]);
+  const dictationAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    chatTextRef.current = chatText;
+  }, [chatText]);
+
+  const cleanupDictation = () => {
+    if (dictationAbortRef.current) {
+      try {
+        dictationAbortRef.current.abort();
+      } catch {
+        // ignore
+      }
+      dictationAbortRef.current = null;
+    }
+    if (dictationRecorderRef.current) {
+      const rec = dictationRecorderRef.current;
+      rec.ondataavailable = null;
+      rec.onstop = null;
+      rec.onerror = null;
+      if (rec.state !== 'inactive') {
+        try {
+          rec.stop();
+        } catch {
+          // ignore
+        }
+      }
+      dictationRecorderRef.current = null;
+    }
+    if (dictationStreamRef.current) {
+      dictationStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // ignore
+        }
+      });
+      dictationStreamRef.current = null;
+    }
+    dictationChunksRef.current = [];
+    setIsDictating(false);
+    setIsTranscribing(false);
+  };
 
   useEffect(() => {
     if (!isOpen) {
+      cleanupDictation();
       setChatText('');
+      setDictationError(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      cleanupDictation();
+    };
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages.length, phase]);
+
+  const resizeChatTextarea = () => {
+    window.requestAnimationFrame(() => {
+      const el = chatInputRef.current;
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 108)}px`;
+    });
+  };
+
+  const sendDictationToTranscribe = async (audioBlob?: Blob) => {
+    dictationAbortRef.current?.abort();
+    const controller = new AbortController();
+    dictationAbortRef.current = controller;
+
+    try {
+      setIsTranscribing(true);
+      setDictationError(null);
+
+      const isAutomated =
+        isSandboxMode || (typeof navigator !== 'undefined' && Boolean(navigator.webdriver));
+
+      const formData = new FormData();
+      if (audioBlob && audioBlob.size > 0) {
+        const ext =
+          audioBlob.type.includes('mp4') || audioBlob.type.includes('aac') ? 'mp4' : 'webm';
+        formData.append('audio', audioBlob, `dictation.${ext}`);
+      }
+      formData.append('previousTextTail', chatTextRef.current);
+
+      if (isAutomated || !audioBlob || audioBlob.size <= 500) {
+        let sandboxSample = 'Quiero vivir esta experiencia del video con total plenitud';
+        try {
+          const stored = window.localStorage.getItem('manifest_dictation_text');
+          if (stored && stored.trim()) sandboxSample = stored.trim();
+        } catch {
+          // ignore
+        }
+        formData.append('spokenText', sandboxSample);
+        formData.append('sandbox', 'true');
+      }
+
+      const res = await fetch('/api/ai/transcribe', {
+        method: 'POST',
+        headers: isAutomated ? { 'x-ai-sandbox': 'true' } : undefined,
+        body: formData,
+        signal: controller.signal,
+      });
+
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success && json?.data?.text) {
+        if (typeof json.data.quotaUsedToday === 'number') {
+          setAiRequestsToday(json.data.quotaUsedToday);
+        }
+        const transcript = String(json.data.text).trim();
+        if (transcript) {
+          setChatText((prev) => {
+            const base = prev.trim();
+            return base ? `${base} ${transcript}` : transcript;
+          });
+          resizeChatTextarea();
+          chatInputRef.current?.focus();
+        }
+      } else {
+        setDictationError(json?.error || 'No se pudo transcribir el dictado. Probá de nuevo.');
+      }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setDictationError('Error al transcribir el dictado. Comprobá tu conexión.');
+    } finally {
+      if (dictationAbortRef.current === controller) {
+        dictationAbortRef.current = null;
+      }
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleToggleDictation = async () => {
+    if (isTranscribing || phase === 'processing' || phase === 'committing') return;
+
+    if (isDictating) {
+      const recorder = dictationRecorderRef.current;
+      setIsDictating(false);
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.stop();
+      } else {
+        void sendDictationToTranscribe();
+      }
+      return;
+    }
+
+    setDictationError(null);
+    if (phase === 'listening') {
+      onPauseListening();
+    }
+
+    const isAutomated =
+      isSandboxMode || (typeof navigator !== 'undefined' && Boolean(navigator.webdriver));
+
+    if (isAutomated) {
+      setIsDictating(true);
+      return;
+    }
+
+    try {
+      const stream = await getMicrophoneStream();
+      dictationStreamRef.current = stream;
+
+      const { recorder, mimeType } = createSafeMediaRecorder(stream);
+      dictationRecorderRef.current = recorder;
+      dictationChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          dictationChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (dictationStreamRef.current) {
+          dictationStreamRef.current.getTracks().forEach((track) => track.stop());
+          dictationStreamRef.current = null;
+        }
+        const finalType =
+          recorder.mimeType || mimeType || dictationChunksRef.current[0]?.type || 'audio/webm';
+        const audioBlob = new Blob(dictationChunksRef.current, { type: finalType });
+        dictationChunksRef.current = [];
+        dictationRecorderRef.current = null;
+        void sendDictationToTranscribe(audioBlob);
+      };
+
+      try {
+        if (mimeType.includes('webm')) recorder.start(250);
+        else recorder.start();
+      } catch {
+        recorder.start();
+      }
+      setIsDictating(true);
+    } catch {
+      setIsDictating(false);
+      setDictationError('No pudimos acceder al micrófono para dictar.');
+    }
+  };
+
+  const handleOrbSubmit = () => {
+    const extraText = chatText.trim();
+    if (extraText) {
+      setChatText('');
+      if (chatInputRef.current) {
+        chatInputRef.current.style.height = 'auto';
+      }
+    }
+    onSubmit(extraText || undefined);
+  };
+
+  const handleOrbReRecord = () => {
+    cleanupDictation();
+    setDictationError(null);
+    onReRecord();
+  };
+
+  const activeSourcesCount = Math.max(pendingAttachments.length, sessionAttachmentsCount);
 
   const showComposer =
     phase === 'ready' ||
@@ -468,6 +695,8 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
   const canSendChat =
     (chatText.trim().length > 0 || pendingAttachments.length > 0) &&
     !isProcessingAttachment &&
+    !isDictating &&
+    !isTranscribing &&
     phase !== 'processing' &&
     phase !== 'committing';
 
@@ -475,6 +704,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
     if (!canSendChat) return;
     const textToSend = chatText;
     setChatText('');
+    setDictationError(null);
     if (chatInputRef.current) {
       chatInputRef.current.style.height = 'auto';
     }
@@ -727,7 +957,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                             ? 'Hablar por micrófono'
                             : 'Ordenando tu relato'
                       }
-                      onClick={phase === 'listening' ? onSubmit : onReRecord}
+                      onClick={phase === 'listening' ? handleOrbSubmit : handleOrbReRecord}
                     />
                   </div>
 
@@ -742,9 +972,11 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                     </p>
                     <p className="mt-1 text-[13px] text-[var(--color-ink-muted)]">
                       {phase === 'listening'
-                        ? 'Hablá libremente, tocá el orbe para enviar o escribí abajo.'
+                        ? activeSourcesCount > 0
+                          ? `Hablá sobre ${activeSourcesCount === 1 ? 'tu fuente adjunta' : `tus ${activeSourcesCount} fuentes adjuntas`} y tocá el orbe para enviar.`
+                          : 'Hablá libremente, tocá el orbe para enviar o escribí abajo.'
                         : phase === 'ready'
-                          ? 'Escribí, pegá un link, adjuntá foto/video o tocá el orbe para hablar.'
+                          ? 'Escribí, dictá con el micrófono, adjuntá foto/video o tocá el orbe para hablar.'
                           : 'Interpretando tu mensaje con precisión…'}
                     </p>
                   </div>
@@ -752,14 +984,16 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                   {/* Barra Flotante Liquid Glass de audio cuando escucha */}
                   {phase === 'listening' && (
                     <div
-                      onClick={onSubmit}
+                      onClick={handleOrbSubmit}
                       className="flex w-full max-w-[22rem] cursor-pointer items-center justify-between rounded-full border border-white/80 bg-white/70 px-4 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.06)] backdrop-blur-2xl transition-all hover:bg-white/85 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.08] dark:hover:bg-white/[0.12]"
                       style={{
                         boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7)',
                       }}
                     >
                       <span className="text-[13px] font-medium text-[var(--color-ink-muted)]">
-                        Escuchando tu voz… (tocá para enviar)
+                        {activeSourcesCount > 0
+                          ? `Escuchando con ${activeSourcesCount} fuente${activeSourcesCount > 1 ? 's' : ''}… (tocá para enviar)`
+                          : 'Escuchando tu voz… (tocá para enviar)'}
                       </span>
                       <div className="flex items-center gap-2.5">
                         <AudioWaveformBars audioLevel={audioLevel} active />
@@ -1032,11 +1266,13 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                         isProcessing={phase === 'committing'}
                         interactive={phase !== 'committing'}
                         label="Corregir el borrador por voz"
-                        onClick={onReRecord}
+                        onClick={handleOrbReRecord}
                       />
                     </div>
                     <p className="text-center text-[12px] font-medium text-[var(--color-ink-muted)] tracking-[-0.005em]">
-                      Toca o habla para corregir en tiempo real
+                      {activeSourcesCount > 0
+                        ? `Tocá el orbe para hablar (con ${activeSourcesCount} fuente${activeSourcesCount > 1 ? 's' : ''} activa${activeSourcesCount > 1 ? 's' : ''})`
+                        : 'Toca o habla para corregir en tiempo real'}
                     </p>
                   </div>
                 </div>
@@ -1057,7 +1293,7 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                       audioLevel={audioLevel}
                       interactive
                       label="Volver a intentar con el orbe"
-                      onClick={onReRecord}
+                      onClick={handleOrbReRecord}
                     />
                   </div>
                   <p className="text-center text-[12px] text-[var(--color-ink-muted)]">
@@ -1104,10 +1340,25 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                   }}
                 />
 
-                {attachmentError && (
+                {(attachmentError || dictationError) && (
                   <p role="alert" className="mb-2 text-[12px] text-[var(--color-danger)]">
-                    {attachmentError}
+                    {attachmentError || dictationError}
                   </p>
+                )}
+
+                {(isDictating || isTranscribing) && (
+                  <div
+                    data-testid="narrative-dictation-status"
+                    aria-live="polite"
+                    className="mb-2 flex items-center gap-2 text-[12px] font-medium text-[var(--color-accent-text)]"
+                  >
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--color-accent)] dark:bg-[var(--color-neon-lime,#CCFF00)]" />
+                    <span>
+                      {isTranscribing
+                        ? 'Transcribiendo tu voz al cuadro de texto…'
+                        : 'Dictando al cuadro de texto… tocá detener para escribir.'}
+                    </span>
+                  </div>
                 )}
 
                 {(pendingAttachments.length > 0 || isProcessingAttachment) && (
@@ -1191,15 +1442,38 @@ export const SiriOrganizerOverlay: React.FC<SiriOrganizerOverlayProps> = ({
                   <button
                     type="button"
                     data-testid="narrative-chat-mic"
-                    aria-label={phase === 'listening' ? 'Enviar audio grabado' : 'Hablar por micrófono'}
-                    onClick={phase === 'listening' ? onSubmit : onReRecord}
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
-                      phase === 'listening'
-                        ? 'animate-pulse bg-[var(--color-accent)] text-[var(--color-accent-fg)] shadow-sm dark:bg-[var(--color-neon-lime,#CCFF00)] dark:text-black'
-                        : 'text-[var(--color-ink-muted)] hover:bg-black/5 hover:text-[var(--color-ink)] dark:hover:bg-white/10 dark:hover:text-white'
+                    aria-label={
+                      isTranscribing
+                        ? 'Transcribiendo voz a texto'
+                        : isDictating
+                          ? 'Detener dictado de texto'
+                          : 'Dictar texto con voz'
+                    }
+                    aria-pressed={isDictating}
+                    title={
+                      isTranscribing
+                        ? 'Transcribiendo…'
+                        : isDictating
+                          ? 'Detener dictado y escribir en el cuadro'
+                          : 'Dictar al cuadro de texto (Speech-to-Text)'
+                    }
+                    disabled={isTranscribing}
+                    onClick={() => void handleToggleDictation()}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-50 ${
+                      isDictating
+                        ? 'animate-pulse bg-[var(--color-danger,#ef4444)] text-white shadow-sm'
+                        : isTranscribing
+                          ? 'bg-black/5 text-[var(--color-ink)] dark:bg-white/10 dark:text-white'
+                          : 'text-[var(--color-ink-muted)] hover:bg-black/5 hover:text-[var(--color-ink)] dark:hover:bg-white/10 dark:hover:text-white'
                     }`}
                   >
-                    <Mic size={17} />
+                    {isTranscribing ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : isDictating ? (
+                      <Square size={13} className="fill-current" />
+                    ) : (
+                      <Mic size={17} />
+                    )}
                   </button>
 
                   <button

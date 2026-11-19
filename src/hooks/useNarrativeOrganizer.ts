@@ -73,6 +73,23 @@ function createDraftId(): string {
   return `draft_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) return null;
+    const mimeMatch = parts[0].match(/data:([^;]+);base64/i);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const binary = atob(parts[1]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
+  } catch {
+    return null;
+  }
+}
+
 function readSandboxScenario(): NarrativeScenario | undefined {
   if (typeof window === 'undefined') return undefined;
   try {
@@ -117,6 +134,7 @@ export function useNarrativeOrganizer({
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
   const [messages, setMessages] = useState<NarrativeChatMessage[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<PendingChatAttachment[]>([]);
+  const [sessionAttachmentsCount, setSessionAttachmentsCount] = useState(0);
   const [isProcessingAttachment, setIsProcessingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
@@ -127,6 +145,11 @@ export function useNarrativeOrganizer({
   const isMountedRef = useRef(true);
   const messagesRef = useRef<NarrativeChatMessage[]>([]);
   const pendingAttachmentsRef = useRef<PendingChatAttachment[]>([]);
+  const sessionAttachmentsRef = useRef<PendingChatAttachment[]>([]);
+  const sessionUploadedMediaRef = useRef<
+    Map<string, { name: string; uri: string; mimeType: string }>
+  >(new Map());
+  const processingAttachmentPromiseRef = useRef<Promise<void> | null>(null);
   const mediaBlobsForCommitRef = useRef<Map<string, Blob>>(new Map());
   const latestMediaAttachmentRef = useRef<{ attachment: MediaAttachment; blob: Blob } | null>(null);
 
@@ -260,8 +283,12 @@ export function useNarrativeOrganizer({
     if (isMountedRef.current) setMessages(next);
   }, []);
 
-  const clearPendingAttachments = useCallback(() => {
-    pendingAttachmentsRef.current.forEach((item) => {
+  const clearSessionAttachments = useCallback(() => {
+    const seen = new Set<string>();
+    const allItems = [...pendingAttachmentsRef.current, ...sessionAttachmentsRef.current];
+    allItems.forEach((item) => {
+      if (seen.has(item.id)) return;
+      seen.add(item.id);
       try {
         URL.revokeObjectURL(item.previewUrl);
       } catch {
@@ -269,8 +296,11 @@ export function useNarrativeOrganizer({
       }
     });
     pendingAttachmentsRef.current = [];
+    sessionAttachmentsRef.current = [];
+    sessionUploadedMediaRef.current.clear();
     if (isMountedRef.current) {
       setPendingAttachments([]);
+      setSessionAttachmentsCount(0);
       setAttachmentError(null);
     }
   }, []);
@@ -284,79 +314,95 @@ export function useNarrativeOrganizer({
       setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
     }
 
-    setIsProcessingAttachment(true);
-    setAttachmentError(null);
+    const run = async () => {
+      setIsProcessingAttachment(true);
+      setAttachmentError(null);
 
-    const added: PendingChatAttachment[] = [];
-    const remainingSlots = Math.max(0, 4 - pendingAttachmentsRef.current.length);
-    for (const file of list.slice(0, remainingSlots)) {
-      try {
-        const lowerName = (file.name || '').toLowerCase();
-        const isImage =
-          file.type.startsWith('image/') ||
-          /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(lowerName);
+      const added: PendingChatAttachment[] = [];
+      const remainingSlots = Math.max(0, 4 - pendingAttachmentsRef.current.length);
+      for (const file of list.slice(0, remainingSlots)) {
+        try {
+          const lowerName = (file.name || '').toLowerCase();
+          const isImage =
+            file.type.startsWith('image/') ||
+            /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(lowerName);
 
-        if (isImage) {
-          const prepared = await preparePhoto(file);
-          const previewUrl = URL.createObjectURL(prepared.blob);
-          const attachment: MediaAttachment = {
-            kind: 'photo',
-            thumbDataUrl: prepared.thumbDataUrl,
-            mimeType: prepared.mimeType,
-            width: prepared.width,
-            height: prepared.height,
-            byteSize: prepared.byteSize,
-            storageKey: 'draft',
-          };
-          added.push({
-            id: createDraftId(),
-            kind: 'photo',
-            attachment,
-            blob: prepared.blob,
-            previewUrl,
-          });
-          latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
-        } else if (isVideoFile(file)) {
-          const prepared = await prepareVideo(file);
-          const previewUrl = URL.createObjectURL(prepared.blob);
-          const attachment: MediaAttachment = {
-            kind: 'video',
-            thumbDataUrl: prepared.thumbDataUrl,
-            mimeType: prepared.mimeType,
-            width: prepared.width,
-            height: prepared.height,
-            durationSeconds: prepared.durationSeconds,
-            byteSize: prepared.byteSize,
-            storageKey: 'draft',
-          };
-          added.push({
-            id: createDraftId(),
-            kind: 'video',
-            attachment,
-            blob: prepared.blob,
-            previewUrl,
-          });
-          latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
-        } else {
-          setAttachmentError('Solo podés adjuntar imágenes o videos.');
+          if (isImage) {
+            const prepared = await preparePhoto(file);
+            const previewUrl = URL.createObjectURL(prepared.blob);
+            const attachment: MediaAttachment = {
+              kind: 'photo',
+              thumbDataUrl: prepared.thumbDataUrl,
+              mimeType: prepared.mimeType,
+              width: prepared.width,
+              height: prepared.height,
+              byteSize: prepared.byteSize,
+              storageKey: 'draft',
+            };
+            added.push({
+              id: createDraftId(),
+              kind: 'photo',
+              attachment,
+              blob: prepared.blob,
+              previewUrl,
+            });
+            latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
+          } else if (isVideoFile(file)) {
+            const prepared = await prepareVideo(file);
+            const previewUrl = URL.createObjectURL(prepared.blob);
+            const attachment: MediaAttachment = {
+              kind: 'video',
+              thumbDataUrl: prepared.thumbDataUrl,
+              mimeType: prepared.mimeType,
+              width: prepared.width,
+              height: prepared.height,
+              durationSeconds: prepared.durationSeconds,
+              byteSize: prepared.byteSize,
+              storageKey: 'draft',
+            };
+            added.push({
+              id: createDraftId(),
+              kind: 'video',
+              attachment,
+              blob: prepared.blob,
+              previewUrl,
+            });
+            latestMediaAttachmentRef.current = { attachment, blob: prepared.blob };
+          } else {
+            setAttachmentError('Solo podés adjuntar imágenes o videos.');
+          }
+        } catch (err) {
+          setAttachmentError(
+            err instanceof Error ? err.message : 'No pudimos procesar el archivo adjunto.'
+          );
         }
-      } catch (err) {
-        setAttachmentError(
-          err instanceof Error ? err.message : 'No pudimos procesar el archivo adjunto.'
-        );
       }
-    }
 
-    if (added.length > 0 && isMountedRef.current) {
-      const next = [...pendingAttachmentsRef.current, ...added];
-      pendingAttachmentsRef.current = next;
-      setPendingAttachments(next);
-    }
-    if (isMountedRef.current) setIsProcessingAttachment(false);
+      if (added.length > 0 && isMountedRef.current) {
+        const nextPending = [...pendingAttachmentsRef.current, ...added];
+        pendingAttachmentsRef.current = nextPending;
+        setPendingAttachments(nextPending);
+
+        const nextSession = [...sessionAttachmentsRef.current, ...added].slice(-4);
+        sessionAttachmentsRef.current = nextSession;
+        setSessionAttachmentsCount(nextSession.length);
+      }
+      if (isMountedRef.current) setIsProcessingAttachment(false);
+    };
+
+    const promise = run().finally(() => {
+      if (processingAttachmentPromiseRef.current === promise) {
+        processingAttachmentPromiseRef.current = null;
+      }
+    });
+    processingAttachmentPromiseRef.current = promise;
+    await promise;
   }, [cleanupAudio, setPhaseSafe]);
 
   const removeAttachment = useCallback((id: string) => {
-    const target = pendingAttachmentsRef.current.find((a) => a.id === id);
+    const target =
+      pendingAttachmentsRef.current.find((a) => a.id === id) ||
+      sessionAttachmentsRef.current.find((a) => a.id === id);
     if (target) {
       try {
         URL.revokeObjectURL(target.previewUrl);
@@ -364,9 +410,21 @@ export function useNarrativeOrganizer({
         // ignore
       }
     }
-    const next = pendingAttachmentsRef.current.filter((a) => a.id !== id);
-    pendingAttachmentsRef.current = next;
-    if (isMountedRef.current) setPendingAttachments(next);
+    const nextPending = pendingAttachmentsRef.current.filter((a) => a.id !== id);
+    pendingAttachmentsRef.current = nextPending;
+    const nextSession = sessionAttachmentsRef.current.filter((a) => a.id !== id);
+    sessionAttachmentsRef.current = nextSession;
+    sessionUploadedMediaRef.current.delete(id);
+    if (nextSession.length === 0) {
+      latestMediaAttachmentRef.current = null;
+    } else {
+      const last = nextSession[nextSession.length - 1];
+      latestMediaAttachmentRef.current = { attachment: last.attachment, blob: last.blob };
+    }
+    if (isMountedRef.current) {
+      setPendingAttachments(nextPending);
+      setSessionAttachmentsCount(nextSession.length);
+    }
   }, []);
 
   const attachLatestMediaToDraft = useCallback((nextDraft: NarrativeDraft): NarrativeDraft => {
@@ -457,6 +515,7 @@ export function useNarrativeOrganizer({
       audioBlob?: Blob;
       text?: string;
       attachments?: PendingChatAttachment[];
+      displayAttachments?: PendingChatAttachment[];
       isVoice?: boolean;
     }) => {
       setPhaseSafe('processing');
@@ -498,11 +557,18 @@ export function useNarrativeOrganizer({
               continue;
             }
 
+            const cachedUploaded = sessionUploadedMediaRef.current.get(item.id);
+            if (cachedUploaded) {
+              uploadedMediaList.push(cachedUploaded);
+              continue;
+            }
+
             // Videos (or files > 3 MB) are uploaded directly to Gemini Files API so they
             // never hit Vercel's 4.5 MB function payload limit.
             if (item.kind === 'video' || item.blob.size > 3 * 1024 * 1024) {
               try {
                 const uploaded = await uploadAttachmentDirectlyToGemini(item, controller.signal);
+                sessionUploadedMediaRef.current.set(item.id, uploaded);
                 uploadedMediaList.push(uploaded);
                 continue;
               } catch (directErr) {
@@ -514,9 +580,16 @@ export function useNarrativeOrganizer({
                   formData.append('media', item.blob, `attachment_${index}.${ext}`);
                 } else if (item.kind === 'video') {
                   const frames = await extractVideoFramesFallback(item.blob, 4);
-                  frames.forEach((frame, frameIdx) => {
-                    formData.append('media', frame, `video_frame_${index}_${frameIdx}.jpg`);
-                  });
+                  if (frames.length > 0) {
+                    frames.forEach((frame, frameIdx) => {
+                      formData.append('media', frame, `video_frame_${index}_${frameIdx}.jpg`);
+                    });
+                  } else if (item.attachment.thumbDataUrl) {
+                    const posterBlob = dataUrlToBlob(item.attachment.thumbDataUrl);
+                    if (posterBlob) {
+                      formData.append('media', posterBlob, `video_poster_${index}.jpg`);
+                    }
+                  }
                 }
                 continue;
               }
@@ -600,14 +673,15 @@ export function useNarrativeOrganizer({
         setErrorKind(null);
 
         if (payload.isVoice) {
+          const shownAttachments = payload.displayAttachments ?? payload.attachments;
           appendMessages(
             {
               id: createDraftId(),
               role: 'user',
-              text: nextDraft.userTranscript || 'Nota de voz',
+              text: nextDraft.userTranscript || payload.text || 'Nota de voz',
               attachments:
-                payload.attachments && payload.attachments.length > 0
-                  ? payload.attachments.map((a) => ({
+                shownAttachments && shownAttachments.length > 0
+                  ? shownAttachments.map((a) => ({
                       id: a.id,
                       kind: a.kind,
                       thumbDataUrl: a.attachment.thumbDataUrl,
@@ -652,26 +726,28 @@ export function useNarrativeOrganizer({
   );
 
   const sendAudioToServer = useCallback(
-    async (audioBlob: Blob) => {
-      const attachments = [...pendingAttachmentsRef.current];
-      if (attachments.length > 0) {
+    async (audioBlob: Blob, extraText?: string) => {
+      if (processingAttachmentPromiseRef.current) {
+        await processingAttachmentPromiseRef.current;
+      }
+      const pending = [...pendingAttachmentsRef.current];
+      if (pending.length > 0) {
         pendingAttachmentsRef.current = [];
         if (isMountedRef.current) {
           setPendingAttachments([]);
           setAttachmentError(null);
         }
       }
+      const effectiveAttachments =
+        pending.length > 0 ? pending : [...sessionAttachmentsRef.current];
+      const trimmedExtra = extraText?.trim() || undefined;
+
       await submitNarrativePayload({
         audioBlob,
-        attachments: attachments.length > 0 ? attachments : undefined,
+        text: trimmedExtra,
+        attachments: effectiveAttachments.length > 0 ? effectiveAttachments : undefined,
+        displayAttachments: pending.length > 0 ? pending : undefined,
         isVoice: true,
-      });
-      attachments.forEach((item) => {
-        try {
-          URL.revokeObjectURL(item.previewUrl);
-        } catch {
-          // ignore
-        }
       });
     },
     [submitNarrativePayload]
@@ -680,9 +756,12 @@ export function useNarrativeOrganizer({
   const sendChatMessage = useCallback(
     async (rawText: string) => {
       if (phaseRef.current === 'processing' || phaseRef.current === 'committing') return;
+      if (processingAttachmentPromiseRef.current) {
+        await processingAttachmentPromiseRef.current;
+      }
       const trimmed = rawText.trim();
-      const attachments = [...pendingAttachmentsRef.current];
-      if (!trimmed && attachments.length === 0) return;
+      const pending = [...pendingAttachmentsRef.current];
+      if (!trimmed && pending.length === 0) return;
 
       cleanupAudio();
       setError(null);
@@ -693,36 +772,34 @@ export function useNarrativeOrganizer({
         role: 'user',
         text:
           trimmed ||
-          (attachments[0]?.kind === 'video' ? 'Video adjunto' : 'Imagen adjunta'),
-        attachments: attachments.map((a) => ({
-          id: a.id,
-          kind: a.kind,
-          thumbDataUrl: a.attachment.thumbDataUrl,
-          mimeType: a.attachment.mimeType,
-          byteSize: a.attachment.byteSize,
-        })),
+          (pending[0]?.kind === 'video' ? 'Video adjunto' : 'Imagen adjunta'),
+        attachments:
+          pending.length > 0
+            ? pending.map((a) => ({
+                id: a.id,
+                kind: a.kind,
+                thumbDataUrl: a.attachment.thumbDataUrl,
+                mimeType: a.attachment.mimeType,
+                byteSize: a.attachment.byteSize,
+              }))
+            : undefined,
         timestamp: Date.now(),
       });
 
-      // Clear pending attachments from composer (blobs remain in attachments array for this request)
+      // Clear pending attachments from composer (blobs remain in sessionAttachmentsRef until close/confirm)
       pendingAttachmentsRef.current = [];
       if (isMountedRef.current) {
         setPendingAttachments([]);
         setAttachmentError(null);
       }
 
+      const effectiveAttachments =
+        pending.length > 0 ? pending : [...sessionAttachmentsRef.current];
+
       await submitNarrativePayload({
         text: trimmed,
-        attachments,
+        attachments: effectiveAttachments.length > 0 ? effectiveAttachments : undefined,
         isVoice: false,
-      });
-
-      attachments.forEach((item) => {
-        try {
-          URL.revokeObjectURL(item.previewUrl);
-        } catch {
-          // ignore
-        }
       });
     },
     [appendMessages, cleanupAudio, submitNarrativePayload]
@@ -734,32 +811,35 @@ export function useNarrativeOrganizer({
     setPhaseSafe(draftRef.current || messagesRef.current.length > 0 ? 'review' : 'ready');
   }, [cleanupAudio, setPhaseSafe]);
 
-  const finishAndSubmit = useCallback(() => {
-    if (Date.now() < ignoreSubmitUntilRef.current) return;
-    if (phaseRef.current === 'processing' || phaseRef.current === 'committing') return;
-    if (abortRef.current) return;
+  const finishAndSubmit = useCallback(
+    (extraText?: string) => {
+      if (Date.now() < ignoreSubmitUntilRef.current) return;
+      if (phaseRef.current === 'processing' || phaseRef.current === 'committing') return;
+      if (abortRef.current) return;
 
-    const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state === 'inactive') {
-      const mime = isSandboxRef.current ? 'audio/webm' : 'audio/webm';
-      const dummy = new Blob([new Uint8Array(256)], { type: mime });
-      void sendAudioToServer(dummy);
-      return;
-    }
+      const recorder = mediaRecorderRef.current;
+      if (!recorder || recorder.state === 'inactive') {
+        const mime = isSandboxRef.current ? 'audio/webm' : 'audio/webm';
+        const dummy = new Blob([new Uint8Array(256)], { type: mime });
+        void sendAudioToServer(dummy, extraText);
+        return;
+      }
 
-    recorder.onstop = () => {
-      const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
-      const blob = new Blob(audioChunksRef.current, { type: mime });
-      void sendAudioToServer(blob);
-    };
+      recorder.onstop = () => {
+        const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mime });
+        void sendAudioToServer(blob, extraText);
+      };
 
-    try {
-      recorder.stop();
-    } catch {
-      const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
-      void sendAudioToServer(new Blob(audioChunksRef.current, { type: mime }));
-    }
-  }, [sendAudioToServer]);
+      try {
+        recorder.stop();
+      } catch {
+        const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
+        void sendAudioToServer(new Blob(audioChunksRef.current, { type: mime }), extraText);
+      }
+    },
+    [sendAudioToServer]
+  );
 
   const startListening = useCallback(async () => {
     if (phaseRef.current === 'processing' || phaseRef.current === 'committing') return;
@@ -879,7 +959,7 @@ export function useNarrativeOrganizer({
     messagesRef.current = [];
     mediaBlobsForCommitRef.current.clear();
     latestMediaAttachmentRef.current = null;
-    clearPendingAttachments();
+    clearSessionAttachments();
     setMessages([]);
     setDraft(null);
     setError(null);
@@ -887,7 +967,7 @@ export function useNarrativeOrganizer({
     isOpenRef.current = true;
     setIsOpen(true);
     void startListening();
-  }, [clearPendingAttachments, startListening]);
+  }, [clearSessionAttachments, startListening]);
 
   const reRecord = useCallback(() => {
     // Keep the current draft: the new audio is a correction over it.
@@ -904,7 +984,7 @@ export function useNarrativeOrganizer({
       messagesRef.current = [];
       mediaBlobsForCommitRef.current.clear();
       latestMediaAttachmentRef.current = null;
-      clearPendingAttachments();
+      clearSessionAttachments();
       if (isMountedRef.current) {
         setDraft(null);
         setMessages([]);
@@ -914,7 +994,7 @@ export function useNarrativeOrganizer({
       setPhaseSafe('idle');
       callbacksRef.current.onClosed?.();
     }, 240);
-  }, [clearPendingAttachments, setPhaseSafe]);
+  }, [clearSessionAttachments, setPhaseSafe]);
 
   const cancelAll = useCallback(() => {
     // Stop the microphone and in-flight request immediately, but keep the
@@ -942,7 +1022,7 @@ export function useNarrativeOrganizer({
       messagesRef.current = [];
       mediaBlobsForCommitRef.current.clear();
       latestMediaAttachmentRef.current = null;
-      clearPendingAttachments();
+      clearSessionAttachments();
       if (isMountedRef.current) {
         setDraft(null);
         setMessages([]);
@@ -952,7 +1032,7 @@ export function useNarrativeOrganizer({
         phaseRef.current = 'idle';
       }
     }, 240);
-  }, [abortInFlight, cleanupAudio, clearPendingAttachments]);
+  }, [abortInFlight, cleanupAudio, clearSessionAttachments]);
 
   const confirm = useCallback(async (saveRampage = true) => {
     const current = draftRef.current;
@@ -1205,6 +1285,7 @@ export function useNarrativeOrganizer({
     draft,
     messages,
     pendingAttachments,
+    sessionAttachmentsCount,
     isProcessingAttachment,
     attachmentError,
     transcript: draft?.userTranscript || '',
